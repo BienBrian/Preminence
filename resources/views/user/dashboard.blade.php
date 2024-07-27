@@ -1,0 +1,78 @@
+@extends('layouts.user')
+
+@section('content')
+<!-- Header -->
+<div class="header bg-gradient-primary pb-8 pt-5 pt-md-8">
+    <div class="container-fluid">
+        <div class="header-body">
+            <!-- Card stats -->
+            <div class="row">
+                <div class="col-xl-4 col-lg-6">
+                    <div class="card card-stats mb-4 mb-xl-0">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col">
+                                    <h5 class="card-title text-uppercase text-muted mb-0">Articles</h5>
+                                    <span class="h2 font-weight-bold mb-0">{{$articles}}</span>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon icon-shape bg-danger text-white rounded-circle shadow">
+                                        <i class="fas fa-comment"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0 text-muted text-sm">
+                                <a href='{{url("users/articles")}}'><span class="text-success mr-2"><i class="fas fa-comment"></i> view</span></a>
+                                <span class="text-nowrap">Contributed by you</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-6">
+                    <div class="card card-stats mb-4 mb-xl-0">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col">
+                                    <h5 class="card-title text-uppercase text-muted mb-0">Prayer Requests</h5>
+                                    <span class="h2 font-weight-bold mb-0">{{$prayers}}</span>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon icon-shape bg-warning text-white rounded-circle shadow">
+                                        <i class="fas fa-hands"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0 text-muted text-sm">
+                                <a href="{{url('users/prayers')}}"><span class="text-danger mr-2"><i class="fas fa-hands"></i> view</span></a>
+                                <span class="text-nowrap">Prayer requests by you</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-lg-6">
+                    <div class="card card-stats mb-4 mb-xl-0">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col">
+                                    <h5 class="card-title text-uppercase text-muted mb-0">Pledges</h5>
+                                    <span class="h2 font-weight-bold mb-0">{{number_format($pledges, 2)}}</span>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon icon-shape bg-info text-white rounded-circle shadow">
+                                        <i class="fas fa-coins"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-3 mb-0 text-muted text-sm">
+                                <a href="{{url('users/pledges')}}"><span class="text-info mr-2"><i class="fas fa-coins"></i> View</span></a>
+                                <span class="text-nowrap">Your Contributions in KSH</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class='container'>
+@endsection

@@ -1,0 +1,22 @@
+.btn-primary{
+    border-color: #f5365c !important;
+    background-color: #f5365c !important;
+}
+.bg-gradient-primary{
+    background: linear-gradient(87deg, #f5365c 0, #f56036 100%) !important;
+}
+.text-primary{
+    color: #f5365c !important;
+}
+.bg-primary{
+    background-color: #f5365c !important
+}
+.btn-outline-primary {
+    color: #f5365c;
+    border-color: #f5365c;
+}
+.btn-outline-primary:hover{
+    background-color: #f5365c;
+    color: #fff;
+    border-color: #f5365c;
+}
