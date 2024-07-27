@@ -526,6 +526,20 @@
                                             <p>Fund Sources</p>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a href="{{ url('dashboard/settings/sms') }}"
+                                            class="nav-link {{ Request::is('dashboard/settings/sms*') ? 'active' : '' }}">
+                                            <i class="fas fa-minus nav-icon"></i>
+                                            <p>SMS Settings</p>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a href="{{ url('dashboard/settings/email') }}"
+                                            class="nav-link {{ Request::is('dashboard/settings/email*') ? 'active' : '' }}">
+                                            <i class="fas fa-minus nav-icon"></i>
+                                            <p>Email Settings</p>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
                         @endif

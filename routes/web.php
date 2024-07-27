@@ -12,6 +12,8 @@ use App\Http\Controllers\Dashboard\PaymentSettings\PaymentSettingsController;
 use App\Http\Controllers\Dashboard\People\PeopleController;
 use App\Http\Controllers\Dashboard\Profile\ProfileController;
 use App\Http\Controllers\Dashboard\Search\SearchController;
+use App\Http\Controllers\Dashboard\Settings\EmailSettingsController;
+use App\Http\Controllers\Dashboard\Settings\SMSSettingsController;
 use App\Http\Controllers\Dashboard\Shop\ShopController;
 use App\Http\Controllers\Dashboard\SMS\SMSController;
 use App\Http\Controllers\Dashboard\Spiritual\PrayersController;
@@ -352,6 +354,12 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('smsexample', function () {
         return view('admin.example');
     });*/
+    //settings
+    Route::get('settings/sms', [SMSSettingsController::class, 'index']);
+    Route::post('settings/sms/add', [SMSSettingsController::class, 'addSmsSettings']);
+
+    Route::get('settings/email', [EmailSettingsController::class, 'index']);
+    Route::post('settings/email/add', [EmailSettingsController::class, 'addEmailSettings']);
 
     //users
     Route::get('users/all', [UsersController::class, 'index']);
@@ -375,14 +383,6 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('payments/settings/upis/add', [PaymentSettingsController::class, 'addUPI']);
 
     //settings
-    Route::get('settings/game_levels', [GameLevelSettingsController::class, 'index']);
-    Route::get('settings/datatable/game_levels', [GameLevelSettingsController::class, 'getGameLevels']);
-    Route::post('settings/game_levels/add', [GameLevelSettingsController::class, 'addGameLevel']);
-
-    Route::get('settings/topup_accounts', [TopupAccountSettingsController::class, 'index']);
-    Route::get('settings/datatable/topup_accounts', [TopupAccountSettingsController::class, 'getTopupAccounts']);
-    Route::post('settings/topup_accounts/add', [TopupAccountSettingsController::class, 'addTopupAccount']);
-
     Route::get('settings/currencies', [CurrencySettingsController::class, 'index']);
     Route::get('settings/datatable/currencies', [CurrencySettingsController::class, 'getCurrencies']);
     Route::post('settings/currencies/add', [CurrencySettingsController::class, 'addCurrency']);
