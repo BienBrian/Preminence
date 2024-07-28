@@ -327,7 +327,7 @@
                 }
             });
             $uploadCrop = $('.preview').croppie({
-                url: '{{ Auth::user()->image != '' ? asset('images/profiles/' . Auth::user()->image) : asset('images/male_avatar.svg') }}',
+                url: '{{ Auth::user()->image != '' ? asset('profile_images/' . Auth::user()->image) : asset('profile_images/default.jpg') }}',
                 enableExif: true,
                 viewport: {
                     width: width - 20,
