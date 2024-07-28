@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Dashboard\Finance;
 
+use App\Http\Controllers\APIs\MpesaAPIController;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Models\Funds;
@@ -387,35 +388,15 @@ class FinancialController extends DashboardController
 
                     $site_settings = $this->site_settings;
                     $appname = $site_settings != null ? "" . $site_settings->name : "CHURCH APP";
-
-                    $number = "254" . substr($user->phone, 1);
+                    $number = $user->phone;
+                    if(strlen($number) < 12){
+                        $number = "254" . substr($user->phone, 1);
+                    }
                     //$message =  "TITHE RECIEVED (KSH ".number_format($request->amount,2).")\n".$request->input( 'note' )." ".$appname;
                     $message = $appname . "\n\nYour tithe of KSH " . number_format($request->amount, 2) . " has been RECIEVED.\n" . $request->input('note') . " \n May God bless You abudantly.";
 
-                    $username = "newhappychurch"; //username for your bulk sms account
-                    $password = "Middle6224"; //password for your bulk sms account
-                    $apiKey = "5efdc9bf6f824"; //apikey for your bulk sms account
-                    $shortcode = "HappyChurch"; //22136 for demo //assigned sender ID
-                    $method = 'sendsms'; // method to invoke{sendsms - to send SMS | balance - to check credit balance}
-
-                    $finalURL = "http://bulkapi.mobitechtechnologies.com/?username=" . urlencode($username) . "&password=" . urlencode($password) . "&apiKey=" . urlencode($apiKey) . "&message=" . urlencode($message) . "&senderID=" . $shortcode . "&msisdn=" . $number . "&method=" . $method;
-
-                    $curl = curl_init();
-                    curl_setopt_array($curl, array(
-                        CURLOPT_URL => $finalURL,
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_ENCODING => "",
-                        CURLOPT_MAXREDIRS => 10,
-                        CURLOPT_TIMEOUT => 30,
-                        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                        CURLOPT_CUSTOMREQUEST => "GET",
-                    )
-                    );
-
-                    $response = curl_exec($curl);
-                    $err = curl_error($curl);
-
-                    curl_close($curl);
+                    $mpesaApiController = new MpesaAPIController;
+                    $mpesaApiController->send($number, $message);
 
                     if ($user != null) {
                         $mid = \DB::table("sms")->insertGetId(["people_id" => 0, "message" => $message, "sent" => \Carbon\Carbon::now()]);

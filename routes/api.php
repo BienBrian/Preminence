@@ -6,7 +6,7 @@ use App\Http\Controllers\APIs\Dashboard\Shares\ShareAPIController;
 use App\Http\Controllers\APIs\MpesaAPIController;
 use Illuminate\Support\Facades\Route;
 
-
+Route::any('test/sms', [MpesaAPIController::class, 'testSMS']);
 Route::post('/access/token', [MpesaAPIController::class, 'generateAccessToken']);
 Route::post('/stk/push',  [MpesaAPIController::class, 'customerMpesaSTKPush']);
 Route::post('stk/confirmation',  [MpesaAPIController::class, 'stkResponse']);

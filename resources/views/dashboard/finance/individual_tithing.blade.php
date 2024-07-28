@@ -97,7 +97,7 @@
                     </button>
                 </div>
                 <div class="modal-body pt-1 pb-0 mb-0">
-                    <form action="{{ url('dashboard/finances/tithes/individual/save') }}" method="post">
+                    <form action="{{ url('dashboard/finances/tithing/individual/save') }}" method="post">
                         @csrf
                         <input type='hidden' name='id' value='0'>
                         <div class='form-group'>

@@ -382,36 +382,29 @@ class SMSController extends DashboardController
     }
 
     public function send($number, $message){
-        $username = "newhappychurch"; //username for your bulk sms account
-        $password = "Middle6224"; //password for your bulk sms account
-        $apiKey = "5efdc9bf6f824"; //apikey for your bulk sms account
-        $shortcode = "HappyChurch"; //"22136" for demo; //assigned sender ID
-        $method = 'sendsms'; // method to invoke{sendsms - to send SMS | balance - to check credit balance}
-
-        $site_settings = $this->site_settings;
-        $appname = $site_settings != null?"".$site_settings->name:"CHURCH APP";
-
-        $finalURL = "http://bulkapi.mobitechtechnologies.com/?username=" . urlencode($username) . "&password=" . urlencode($password) . "&apiKey=" . urlencode($apiKey) . "&message=" . urlencode($message) . "&senderID=".$shortcode."&msisdn=".$number."&method=".$method;
-
         $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => $finalURL,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => "GET",
-        ));
 
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => env('SMS_URL'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_POSTFIELDS => 'apikey='.env('SMS_API_KEY').'&partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/x-www-form-urlencoded'
+            ),
+        )
+        );
+
+        $curl_response = curl_exec($curl);
 
         curl_close($curl);
-        if ($err) {
-            return false;//return "cURL Error #:" . $err;
-        } else {
-            return true; //return $response;
-        }
+        $response = json_decode($curl_response, true);
+        //\Log::info(json_encode($response).'NUMBER: '.$number);
+        return $response;
     }
 }

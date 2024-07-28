@@ -11,9 +11,11 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class MpesaAPIController extends Controller
 {
+    protected $site_settings;
     public function __construct()
     {
         $this->site_settings = \DB::table("settings")->first();
@@ -266,42 +268,18 @@ class MpesaAPIController extends Controller
         echo $curl_response;
     }
 
+    public function testSMS(Request $request){
+        $validator = Validator::make($request->all(), ['phone'=>'digits:12|required', 'message'=>'required|string|max:160|min:1']);
+        if($validator->fails()){
+            return response()->json(['error'=>$validator->messages()], 400);
+        }
+        return $this->send($request->phone, $request->message);
+    }
     public function send($number, $message){
-        /*$username = "newhappychurch"; //username for your bulk sms account
-        $password = "Middle6224"; //password for your bulk sms account
-        $apiKey = "5efdc9bf6f824"; //apikey for your bulk sms account
-        $shortcode = "HappyChurch"; //"22136" for demo; //assigned sender ID
-        $method = 'sendsms'; // method to invoke{sendsms - to send SMS | balance - to check credit balance}
-
-        $site_settings = $this->site_settings;
-        $appname = $site_settings != null?"".$site_settings->name:"CHURCH APP";
-
-        $finalURL = "http://bulkapi.mobitechtechnologies.com/?username=" . urlencode($username) . "&password=" . urlencode($password) . "&apiKey=" . urlencode($apiKey) . "&message=" . urlencode($message) . "&senderID=".$shortcode."&msisdn=".$number."&method=".$method;
-
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => $finalURL,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => "GET",
-        ));
-
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-
-        curl_close($curl);
-        if ($err) {
-            return false;//return "cURL Error #:" . $err;
-        } else {
-            return true; //return $response;
-        }*/
          $curl = curl_init();
 
         curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://sms.tenasms.com/api/services/sendsms',
+            CURLOPT_URL => env('SMS_URL'),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -309,7 +287,7 @@ class MpesaAPIController extends Controller
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'apikey=190004e4d0958537ecb550eaa57eb9af&partnerID=9802&message=' . urlencode($message) . '&shortcode=HappyCRuiru&mobile='.$number,
+            CURLOPT_POSTFIELDS => 'apikey='.env('SMS_API_KEY').'&partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/x-www-form-urlencoded'
             ),

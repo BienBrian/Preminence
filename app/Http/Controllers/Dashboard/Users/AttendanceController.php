@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboard\Users;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Http\Controllers\Dashboard\SMS\SMSController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Yajra\DataTables\DataTables;
@@ -65,12 +66,13 @@ class AttendanceController extends DashboardController
             "lastmonth" => $lastmonth
         ]);
     }
-    public function newAttendance(){
+    public function newAttendance()
+    {
         $groups = \DB::table("attendance_groups")->get();
         $services = \DB::table("orderofservice")->get();
         //return json_encode($services);
 
-        return view("dashboard.events_and_notices.attendance-add", ["groups"=>$groups, "services"=>$services]);
+        return view("dashboard.events_and_notices.attendance-add", ["groups" => $groups, "services" => $services]);
     }
 
     //children attendance
@@ -168,8 +170,8 @@ class AttendanceController extends DashboardController
 
     public function searchChildrenParents(Request $request)
     {
-        return json_encode(\DB::table('users')->select('id', 'firstname', 'lastname','email', 'phone')->where(\DB::Raw('CONCAT(firstname, " ",lastname)'), 'LIKE', '%' . $request->q . '%')
-        ->orWhere('email', 'LIKE', '%' . $request->q. '%')->orWhere('phone', 'LIKE', '%' . $request->q . '%')->orderBy('id', 'DESC')->skip(0)->take(10)->get());
+        return json_encode(\DB::table('users')->select('id', 'firstname', 'lastname', 'email', 'phone')->where(\DB::Raw('CONCAT(firstname, " ",lastname)'), 'LIKE', '%' . $request->q . '%')
+            ->orWhere('email', 'LIKE', '%' . $request->q . '%')->orWhere('phone', 'LIKE', '%' . $request->q . '%')->orderBy('id', 'DESC')->skip(0)->take(10)->get());
     }
 
     public function importChildren(Request $request)
@@ -316,7 +318,8 @@ class AttendanceController extends DashboardController
                 if ($event != null && $child != null) {
                     foreach ($parents as $parent) {
                         $message = 'Dear ' . $parent->firstname . ',\n ' . $child->firstname . ' has been checked in for ' . $event->name;
-                        //$this->send($parent->phone, $message);
+                        $smsController = new SMSController();
+                        $smsController->send($parent->phone, $message);
                     }
                 }
 
@@ -442,7 +445,8 @@ class AttendanceController extends DashboardController
         if (\DB::table("children_attendance")->where("id", $request->id)->update(["timeout" => \Carbon\Carbon::now()])) {
             foreach ($details as $detail) {
                 $message = 'Dear ' . $detail->firstname . ',\n ' . $detail->fname . ' has been checked out for ' . $detail->name;
-                //$this->send($detail->phone, $message);
+                $smsController = new SMSController();
+                $smsController->send($detail->phone, $message);
             }
             return back()->with("success", "Checkout Successful");
         } else {
@@ -609,77 +613,96 @@ class AttendanceController extends DashboardController
     }
 
 
-    public function attendancegroups(){
+    public function attendancegroups()
+    {
         $groups = \DB::table("attendance_groups")->paginate(15);
         return view("dashboard.events_and_notices.attendance_groups")->with("groups", $groups);
     }
 
-    public function addAttendance(Request $request){
+    public function addAttendance(Request $request)
+    {
         $request->validate([
-            "attended_for"=>"required",
-            "specific"=>"required",
-            "attendees"=>"required|min:0",
-            "group_id"=>"required",
-            "date"=>"required",
+            "attended_for" => "required",
+            "specific" => "required",
+            "attendees" => "required|min:0",
+            "group_id" => "required",
+            "date" => "required",
         ]);
 
-        if($request->id >0){
-            if(\DB::table('attendance')->where("id", $request->id)->update(['attendance_group'=>$request->group_id,
-            "attended_for"=>$request->attended_for, "attendance_id"=>$request->specific, "attendance"=>$request->attendees, "day"=>\Carbon\Carbon::parse($request->date)])){
+        if ($request->id > 0) {
+            if (
+                \DB::table('attendance')->where("id", $request->id)->update([
+                    'attendance_group' => $request->group_id,
+                    "attended_for" => $request->attended_for,
+                    "attendance_id" => $request->specific,
+                    "attendance" => $request->attendees,
+                    "day" => \Carbon\Carbon::parse($request->date)
+                ])
+            ) {
                 return back()->with("success", "Attendance group updated!");
-            }else{
+            } else {
                 return back()->with("error", "unable to update");
             }
         } else {
-            if(\DB::table('attendance')->insert(['attendance_group'=>$request->group_id, "attended_for"=>$request->attended_for,
-            "attendance_id"=>$request->specific, "attendance"=>$request->attendees, "day"=>\Carbon\Carbon::parse($request->date)])){
+            if (
+                \DB::table('attendance')->insert([
+                    'attendance_group' => $request->group_id,
+                    "attended_for" => $request->attended_for,
+                    "attendance_id" => $request->specific,
+                    "attendance" => $request->attendees,
+                    "day" => \Carbon\Carbon::parse($request->date)
+                ])
+            ) {
                 return redirect()->to("dashboard/events_and_notices/attendance")->with("success", "Attendance group created!");
-            }else{
+            } else {
                 return back()->with("error", "unable to create");
             }
         }
     }
 
-    public function addAttendanceGroup(Request $request){
+    public function addAttendanceGroup(Request $request)
+    {
         $request->validate([
-            "name"=>"required|unique:attendance_groups",
+            "name" => "required|unique:attendance_groups",
         ]);
 
-        if($request->id >0){
-            if(\DB::table('attendance_groups')->where("id", $request->id)->update(['name'=>$request->name])){
+        if ($request->id > 0) {
+            if (\DB::table('attendance_groups')->where("id", $request->id)->update(['name' => $request->name])) {
                 return back()->with("success", "Attendance group updated!");
-            }else{
+            } else {
                 return back()->with("error", "unable to update");
             }
         } else {
-            if(\DB::table('attendance_groups')->insert(['name'=>$request->name])){
+            if (\DB::table('attendance_groups')->insert(['name' => $request->name])) {
                 return back()->with("success", "Attendance group created!");
-            }else{
+            } else {
                 return back()->with("error", "unable to create");
             }
         }
     }
 
-    public function removeAttendance(Request $request){
-        if(\DB::table("attendance")->where("id", $request->id)->count() > 0){
-            if(\DB::table("attendance")->where("id", $request->id)->delete()){
+    public function removeAttendance(Request $request)
+    {
+        if (\DB::table("attendance")->where("id", $request->id)->count() > 0) {
+            if (\DB::table("attendance")->where("id", $request->id)->delete()) {
                 return back()->with("success", "Attendance removed successfully");
-            }else{
+            } else {
                 return back()->with("error", "Unable to remove attendance");
             }
-        }else{
+        } else {
             return back()->with("error", "Invalid request");
         }
     }
 
-    public function removeAttendanceGroup(Request $request){
-        if(\DB::table("attendance")->where("attendance_group", $request->id)->count() == 0){
-            if(\DB::table("attendance_groups")->where("id", $request->id)->delete()){
+    public function removeAttendanceGroup(Request $request)
+    {
+        if (\DB::table("attendance")->where("attendance_group", $request->id)->count() == 0) {
+            if (\DB::table("attendance_groups")->where("id", $request->id)->delete()) {
                 return back()->with("success", "Attendance Group removed successfully");
-            }else{
+            } else {
                 return back()->with("error", "Unable to remove attendance group");
             }
-        }else{
+        } else {
             return back()->with("error", "Attendance Group already in use");
         }
     }
