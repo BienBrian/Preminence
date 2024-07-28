@@ -208,7 +208,7 @@ class MpesaAPIController extends Controller
 
         $user = \DB::table("contacts")->where("phone", "0".substr($content->MSISDN, 3))->first();
         $gender = "";
-        $message = "Dear, ".$content->FirstName." Thank you for honouring the LORD with your income (Proverbs 3:9). Your support of Ksh. " .number_format(doubleval($content->TransAmount), 2). " through ".strtoupper($content->BillRefNumber). " account will support the ministry in different ways. I wish you and your family a Merry Christmas and a blessed 2024 . \r\n Reverend Hosea. \r\n For Prayers call 0721895977.";
+        $message = "Dear, ".$content->FirstName." Thank you for honouring the LORD with your income (Proverbs 3:9). Your support of Ksh. " .number_format(doubleval($content->TransAmount), 2). " through ".strtoupper($content->BillRefNumber). " account will support the ministry in different ways. Be blessed. \r\n Reverend Hosea. \r\n For Prayers call 0721895977.";
         if($user != null){
             /*$gender = $user->gender == null?"":$user->gender==0?"Bro":"Sis";
             //save funds
