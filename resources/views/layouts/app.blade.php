@@ -11,7 +11,7 @@
     <!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="keywords" content="church, church management, church CRM, church events, church funds, church articles">
-    <meta name="description" content="This is a church management system with both frontend and backend. It helps the church manage members, 
+    <meta name="description" content="This is a church management system with both frontend and backend. It helps the church manage members,
     other people and news from main and branch churches">
 
 
@@ -314,6 +314,5 @@
             }, 4000);
         });
     </script>
-    {!! NoCaptcha::renderJs() !!}
 </body>
 </html>
