@@ -3,20 +3,33 @@
 namespace App\Http\Controllers\Dashboard\Profile;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Dashboard\DashboardController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
-class ProfileController extends Controller
+class ProfileController extends DashboardController
 {
     public function __construct()
     {
-    $this->middleware(['auth', 'verified']);
+        parent::__construct();
     }
     public function index()
     {
+        $profile_images = \DB::table('profiles')->get();
+        foreach($profile_images as $profile){
+            $user = User::find($profile->user_id);
+            if($user != null){
+                $user->image = $profile->name;
+            }else{
+                if (file_exists(public_path('/profile_images/' . $profile->name))) {
+                    unlink(public_path() . '/profile_images/' . $profile->name);
+                }
+                \DB::table('profiles')->where('id', $profile->id)->delete();
+            }
+        }
         $user = User::with(['roles'])->findOrFail(\Auth::user()->id);
         return view('dashboard.profile.profile', ['user' => $user]);
     }
@@ -27,8 +40,6 @@ class ProfileController extends Controller
             'id' => 'required|integer|min:1',
             'firstname' => 'required|string',
             'lastname' => 'required|string',
-            'dob' => 'required|date|before:today',
-            'gender' => 'required|min:1',
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->messages()], 400);
@@ -36,9 +47,7 @@ class ProfileController extends Controller
 
         $user = User::findOrFail($request->id);
         $user->firstname = $request->firstname;
-        $user->dob = $request->dob;
         $user->lastname = $request->lastname;
-        $user->gender_id = $request->gender;
         if ($user->save()) {
             return response()->json(['success' => 'User updated successfully!']);
         } else {
@@ -69,11 +78,11 @@ class ProfileController extends Controller
     }
     public function uploadProfilePicture(Request $request)
     {
-        $folderPath = public_path('images/profiles/');
+        $folderPath = public_path('profile_images/');
         $user = User::findOrFail(Auth::user()->id);
         if ($user->image != null) {
-            if (file_exists(public_path('/images/profiles/' . $user->image))) {
-                unlink(public_path() . '/images/profiles/' . $user->image);
+            if (file_exists(public_path('/profile_images/' . $user->image))) {
+                unlink(public_path() . '/profile_images/' . $user->image);
             }
         }
         $data = $request->image;
@@ -87,6 +96,12 @@ class ProfileController extends Controller
         file_put_contents($path, $data);
         $user->image = $image_name;
         $user->save();
+        $profile = \DB::table('profiles')->where('user_id', $user->id)->first();
+        if($profile != null){
+            \DB::table('profiles')->where('id', $profile->id)->update(["name"=>$image_name]);
+        }else{
+            \DB::table('profiles')->insert(["name"=>$image_name, "user_id"=>$user->id]);
+        }
 
         return response()->json(['success' => 'Image Uploaded Successfully']);
     }

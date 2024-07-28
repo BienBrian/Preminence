@@ -32,12 +32,12 @@
                             <table>
                                 <tr>
                                     <td>
-                                        <img src='{{ Auth::user()->image != '' ? asset('images/profiles/' . Auth::user()->image) : asset('images/male_avatar.svg') }}'
+                                        <img src='{{ Auth::user()->image != '' ? asset('profile_images/' . Auth::user()->image) : asset('profile_images/default.jpg') }}'
                                             class='img-circle' width='100' height='100'>
 
                                     </td>
                                     <td class='p-2'>
-                                        <b>{{ Auth::user()->name }}</b><br>
+                                        <b>{{ Auth::user()->firstname }} {{ Auth::user()->lastname }}</b><br>
                                         <b class='text-muted'>{{ $user->roles[0]->name }}</b><br>
                                         {{ Auth::user()->email }}
                                     </td>
@@ -78,25 +78,17 @@
                                 <div class="tab-pane active pt-4" id="home" role="tabpanel" aria-labelledby="home-tab">
                                     <h5>Personal Information</h5>
                                     <div class='row'>
-                                        <div class='col-sm-6 col-md-4 p-2'>
+                                        <div class='col-sm-6 p-2'>
                                             <b>Full Name:</b><br>
-                                            <b class='text-muted'>{{ Auth::user()->name }}</b>
+                                            <b class='text-muted'>{{ Auth::user()->firstname }} {{ Auth::user()->lastname }}</b>
                                         </div>
-                                        <div class='col-sm-6 col-md-4 p-2'>
-                                            <b>Username:</b><br>
-                                            <b class='text-muted'>{{ $user->username }}</b>
-                                        </div>
-                                        <div class='col-sm-6 col-md-4 p-2'>
+                                        <div class='col-sm-6 p-2'>
                                             <b>Email Address:</b><br>
                                             <b class='text-muted'>{{ Auth::user()->email }}</b>
                                         </div>
-                                        <div class='col-sm-6 col-md-4 p-2'>
+                                        <div class='col-sm-6 p-2'>
                                             <b>Phone Number:</b><br>
                                             <b class='text-muted'>{{ Auth::user()->phone }}</b>
-                                        </div>
-                                        <div class='col-sm-6 col-md-4 p-2'>
-                                            <b>Referrer:</b><br>
-                                            <b class='text-muted'>{{ $user->referrer }}</b>
                                         </div>
                                         <div class='col-sm-6 col-md-4 p-2'>
                                             <b>User Role:</b><br>
@@ -112,14 +104,14 @@
                                         @csrf
                                         <input type='hidden' name='id' value='{{ $user->id }}' />
                                         <div class='col-sm-6 col-md-4 p-2'>
-                                            <b>Full Name:</b><br>
-                                            <input type='text' name='name' class='form-control'
-                                                value='{{ Auth::user()->name }}' placeholder="Full Name" required />
+                                            <b>First Name:</b><br>
+                                            <input type='text' name='firstname' class='form-control'
+                                                value='{{ Auth::user()->firstname }}' placeholder="First Name" required />
                                         </div>
                                         <div class='col-sm-6 col-md-4 p-2'>
-                                            <b>Username:</b><br>
-                                            <input type='text' name='username' class='form-control'
-                                                value='{{ Auth::user()->username }}' placeholder="Username" readonly>
+                                            <b>Last Name:</b><br>
+                                            <input type='text' name='lastname' class='form-control'
+                                                value='{{ Auth::user()->lastname }}' placeholder="Last Name" required>
                                         </div>
                                         <div class='col-sm-6 col-md-4 p-2'>
                                             <b>Email Address:</b><br>
@@ -129,13 +121,8 @@
                                         <div class='col-sm-6 col-md-4 p-2'>
                                             <b>Phone Number:</b><br>
                                             <input type='text' name='phone' class='form-control'
-                                                value='+91{{ intval(Auth::user()->phone) }}' placeholder="Phone Number"
+                                                value='{{ Auth::user()->phone }}' placeholder="Phone Number"
                                                 required readonly>
-                                        </div>
-                                        <div class='col-sm-6 col-md-4 p-2'>
-                                            <b>Referrer:</b><br>
-                                            <input type='text' name='referrer' class='form-control'
-                                                value='{{ $user->referrer }}' placeholder="referrer" required readonly />
                                         </div>
                                         <div class='col-sm-6 col-md-4 p-2'>
                                             <b>User Role:</b><br>

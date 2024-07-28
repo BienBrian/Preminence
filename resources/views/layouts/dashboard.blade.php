@@ -89,7 +89,7 @@
                     <a class="nav-link profile" data-toggle="dropdown" href="#">
                         <div class='user-panel d-flex'>
                             <div class='image'>
-                                <img src='{{ Auth::user()->image != '' ? asset('images/profiles/' . Auth::user()->image) : asset('profile_images/default.jpg') }}'
+                                <img src='{{ Auth::user()->image != '' ? asset('profile_images/' . Auth::user()->image) : asset('profile_images/default.jpg') }}'
                                     class="img-circle"> {{ \Auth::user()->firstname }} {{ \Auth::user()->lastname }}
                             </div>
                         </div>
