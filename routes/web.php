@@ -79,6 +79,9 @@ Route::get('home', function () {
 Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     //home
     Route::get('home', [HomeController::class, 'index'])->name('home');
+    Route::get('/view/{years}', [HomeController::class, 'years']);
+    Route::get('/expenditure/{years}', [HomeController::class, 'expenditure']);
+    Route::get('/view/{years}/{id}', [HomeController::class, 'myfunds']);
     //website settings
     Route::get('website/settings', [WebsiteSettingsController::class, 'index']);
     Route::post('website/settings/add', [WebsiteSettingsController::class, 'addSettings']);
