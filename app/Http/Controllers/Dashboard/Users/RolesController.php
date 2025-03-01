@@ -38,7 +38,7 @@ class RolesController extends DashboardController
                 $query->where('id', $row->id);
             })->count(), 0, ',', '.');
         })->addColumn('action', function ($row) {
-            $actionBtn = '<div style="white-space: nowrap;" class="text-end">' .
+            $actionBtn = '<div style="white-space: nowrap;" class="text-end text-right">' .
                 '<span class="d-none id">' . $row->id . '</span>' .
                 '<span class="d-none name">' . $row->name . '</span>';
             if (auth()->user()->can('Edit Roles') && $row->name != 'Super Admin')

@@ -29,6 +29,12 @@ class UsersController extends DashboardController
     }
     public function index()
     {
+
+        $users = User::doesntHave('roles')->get();
+        $role = Role::where('name', 'User')->first();
+        foreach($users as $user){
+            $user->assignRole($role);
+        }
         return view('dashboard.users.users');
     }
     public function getUsers(Request $request)
@@ -110,17 +116,17 @@ class UsersController extends DashboardController
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->messages()], 400);
         }
-        $statusChanged = false;
-        $approvalChanged = false;
+        //$statusChanged = false;
+        //$approvalChanged = false;
         $user = new User;
         if ($request->id > 0) {
             $user = User::find($request->id);
-            if ($user->status != $request->status) {
+            /*if ($user->status != $request->status) {
                 $statusChanged = true;
             }
             if ($user->approval_status != $request->approval_status) {
                 $approvalChanged = true;
-            }
+            }*/
         } else {
             $user->password = Hash::make('12345');
         }
@@ -152,7 +158,7 @@ class UsersController extends DashboardController
         $departments = DB::table('departments')->orderBy("name", "ASC")->get();
 
         $emergency = DB::table("emergency_contact")->where("user_id", $request->id)->leftJoin("users", "users.id", "emergency_contact.user_id2")->first();
-        $user = DB::table("users")->select("users.id", "users.role", "users.firstname", "users.lastname", "users.email", "contacts.phone", "contacts.gender", "contacts.marital",
+        $user = DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone", "contacts.gender", "contacts.marital",
             "church.communities", "church.departments", "church.joined as yearjoined", "church.gifts", "church.remarks", "church.previous_church", "church.position",
             "contacts.country", "contacts.dob", "contacts.joined", "profiles.name", "families.name as familyname", "families.relationship", "families.image", "families.email as familyemail",
             "families.phone as familyphone", "professions.occupation", "professions.specific", "professions.institution", "professions.from", "professions.to", "education.level", "education.institution as inst",

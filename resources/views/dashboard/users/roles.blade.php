@@ -77,8 +77,9 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="exampleModalLabel"><i class='fas fa-user-lock'></i> <span>New </span> Role
-                    </h5>
-                    <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"></button>
+                    </h5><button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <form method="POST" action="{{ url('dashboard/users/roles/add') }}" class="row">
@@ -89,14 +90,16 @@
                             <input type='text' placeholder="Role name" name="name" class='form-control' autofocus
                                 required />
                         </div>
-                        <div class='alert feedback border d-none'>
-                            <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
+                        <div class="col-sm-12">
+                            <div class='alert feedback border d-none'>
+                                <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
+                            </div>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i
-                            class='fas fa-times'></i> Close</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i class='fas fa-times'></i>
+                        Close</button>
                     <button type="button" class="btn btn-primary btn-sm btnSave"><i class='fas fa-paper-plane'></i> Save
                         changes</button>
                 </div>
@@ -106,7 +109,7 @@
 @endsection
 @push('js')
     <script>
-        $(document).ready(function() {
+        $(document).ready(function () {
             var table = $('.table').DataTable({
                 scrollX: true,
                 fixedColumns: {
@@ -120,52 +123,52 @@
                 },
                 ajax: {
                     url: "{{ url('dashboard/users/datatable/roles') }}",
-                    data: function(d) {
+                    data: function (d) {
                         d.search = $('#search-form input[name=search]').val();
                     }
                 },
                 dom: 'lBtrip', //'lfBtrip'
                 columns: [{
-                        data: 'DT_RowIndex',
-                        name: 'DT_RowIndex',
-                        orderable: false,
-                        searchable: false
-                    },
-                    {
-                        data: 'name',
-                        name: 'name'
-                    },
-                    {
-                        data: 'users',
-                        name: 'users',
-                        orderable: false,
-                        searchable: false
-                    },
-                    {
-                        data: 'created_at',
-                        name: 'created_at'
-                    },
-                    {
-                        data: 'action',
-                        name: 'action',
-                        orderable: false,
-                        searchable: false
-                    },
+                    data: 'DT_RowIndex',
+                    name: 'DT_RowIndex',
+                    orderable: false,
+                    searchable: false
+                },
+                {
+                    data: 'name',
+                    name: 'name'
+                },
+                {
+                    data: 'users',
+                    name: 'users',
+                    orderable: false,
+                    searchable: false
+                },
+                {
+                    data: 'created_at',
+                    name: 'created_at'
+                },
+                {
+                    data: 'action',
+                    name: 'action',
+                    orderable: false,
+                    searchable: false
+                },
                 ]
             });
             var timer = null;
-            $('#search-form input[name=search]').keyup(function() {
+            $('#search-form input[name=search]').keyup(function () {
                 clearTimeout(timer);
-                timer = setTimeout(function() {
+                timer = setTimeout(function () {
                     table.draw();
                 }, 1000)
             });
-            $('.btn-launch-modal').click(function() {
+            $('.btn-launch-modal').click(function () {
                 $('#userModal .modal-title span').text("New ");
                 $('#userModal input[name=id]').val(0);
                 $('#userModal input[name=name]').val("");
             });
-            $('#userModal .btnSave').click(function() {
+            $('#userModal .btnSave').click(function () {
                 var btn = $(this);
                 btn.attr('disabled', 'disabled');
                 $('#userModal .feedback').removeClass('d-none');
@@ -178,7 +181,7 @@
                     url: '{{ url('dashboard/users/roles/add') }}',
                     type: 'POST',
                     data: formData
-                }).done(function(data) {
+                }).done(function (data) {
                     $('#userModal .feedback').addClass('alert-success');
                     $('#userModal .feedback').html("<i class='fas fa-exclamation-circle'></i> " +
                         data.success);
@@ -187,7 +190,7 @@
                         $('#userModal .feedback').addClass('d-none');
                     }, 3000);
                     btn.removeAttr('disabled');
-                }).fail(function(response) {
+                }).fail(function (response) {
                     let data = response.responseJSON;
                     $('#userModal .feedback').addClass('alert-danger');
                     $('#userModal .feedback').html("");
@@ -195,7 +198,7 @@
                         if (data.errors.name) {
                             $('#userModal .feedback').html(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .name + "<br>");
+                                    .name + "<br>");
                         }
                     } else if (data.error) {
                         $('#userModal .feedback').html(
@@ -211,7 +214,7 @@
                     btn.removeAttr('disabled');
                 });
             });
-            $(document).on('click', '.table .btn-edit', function() {
+            $(document).on('click', '.table .btn-edit', function () {
                 $('#userModal .modal-title span').text("Edit ");
                 var row = $(this).closest('tr');
                 var id = row.find('.id').text();

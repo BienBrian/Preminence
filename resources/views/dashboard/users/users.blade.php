@@ -44,16 +44,16 @@
                             <form class='row' id='search-form'>
                                 <input type='hidden' value='1' name='visible'>
                                 <div class="col-sm-4">
-                                        <input type="text" class="form-control mb-1" name="search" placeholder="Search">
+                                    <input type="text" class="form-control mb-1" name="search" placeholder="Search">
                                 </div>
                                 <div class='col-sm-4'>
-                                        <select name="role" class='form-control mb-2' id='search-roles'></select>
+                                    <select name="role" class='form-control mb-2' id='search-roles'></select>
                                 </div>
                                 <div class="col-sm-4">
-                                        <select name="status" class="form-control mb-1">
-                                            <option value='1'>Active</option>
-                                            <option value='0'>In-Active</option>
-                                        </select>
+                                    <select name="status" class="form-control mb-1">
+                                        <option value='1'>Active</option>
+                                        <option value='0'>In-Active</option>
+                                    </select>
                                 </div>
                             </form>
                         </div>
@@ -93,8 +93,9 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="exampleModalLabel"><i class='fas fa-user-plus'></i> <span>New User</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"></button>
+                    </h5><button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                      </button>
                 </div>
                 <div class="modal-body">
                     <form method="POST" action="{{ url('users/add') }}" class="row">
@@ -112,13 +113,11 @@
                         </div>
                         <div class='col-sm-6 form-group'>
                             <label>Email Address</label>
-                            <input type='email' placeholder="Email Address" name="email" class='form-control'
-                                required />
+                            <input type='email' placeholder="Email Address" name="email" class='form-control' required />
                         </div>
                         <div class='col-sm-6 form-group'>
                             <label>Phone Number</label>
-                            <input type='text' placeholder="Phone Number" name="phone" class='form-control'
-                                required />
+                            <input type='text' placeholder="Phone Number" name="phone" class='form-control' required />
                         </div>
                         <div class='col-sm-6 form-group'>
                             <label>Role</label>
@@ -132,14 +131,16 @@
                                 <option value='0'>In-Active</option>
                             </select>
                         </div>
-                        <div class='alert feedback border d-none'>
-                            <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
+                        <div class='col-sm-12'>
+                            <div class='alert feedback border d-none'>
+                                <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
+                            </div>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i
-                            class='fas fa-times'></i> Close</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal"><i class='fas fa-times'></i>
+                        Close</button>
                     <button type="button" class="btn btn-primary btn-sm btnSave"><i class='fas fa-paper-plane'></i> Save
                         changes</button>
                 </div>
@@ -149,9 +150,9 @@
 @endsection
 @push('js')
     <script>
-        $(document).ready(function() {
+        $(document).ready(function () {
             const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            $('.btn-filter').click(function() {
+            $('.btn-filter').click(function () {
                 $('.filter-div').toggleClass('d-none');
             });
             flatpickr("#from_date, #to_date", {
@@ -171,7 +172,7 @@
                 serverSide: true,
                 ajax: {
                     url: "{{ url('dashboard/users/datatable') }}",
-                    data: function(d) {
+                    data: function (d) {
                         d.search = $('#search-form input[name=search]').val();
                         d.role = $('#search-form select[name=role]').val();
                         d.status = $('#search-form select[name=status]').val();
@@ -184,11 +185,11 @@
                 },
 
                 columns: [/*{
-                        data: 'DT_RowIndex',
-                        name: 'DT_RowIndex',
-                        orderable: false,
-                        searchable: false
-                    },*/
+                            data: 'DT_RowIndex',
+                            name: 'DT_RowIndex',
+                            orderable: false,
+                            searchable: false
+                        },*/
                     {
                         data: 'name',
                         name: 'name',
@@ -235,13 +236,13 @@
             });
 
             var timer = null;
-            $('#search-form input[name=search]').keyup(function() {
+            $('#search-form input[name=search]').keyup(function () {
                 clearTimeout(timer);
-                timer = setTimeout(function() {
+                timer = setTimeout(function () {
                     table.draw();
                 }, 1000);
             });
-            $('#search-form select, #from_date, #to_date').change(function() {
+            $('#search-form select, #from_date, #to_date').change(function () {
                 table.draw();
             });
             $('#search-roles').select2({
@@ -253,9 +254,9 @@
                     url: '{{ url('dashboard/search/roles') }}',
                     dataType: 'json',
                     delay: 250,
-                    processResults: function(data) {
+                    processResults: function (data) {
                         return {
-                            results: $.map(data, function(item) {
+                            results: $.map(data, function (item) {
                                 return {
                                     text: item.name,
                                     id: item.id
@@ -278,9 +279,9 @@
                     url: '{{ url('dashboard/search/roles') }}',
                     dataType: 'json',
                     delay: 250,
-                    processResults: function(data) {
+                    processResults: function (data) {
                         return {
-                            results: $.map(data, function(item) {
+                            results: $.map(data, function (item) {
                                 return {
                                     text: item.name,
                                     id: item.id
@@ -292,7 +293,7 @@
                 }
             });
 
-            $('.btn-launch-modal').click(function() {
+            $('.btn-launch-modal').click(function () {
                 $('#userModal .modal-title span').text("New User");
                 $('#userModal input[name=email], #userModal input[name=phone]')
                     .removeAttr('readonly', 'readonly');
@@ -306,7 +307,7 @@
                 $('#roles').empty();
 
             });
-            $('#userModal .btnSave').click(function() {
+            $('#userModal .btnSave').click(function () {
                 var btn = $(this);
                 btn.attr('disabled', 'disabled');
                 $('#userModal .feedback').removeClass('d-none');
@@ -319,7 +320,7 @@
                     url: '{{ url('dashboard/users/add') }}',
                     type: 'POST',
                     data: formData
-                }).done(function(data) {
+                }).done(function (data) {
                     $('#userModal .feedback').addClass('alert-success');
                     $('#userModal .feedback').html("<i class='fas fa-exclamation-circle'></i> " +
                         data.success);
@@ -328,7 +329,7 @@
                         $('#userModal .feedback').addClass('d-none');
                     }, 3000);
                     btn.removeAttr('disabled');
-                }).fail(function(response) {
+                }).fail(function (response) {
                     let data = response.responseJSON;
                     $('#userModal .feedback').addClass('alert-danger');
                     $('#userModal .feedback').html("");
@@ -336,32 +337,32 @@
                         if (data.errors.firstname) {
                             $('#userModal .feedback').html(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .firstname + "<br>");
+                                    .firstname + "<br>");
                         }
                         if (data.errors.lastname) {
                             $('#userModal .feedback').html(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .lastname + "<br>");
+                                    .lastname + "<br>");
                         }
                         if (data.errors.email) {
                             $('#userModal .feedback').append(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .email + "<br>");
+                                    .email + "<br>");
                         }
                         if (data.errors.phone) {
                             $('#userModal .feedback').append(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .phone + "<br>");
+                                    .phone + "<br>");
                         }
                         if (data.errors.role) {
                             $('#userModal .feedback').append(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .role + "<br>");
+                                    .role + "<br>");
                         }
                         if (data.errors.status) {
                             $('#userModal .feedback').append(
                                 "<i class='fas fa-exclamation-circle'></i> " + data.errors
-                                .status + "<br>");
+                                    .status + "<br>");
                         }
                     } else if (data.error) {
                         $('#userModal .feedback').html(
@@ -377,7 +378,7 @@
                     btn.removeAttr('disabled');
                 });
             });
-            $(document).on('click', '.table .btn-edit', function() {
+            $(document).on('click', '.table .btn-edit', function () {
                 $('#roles').empty();
                 $('#userModal .modal-title span').text("Edit User");
                 $('#userModal input[name=email], #userModal input[name=phone]')
