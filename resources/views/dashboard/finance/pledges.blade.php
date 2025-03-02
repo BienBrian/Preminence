@@ -82,8 +82,10 @@
                                         <h5><i class="fas fa-donate"></i> | Pledges</h5>
                                     </div>-->
                                 <div class="col text-right">
-                                    <button class="btn btn-outline-primary btn-sm btn-remind-all" data-toggle="modal"
-                                        data-target="#notifyModal"><i class='fas fa-bell'></i> Remind all</button>
+                                    <button class="btn btn-outline-primary btn-sm" data-toggle="modal"
+                                        data-target="#importPledgesModal"><i class='fas fa-file-excel'></i> Import</button>
+                                        <button class="btn btn-outline-primary btn-sm btn-remind-all" data-toggle="modal"
+                                            data-target="#notifyModal"><i class='fas fa-bell'></i> Remind all</button>
                                     <button class="btn btn-outline-primary btn-sm showpledgeusers"><i
                                             class='fas fa-circle-plus'></i> Add pledges</button>
                                     <a href="{{ url('dashboard/finances/activities/pledges/groups/' . $activity->id) }}"
@@ -368,6 +370,49 @@
                         </div>
                         <div class="form-group text-right">
                             <button type='submit' class="btn btn-primary">Send Email</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Pledges Modal -->
+    <div class="modal fade" id="importPledgesModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel"><i class="fas fa-file-import"></i> Import Pledges</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <form action='{{ url('dashboard/finances/activities/pledges/import') }}' method='post' enctype="multipart/form-data">
+                        <input type='hidden' name='activity_id' value="{{ $activity->id }}"/>
+                        <label>*Upload excel file as the sample below</label>
+                        <img src="{{ asset('images/import_pledge_sample.png') }}" class="img-fluid"/>
+                        @csrf
+                        <div class="form-group">
+                            <label>Pledge Excel File</label>
+                            <div class="form-group">
+                                <input type='file' class="form-control bg-white" name='file'
+                                    placeholder="upload file" />
+                            </div>
+                        </div>
+                        <div class='form-group'>
+                            <label>Message (SMS)</label>
+                            <textarea name="message" rows="4" class="form-control" placeholder="SMS Message" required>Dear ***NAME***  Thank you for honouring the LORD with your finances. Your support of Ksh***AMOUNT*** through TITHE account will support the ministry in great ways.
+                                God loves a cheerful giver II Cor 9:7 May the Lord bless and keep you, be  enriched you in every way . Reverend Hosea. For Prayers call 0721895977.
+                            </textarea>
+
+                        <p class='text-danger small font-weight-bold'>***NAME*** and ***AMOUNT*** should not be
+                            edited.</p>
+                            </div>
+                        <div class="form-group text-right">
+                            <button type='submit' class="btn btn-primary"><i class='fas fa-file-upload'></i> Upload</button>
                         </div>
                     </form>
                 </div>

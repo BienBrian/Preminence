@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Dashboard\Finance;
 use App\Http\Controllers\APIs\MpesaAPIController;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Imports\PledgesImport;
 use App\Models\Funds;
 use App\Models\MissingMpesaPhone;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\DataTables;
 
 class FinancialController extends DashboardController
@@ -784,6 +786,19 @@ class FinancialController extends DashboardController
 
     }
 
+    public function importPledges(Request $request)
+    {
+        //name, number, commited
+        $request->validate([
+            'activity_id'=>'required|exists:activities,id',
+            'message'=>'required|string',
+            'file' => 'required|mimes:xlsx,xls,csv'
+        ]);
+
+        Excel::import(new PledgesImport($request->activity_id, $request->message), $request->file('file'));
+
+        return back()->with('success', 'Pledges file imported successfully!');
+    }
     public function getUsers(Request $request)
     {
         $start = $request->limit == null ? "0" : intval($request->limit);

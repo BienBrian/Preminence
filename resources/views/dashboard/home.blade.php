@@ -263,7 +263,7 @@
                                             <a class='nav-link text-dark' href='{{ url('dashboard/communication/sms') }}'><i
                                                     class='fas fa-link'></i> SMS</a>
                                             <a class='nav-link text-dark'
-                                                href='{{ url('dashboard/communication/scheduled/sms') }}'><i
+                                                href='{{ url('dashboard/communication/schedule/sms') }}'><i
                                                     class='fas fa-link'></i> Scheduled SMS</a>
                                         </div>
                                     </div>

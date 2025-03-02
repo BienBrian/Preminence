@@ -162,6 +162,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('finances/activities/pledges/{id}', [FinancialController::class, 'pledges']);
     Route::post("finances/activities/users/groups/add", [FinancialController::class, "addgroup"]);
     Route::get('ajax/pledge/{id}', [FinancialController::class, 'getPledges']);
+    Route::post('finances/activities/pledges/import', [FinancialController::class, 'importPledges']);
 
     Route::post('finances/activities/pledges/sms', [SMSController::class, 'pledges']); //add pledge and send sms
     Route::post('pledge/edit', [SMSController::class, 'editPledge']);//edit pledge and send sms
