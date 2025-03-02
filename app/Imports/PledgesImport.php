@@ -31,14 +31,18 @@ class PledgesImport implements WithChunkReading, ToCollection
     public function collection(Collection $collection)
     {
         $count = 0;
-        $merchant = "";
         foreach ($collection as $row) {
+            \Log::info($count.".".$row[0]."".$row[1]);
             //\Log::info($count.". ".$row[0].','.$row[1].','.$row[2]." Activity ID".$this->activity_id);
             if (strlen($row[1]) > 0) {
+                \Log::info($count."--".$row[0]."".$row[1]);
                 $phone = "";
                 if (strlen($row[1]) >= 9) {
+                    \Log::info($count."++".$row[0]."".$row[1]);
+                    \Log::info("-------------------------------------------------------------------");
+
                     $phones = explode("/", $row[1]);
-                    if (count($phones) > 1) {
+                    if (count($phones) > 0) {
                         foreach ($phones as $p) {
                             //create user here
                             $phone = '254' . $p;
