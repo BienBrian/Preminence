@@ -36,6 +36,8 @@ class SendPledgesSms extends Command
                 $updatedSMSFinal = str_replace("***AMOUNT***", number_format($sms->pledge->amount,0,0), $updatedSMS);
                 $smsController = new SMSController();
                 $smsController->send($user->phone, $updatedSMSFinal);
+                $sms->status = true;
+                $sms->save();
             }
         }
     }
