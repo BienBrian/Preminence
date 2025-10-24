@@ -1,2 +1,2 @@
 # Preminence
-An integrated church relationship system
+An integrated faith-based organisation members management system
