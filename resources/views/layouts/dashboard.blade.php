@@ -117,6 +117,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                 @endif
 
                 {{-- SMS & Email Credits Chip --}}
+                @can('View Credits')
                 <li class="nav-item d-flex align-items-center" id="credits-chip-wrapper">
                     <a href="#" class="credits-chip" id="credits-chip" title="SMS & Email Credits">
                         <i class="fas fa-comment-sms"></i>
@@ -154,6 +155,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                                     </div>
                                 </div>
 
+                                @can('Buy Credits')
                                 <div class="form-group mb-2">
                                     <label class="small font-weight-bold mb-1">Top Up</label>
                                     <div class="credits-type-toggle" id="credits-type-toggle">
@@ -210,10 +212,14 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                                 <button class="btn btn-primary btn-sm btn-block mt-2" id="credits-next-btn" disabled>
                                     Next <i class="fas fa-arrow-right ml-1"></i>
                                 </button>
+                                @else
+                                <p class="text-muted small mt-2 mb-0"><i class="fas fa-lock mr-1"></i> Contact an administrator to purchase credits.</p>
+                                @endcan
                             </div>
                         </div>
 
                         {{-- Step 2: Coming Soon --}}
+                        @can('Buy Credits')
                         <div id="credits-step-2" style="display:none;">
                             <div class="credits-popover-header">
                                 <span class="font-weight-bold"><i class="fas fa-coins mr-1"></i> Buy Credits</span>
@@ -230,8 +236,10 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                                 </button>
                             </div>
                         </div>
+                        @endcan
                     </div>
                 </li>
+                @endcan
 
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url('dashboard/shop') }}" title="Shop">
@@ -784,13 +792,10 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                 }
             });
 
+            @can('View Credits')
             // ===== Credits Chip Popover =====
             var $chip = $('#credits-chip');
             var $popover = $('#credits-popover');
-            var $paymentMethod = $('#credits-payment-method');
-            var $preview = $('#credits-preview');
-            var $nextBtn = $('#credits-next-btn');
-            var creditType = 'sms'; // 'sms', 'email', or 'both'
 
             $chip.on('click', function(e) {
                 e.preventDefault();
@@ -812,6 +817,12 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                     $popover.removeClass('show');
                 }
             });
+
+            @can('Buy Credits')
+            var $paymentMethod = $('#credits-payment-method');
+            var $preview = $('#credits-preview');
+            var $nextBtn = $('#credits-next-btn');
+            var creditType = 'sms'; // 'sms', 'email', or 'both'
 
             // Credit type toggle
             $('#credits-type-toggle').on('click', '.credits-type-btn', function() {
@@ -892,6 +903,8 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                 $('#credits-step-2').hide();
                 $('#credits-step-1').show();
             });
+            @endcan
+            @endcan
 
             // ===== Login check =====
             setInterval(() => {

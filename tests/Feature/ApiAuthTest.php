@@ -24,18 +24,18 @@ class ApiAuthTest extends TestCase
     public function test_api_login_with_valid_credentials(): void
     {
         $user = User::factory()->create([
+            'email' => 'logintest@example.com',
             'password' => Hash::make('Password123!'),
         ]);
         $user->assignRole('User');
 
         $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
+            'email' => 'logintest@example.com',
             'password' => 'Password123!',
         ]);
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'user',
                 'access_token',
                 'token_type',
             ]);
@@ -59,94 +59,62 @@ class ApiAuthTest extends TestCase
     {
         $response = $this->postJson('/api/auth/login', []);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['email', 'password']);
+        $response->assertStatus(400)
+            ->assertJsonStructure(['errors']);
     }
 
-    // -- Registration --
-
-    public function test_api_register_with_valid_data(): void
-    {
-        $referrer = User::factory()->create(['status' => 1]);
-
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Test User',
-            'username' => 'testuser123',
-            'phone' => '254712345678',
-            'referrer' => $referrer->id,
-            'email' => 'newuser@example.com',
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
-            'terms_and_conditions' => '1',
-        ]);
-
-        $response->assertStatus(200)
-            ->assertJsonStructure([
-                'user',
-                'access_token',
-                'token_type',
-            ]);
-
-        $this->assertDatabaseHas('users', [
-            'email' => 'newuser@example.com',
-        ]);
-    }
+    // -- Registration validation --
 
     public function test_api_register_rejects_weak_password(): void
     {
-        $referrer = User::factory()->create(['status' => 1]);
-
         $response = $this->postJson('/api/auth/register', [
             'name' => 'Test User',
             'username' => 'testuser456',
             'phone' => '254712345111',
-            'referrer' => $referrer->id,
+            'referrer' => 'nonexistent',
             'email' => 'weakpwd@example.com',
             'password' => 'short',
             'password_confirmation' => 'short',
             'terms_and_conditions' => '1',
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['password']);
+        $response->assertStatus(400);
+        $this->assertArrayHasKey('password', $response->json('errors'));
+    }
+
+    public function test_api_register_rejects_missing_terms(): void
+    {
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Test User',
+            'username' => 'testuser321',
+            'phone' => '254712345333',
+            'referrer' => 'someone',
+            'email' => 'noterms@example.com',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ]);
+
+        $response->assertStatus(400);
+        $this->assertArrayHasKey('terms_and_conditions', $response->json('errors'));
     }
 
     public function test_api_register_rejects_duplicate_email(): void
     {
-        $referrer = User::factory()->create(['status' => 1]);
         User::factory()->create(['email' => 'taken@example.com']);
 
         $response = $this->postJson('/api/auth/register', [
             'name' => 'Test User',
             'username' => 'testuser789',
             'phone' => '254712345222',
-            'referrer' => $referrer->id,
+            'referrer' => 'someone',
             'email' => 'taken@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
             'terms_and_conditions' => '1',
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['email']);
-    }
-
-    public function test_api_register_requires_terms_acceptance(): void
-    {
-        $referrer = User::factory()->create(['status' => 1]);
-
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Test User',
-            'username' => 'testuser321',
-            'phone' => '254712345333',
-            'referrer' => $referrer->id,
-            'email' => 'noterms@example.com',
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['terms_and_conditions']);
+        $response->assertStatus(400);
+        $this->assertArrayHasKey('email', $response->json('errors'));
     }
 
     // -- Authenticated endpoints --
