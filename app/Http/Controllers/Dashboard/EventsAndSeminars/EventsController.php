@@ -55,7 +55,7 @@ class EventsController extends DashboardController
             $date = \Carbon\Carbon::parse($request->date)->format('Y-m-d');
             $time = \Carbon\Carbon::parse($request->date)->format('h:i A');
 
-            $update = \DB::table('events')->where('id', '=', $request->id)->update(array('title' => $request->title, 'banner'=>$banner, 'description' => $request->description,
+            $update = \DB::table('events')->where('id', '=', $request->id)->update(array('title' => $request->title, 'banner'=>$banner, 'description' => $this->purify($request->description),
                 "time"=>$time, "location"=>$request->location, "eventdate"=>$date, "cost"=>$request->budget, "entry"=>$request->entry, "theme"=>$request->theme, "eventtype"=>$request->eventtype));
             if($update){
                 return redirect()->back()->with('success', 'Your event has been updated successfully');
@@ -76,7 +76,7 @@ class EventsController extends DashboardController
             $date = \Carbon\Carbon::parse($request->date)->format('Y-m-d');
             $time = \Carbon\Carbon::parse($request->date)->format('h:i A');
 
-            $update = \DB::table('events')->insert(array('title' => $request->title, 'banner'=>$banner, 'description' => $request->description,
+            $update = \DB::table('events')->insert(array('title' => $request->title, 'banner'=>$banner, 'description' => $this->purify($request->description),
             "time"=>$time, "location"=>$request->location, "eventdate"=>$date, "cost"=>$request->budget, "entry"=>$request->entry, "theme"=>$request->theme, "eventtype"=>$request->eventtype));
             if($update){
                 return redirect()->back()->with('success', 'Your event has been saved successfully');

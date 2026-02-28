@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Activities</li>
                     </ol>
                 </div><!-- /.col -->
@@ -77,7 +77,7 @@
                                                     class='btn btn-default btn-sm'>pledges</a>
                                                 <a href="{{ $activity->id }}"
                                                     class='btn btn-primary btn-sm btn-edit-activity'>Edit</a>
-                                                <a href="{{ url('dashboard/finances/activities/remove/' . $activity->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/finances/activities/remove/' . $activity->id) }}', 'Delete this activity?')"
                                                     class='btn btn-danger btn-sm'>Delete</a>
                                             </td>
                                         </tr>

@@ -10,8 +10,8 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
-                        <li class="breadcrumb-item"><a href="{{ url('users/roles') }}">Roles</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/users/roles') }}">Roles</a></li>
                         <li class="breadcrumb-item active">View</li>
                     </ol>
                 </div><!-- /.col -->
@@ -33,14 +33,16 @@
                         <h5><i class='fas fa-user-lock'></i> Permissions</h5>
                     </div>
                     <div class='card-body'>
-                        <div class="form-group form-check">
-                            <input type="checkbox" name='permissions[]' class="form-check-input" id="checkAll">
-                            <label class="form-check-label" for="checkAll">Check All</label>
-                        </div>
-                        <hr>
                         <form method='POST' action="{{ url('dashboard/users/roles/permissions/add') }}" class='row' id='permissions-form'>
                             @csrf
                             <input type='hidden' name='id' value='{{ $role->id }}'>
+                            <div class="col-12 mb-2">
+                                <div class="form-group form-check">
+                                    <input type="checkbox" class="form-check-input" id="checkAll">
+                                    <label class="form-check-label" for="checkAll">Check All</label>
+                                </div>
+                                <hr>
+                            </div>
                             @foreach ($permissions as $permission)
                                 <div class='col-6 col-sm-4 col-md-3 col-lg-2'>
                                     <div class="form-group form-check">
@@ -53,9 +55,9 @@
                                 <div class='alert feedback border d-none text-left'>
                                     <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
                                 </div>
-                                @can('Edit Roles')
-                                    <button class='btn btn-primary btn-sm' {{ $role->name == "Super Admin" ?"disabled":""}}><i class='fas fa-paper-plane'></i> Save Permissions</button>
-                                @endcan
+                                @if(auth()->user()->hasRole('Super Admin') || auth()->user()->can('Edit Roles'))
+                                    <button class='btn btn-primary btn-sm'><i class='fas fa-paper-plane'></i> Save Permissions</button>
+                                @endif
                             </div>
                         </form>
                     </div>
@@ -75,7 +77,7 @@
 <script>
     $(document).ready(function () {
         $('#checkAll').change(function(){
-            $("input:checkbox").prop('checked', $(this).prop("checked"));
+            $('#permissions-form input[name="permissions[]"]').prop('checked', $(this).prop("checked"));
         });
         $('#permissions-form').submit(function (e) {
             e.preventDefault();

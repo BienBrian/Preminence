@@ -11,7 +11,7 @@
                 <div class="col-sm-6 text-right">
 
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Payment Settings</li>
                     </ol>
 
@@ -74,7 +74,7 @@
                                                     data-toggle='tooltip' data-placement='bottom' title='edit'>
                                                     <i class='fas fa-edit'></i>
                                                 </a>
-                                                <a href="{{ url('dashboard/settings/funds/sources/remove/' . $fund->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/settings/funds/sources/remove/' . $fund->id) }}', 'Delete this fund source?')"
                                                     class="btn btn-danger p-1 pr-2 pl-2" data-toggle='tooltip'
                                                     data-placement='bottom' title='delete'>
                                                     <i class='fas fa-trash-alt'></i>
@@ -135,7 +135,7 @@
                                                     title='edit'>
                                                     <i class='fas fa-edit'></i>
                                                 </a>
-                                                <a href="{{ url('dashboard/settings/funds/mode/remove/' . $payment->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/settings/funds/mode/remove/' . $payment->id) }}', 'Delete this payment mode?')"
                                                     class="btn btn-danger p-1 pr-2 pl-2" title='delete'>
                                                     <i class='fas fa-trash-alt'></i>
                                                 </a>

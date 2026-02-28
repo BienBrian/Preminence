@@ -39,10 +39,18 @@ class IndexController extends Controller
     }
     public function people()
     {
-        $pastors = \DB::table("pastors")->select("users.firstname", "users.lastname", "profiles.name as image")->where("pastors.status", 0)->join("users", "users.id", "pastors.user_id")->leftJoin("profiles", "profiles.user_id", "pastors.user_id")->get();
-        $senior = \DB::table("pastors")->where("pastors.status", 1)->select("users.firstname", "users.lastname", "profiles.name as image")->join("users", "users.id", "pastors.user_id")->leftJoin("profiles", "profiles.user_id", "pastors.user_id")->first();
-        $communities = \DB::table("people")->where("user_group", 1)->orderBy("id", "desc")->offset(0)->limit(6)->get();
-        $departments = \DB::table("people")->where("user_group", 2)->orderBy("id", "desc")->offset(0)->limit(6)->get();
+        $pastors = \DB::table("pastors")->select("users.firstname", "users.lastname", "profiles.name as image", "pastors.title")->where("pastors.title", "!=", "Senior Pastor")->join("users", "users.id", "pastors.user_id")->leftJoin("profiles", "profiles.user_id", "pastors.user_id")->get();
+        $senior = \DB::table("pastors")->where("pastors.title", "Senior Pastor")->select("users.firstname", "users.lastname", "profiles.name as image", "pastors.title")->join("users", "users.id", "pastors.user_id")->leftJoin("profiles", "profiles.user_id", "pastors.user_id")->first();
+        $communities = \DB::table("people")->where("user_group", 1)
+            ->select("people.*", "users.firstname as leader_firstname", "users.lastname as leader_lastname",
+                \DB::raw("(SELECT COUNT(*) FROM people_members WHERE people_members.people_id = people.id) as member_count"))
+            ->leftJoin("users", "users.id", "=", "people.leader")
+            ->orderBy("people.id", "desc")->offset(0)->limit(6)->get();
+        $departments = \DB::table("people")->where("user_group", 2)
+            ->select("people.*", "users.firstname as leader_firstname", "users.lastname as leader_lastname",
+                \DB::raw("(SELECT COUNT(*) FROM people_members WHERE people_members.people_id = people.id) as member_count"))
+            ->leftJoin("users", "users.id", "=", "people.leader")
+            ->orderBy("people.id", "desc")->offset(0)->limit(6)->get();
         $articles = \DB::table("articles")->orderBy("id", "desc")->where("status", 1)->offset(0)->limit(3)->get();
         $sermons = \DB::table("sermons")->orderBy("id", "desc")->offset(0)->limit(3)->get();
         $testimonials = \DB::table("testimonials")->where("testimonials.status", 1)->select("testimonials.testimonial", "users.firstname", "users.lastname", "profiles.name as image")->join("users", "users.id", "testimonials.user_id")->leftJoin("profiles", "profiles.user_id", "testimonials.user_id")->orderBy("testimonials.id", "desc")->offset(0)->limit(4)->get();
@@ -89,19 +97,70 @@ class IndexController extends Controller
     }
     public function gallery()
     {
-        $galleries = Gallery::orderBy("id", "desc")->paginate(6);
+        $categories = \DB::table("profile_categories")->orderBy("name")->get();
+        $galleries = Gallery::orderBy("id", "desc")->paginate(18);
         $articles = \DB::table("articles")->where("status", 1)->orderBy("id", "desc")->offset(0)->limit(3)->get();
         $testimonials = \DB::table("testimonials")->where("testimonials.status", 1)->select("testimonials.testimonial", "users.firstname", "users.lastname", "profiles.name as image")->join("users", "users.id", "testimonials.user_id")->leftJoin("profiles", "profiles.user_id", "testimonials.user_id")->orderBy("testimonials.id", "desc")->offset(0)->limit(4)->get();
         $sermons = \DB::table("sermons")->orderBy("id", "desc")->paginate(6);
 
-        return view("gallery")->with("galleries",  $galleries)->with("sermons", $sermons)->with("articles", $articles)->with("testimonials", $testimonials);
+        return view("gallery")->with("galleries",  $galleries)->with("sermons", $sermons)->with("articles", $articles)->with("testimonials", $testimonials)->with("categories", $categories);
     }
     public function articles()
     {
-        $articles = \DB::table("articles")->where("status", 1)->orderBy("id", "desc")->paginate(6);
-        $testimonials = \DB::table("testimonials")->where("testimonials.status", 1)->select("testimonials.testimonial", "users.firstname", "users.lastname", "profiles.name as image")->join("users", "users.id", "testimonials.user_id")->leftJoin("profiles", "profiles.user_id", "testimonials.user_id")->orderBy("testimonials.id", "desc")->offset(0)->limit(4)->get();
+        $categories = \DB::table('article_categories')->orderBy('sort_order')->get();
 
-        return view("articles")->with("articles", $articles)->with("testimonials", $testimonials);
+        $featured = \DB::table("articles")
+            ->join("users", "users.id", "=", "articles.user_id")
+            ->leftJoin("article_categories", "article_categories.id", "=", "articles.category_id")
+            ->leftJoin("profiles", "profiles.user_id", "=", "articles.user_id")
+            ->select("articles.*", "users.firstname", "users.lastname", "users.image as user_image",
+                "article_categories.name as category_name", "article_categories.color as category_color",
+                "article_categories.slug as category_slug", "profiles.name as avatar")
+            ->where("articles.status", 1)
+            ->where("articles.is_featured", 1)
+            ->orderBy("articles.id", "desc")
+            ->first();
+
+        $articlesQuery = \DB::table("articles")
+            ->join("users", "users.id", "=", "articles.user_id")
+            ->leftJoin("article_categories", "article_categories.id", "=", "articles.category_id")
+            ->leftJoin("profiles", "profiles.user_id", "=", "articles.user_id")
+            ->select("articles.*", "users.firstname", "users.lastname", "users.image as user_image",
+                "article_categories.name as category_name", "article_categories.color as category_color",
+                "article_categories.slug as category_slug", "profiles.name as avatar")
+            ->where("articles.status", 1);
+
+        if ($featured) {
+            $articlesQuery->where("articles.id", "<>", $featured->id);
+        }
+
+        $articles = $articlesQuery->orderBy("articles.id", "desc")->paginate(9);
+
+        return view("articles", compact('articles', 'featured', 'categories'));
+    }
+
+    public function articlesByCategory($slug)
+    {
+        $category = \DB::table('article_categories')->where('slug', $slug)->first();
+        if (!$category) {
+            return redirect()->to('/our_articles')->with('error', 'Category not found');
+        }
+
+        $categories = \DB::table('article_categories')->orderBy('sort_order')->get();
+
+        $articles = \DB::table("articles")
+            ->join("users", "users.id", "=", "articles.user_id")
+            ->leftJoin("article_categories", "article_categories.id", "=", "articles.category_id")
+            ->leftJoin("profiles", "profiles.user_id", "=", "articles.user_id")
+            ->select("articles.*", "users.firstname", "users.lastname", "users.image as user_image",
+                "article_categories.name as category_name", "article_categories.color as category_color",
+                "article_categories.slug as category_slug", "profiles.name as avatar")
+            ->where("articles.status", 1)
+            ->where("articles.category_id", $category->id)
+            ->orderBy("articles.id", "desc")
+            ->paginate(9);
+
+        return view("articles", compact('articles', 'categories', 'category'))->with('featured', null);
     }
     public function shop()
     {
@@ -128,11 +187,39 @@ class IndexController extends Controller
 
     public function article(Request $request)
     {
-        $article = \DB::table("articles")->where("id", $request->id)->first();
+        $article = \DB::table("articles")
+            ->join("users", "users.id", "=", "articles.user_id")
+            ->leftJoin("article_categories", "article_categories.id", "=", "articles.category_id")
+            ->leftJoin("profiles", "profiles.user_id", "=", "articles.user_id")
+            ->select("articles.*", "users.firstname", "users.lastname", "users.image as user_image",
+                "article_categories.name as category_name", "article_categories.color as category_color",
+                "article_categories.slug as category_slug", "profiles.name as avatar")
+            ->where("articles.id", $request->id)->first();
         if($article == null){
-            return redirect()->to("/");
+            return redirect()->to("/our_articles");
         }
-        return view("article")->with("article",  $article);
+
+        // Increment views
+        \DB::table("articles")->where("id", $request->id)->increment("views");
+
+        // Load tags
+        $tags = \DB::table("article_tags")->where("article_id", $request->id)->pluck("tag");
+
+        // Related articles: prefer same category, then latest
+        $related = \DB::table("articles")
+            ->join("users", "users.id", "=", "articles.user_id")
+            ->leftJoin("article_categories", "article_categories.id", "=", "articles.category_id")
+            ->leftJoin("profiles", "profiles.user_id", "=", "articles.user_id")
+            ->select("articles.*", "users.firstname", "users.lastname", "users.image as user_image",
+                "article_categories.name as category_name", "article_categories.color as category_color",
+                "article_categories.slug as category_slug", "profiles.name as avatar")
+            ->where("articles.status", 1)
+            ->where("articles.id", "<>", $request->id)
+            ->orderByRaw("CASE WHEN articles.category_id = ? THEN 0 ELSE 1 END", [$article->category_id ?? 0])
+            ->orderBy("articles.id", "desc")
+            ->limit(3)->get();
+
+        return view("article", compact('article', 'related', 'tags'));
     }
 
     public function sermon(Request $request)
@@ -183,7 +270,7 @@ class IndexController extends Controller
             "dob"=>"required",
             "fname"=>"required",
             "lname"=>"required",
-            "email"=>"required|unique:users",
+            "email"=>"nullable|email|unique:users",
             "phone"=>"required|numeric|min:9",
             "country"=>"required",
             "city"=>"required",
@@ -198,7 +285,8 @@ class IndexController extends Controller
         $user->email = $request->email;
         $user->status = 1;
         $user->role = 0;
-        $user->password = \Hash::make("12345");
+        $user->password = \Hash::make(\Str::random(16));
+        $user->must_change_password = true;
 
         $event_id = 0;
         if($request->registration > 0){
@@ -222,7 +310,7 @@ class IndexController extends Controller
                 if(\DB::table("contacts")->insert(["user_id"=>$user->id, "phone"=>$request->phone, "city"=>$request->city,
                 "country"=>$request->country, "gender"=>$request->gender, "dob"=>$request->dob])){
                     \Auth::login($user);
-                    return redirect()->to("home")->with("success", "You have successfully created an seminar/event. Your password is <strong>12345</strong>");
+                    return redirect()->to("home")->with("success", "Registration successful! Please set your password on the next screen.");
                 }else{
                     \DB::table("registration")->where("user_id", $user->id)->delete();
                     \DB::table("contacts")->where("user_id", $user->id)->delete();

@@ -173,12 +173,12 @@
           <footer class="footer">
             @if (\Session::has('success'))
                 <div class="notifications bg-success shadow">
-                    <p class='text-white text-center'><i class='fas fa-check-circle'></i> {!! \Session::get('success') !!}</p>
+                    <p class='text-white text-center'><i class='fas fa-check-circle'></i> {{ \Session::get('success') }}</p>
                 </div>
             @endif
             @if (\Session::has('error'))
                 <div class="notifications bg-danger shadow">
-                    <p class='text-white text-center'><i class='fas fa-exclamation-circle'></i> {!! \Session::get('error') !!}</p>
+                    <p class='text-white text-center'><i class='fas fa-exclamation-circle'></i> {{ \Session::get('error') }}</p>
                 </div>
             @endif
             @if (count($errors) > 0)

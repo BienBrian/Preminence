@@ -8,6 +8,7 @@ use App\Http\Controllers\Dashboard\DashboardController;
 use App\Imports\PledgesImport;
 use App\Models\Funds;
 use App\Models\MissingMpesaPhone;
+use App\Models\MpesaPhone;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -401,7 +402,7 @@ class FinancialController extends DashboardController
                     $mpesaApiController->send($number, $message);
 
                     if ($user != null) {
-                        $mid = \DB::table("sms")->insertGetId(["people_id" => 0, "message" => $message, "sent" => \Carbon\Carbon::now()]);
+                        $mid = \DB::table("sms")->insertGetId(["people_id" => 0, "message" => $message, "category" => "mpesa", "sent" => \Carbon\Carbon::now()]);
                         \DB::table('sms_recipients')->insert(["recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
                     }
                 }
@@ -631,7 +632,7 @@ class FinancialController extends DashboardController
                 \DB::table('assets')->where('id', $request->id)->update([
                     "name" => $request->name,
                     "amount" => $request->amount,
-                    "description" => $request->description,
+                    "description" => $this->purify($request->description),
                     "user_id" => \Auth::user()->id,
                     "acquired"=>$request->acquired,
                 ])
@@ -646,7 +647,7 @@ class FinancialController extends DashboardController
                 \DB::table('assets')->insert([
                     "name" => $request->name,
                     "amount" => $request->amount,
-                    "description" => $request->description,
+                    "description" => $this->purify($request->description),
                     "user_id" => \Auth::user()->id,
                     "acquired" => $date
                 ])
@@ -806,8 +807,9 @@ class FinancialController extends DashboardController
         if ($request->search == null) {
             return json_encode(\DB::table("contacts")->select("contacts.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->join("users", "users.id", "=", "contacts.user_id")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
         } else {
+            $search = str_replace(['%', '_'], ['\%', '\_'], $request->search);
             return json_encode(\DB::table("contacts")->select("contacts.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->join("users", "users.id", "=", "contacts.user_id")->
-                where("firstname", "LIKE", "%" . $request->search . "%")->orWhere("lastname", "LIKE", "%" . $request->search . "%")->orWhere("contacts.phone", "LIKE", "%" . $request->search . "%")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
+                where("firstname", "LIKE", "%" . $search . "%")->orWhere("lastname", "LIKE", "%" . $search . "%")->orWhere("contacts.phone", "LIKE", "%" . $search . "%")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
         }
     }
 
@@ -819,8 +821,9 @@ class FinancialController extends DashboardController
         if (!$request->has('search')) {
             return json_encode(\DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->leftJoin("contacts", "users.id", "=", "contacts.user_id")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
         } else {
+            $search = str_replace(['%', '_'], ['\%', '\_'], $request->search);
             return json_encode(\DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->join("contacts", "users.id", "=", "contacts.user_id")->
-                where("firstname", "LIKE", "%" . $request->search . "%")->orWhere("lastname", "LIKE", "%" . $request->search . "%")->orWhere("contacts.phone", "LIKE", "%" . $request->search . "%")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
+                where("firstname", "LIKE", "%" . $search . "%")->orWhere("lastname", "LIKE", "%" . $search . "%")->orWhere("contacts.phone", "LIKE", "%" . $search . "%")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
         }
     }
 
@@ -1067,43 +1070,54 @@ class FinancialController extends DashboardController
             "funds.id",
             "funds.amount",
             "funds.description",
+            "funds.source",
             "sources.name",
             "sources.ftype",
             "modeofpayment.name as mode",
             "funds.created_at",
             "users.firstname",
             "users.lastname"
-        )->join("users", "users.id", "funds.user_id")->leftJoin("modeofpayment", "modeofpayment.id", "=", "funds.mode")
+        )->leftJoin("users", "users.id", "funds.user_id")->leftJoin("modeofpayment", "modeofpayment.id", "=", "funds.mode")
             ->join("sources", "funds.source", "=", "sources.id")->orderBy("funds.id", "DESC"))->addColumn("created", function ($item) {
                 return "<span class='small font-weight-bold'>" . \Carbon\Carbon::parse($item->created_at)->format("l, d M, Y") . "</span>";
-                //})//->addColumn("amount", function($item){
-                //return "<span class='small font-weight-bold'>".number_format($item->amount, 2)."</span>";
             })->filter(function ($query) use ($request) {
-                if ($request->has('from')) {
-                    if ($request->from != null) {
-                        $query->where(\DB::raw('DATE(funds.created_at)'), '>=', \Carbon\Carbon::parse($request->get('from')));
-                    }
+                if ($request->has('from') && $request->from != null) {
+                    $query->where(\DB::raw('DATE(funds.created_at)'), '>=', \Carbon\Carbon::parse($request->get('from')));
                 }
 
-                if ($request->has('to')) {
-                    if ($request->to != null) {
-                        $query->where(\DB::raw('DATE(funds.created_at)'), '<=', \Carbon\Carbon::parse($request->get('to')));
-                    }//$query->where('email', 'like', "%{$request->get('email')}%");
+                if ($request->has('to') && $request->to != null) {
+                    $query->where(\DB::raw('DATE(funds.created_at)'), '<=', \Carbon\Carbon::parse($request->get('to')));
                 }
 
-                if ($request->has('msearch')) {
-                    if ($request->msearch != "") {
-                        $query->where("firstname", 'like', "%{$request->get('msearch')}%")->orWhere("lastname", 'like', "%{$request->get('msearch')}%")
-                            ->orWhere("email", 'like', "%{$request->get('msearch')}%");
-                    }//$query->where('email', 'like', "%{$request->get('email')}%");
+                if ($request->has('date') && $request->date != null) {
+                    $query->where(\DB::raw('DATE(funds.created_at)'), '=', \Carbon\Carbon::parse($request->get('date')));
+                }
+
+                if ($request->has('source') && $request->source != null && $request->source != '0') {
+                    $query->where('funds.source', '=', $request->get('source'));
+                }
+
+                if ($request->has('msearch') && $request->msearch != "") {
+                    $query->where(function($q) use ($request) {
+                        $q->where("firstname", 'like', "%{$request->get('msearch')}%")
+                          ->orWhere("lastname", 'like', "%{$request->get('msearch')}%")
+                          ->orWhere("funds.description", 'like', "%{$request->get('msearch')}%");
+                    });
                 }
             })->addColumn("action", function ($item) {
-                return "<!--<a href='" . $item->id . "' class='btn btn-primary btn-sm fundsedit'>Edit</a>-->
-                <a href='" . url('dashboard/finances/funds/remove/' . $item->id) . "' class='btn btn-danger btn-sm'>Delete</a>";
+                return "";
             })->addColumn("note", function ($item) {
                 return \Str::words($item->description, 5);
             })->addColumn("user", function ($item) {
-                return "<span class='small font-weight-bold'>" . $item->firstname . " " . $item->lastname . "</span>";
+                if ($item->firstname) {
+                    return "<span class='small font-weight-bold'>" . $item->firstname . " " . $item->lastname . "</span>";
+                }
+                // Extract name from mpesa description for unmatched transactions
+                $desc = $item->description ?? '';
+                if (preg_match('/Dear,?\s+(\w+)/i', $desc, $m)) {
+                    return "<span class='small font-weight-bold text-warning'>" . $m[1] . " <i class='fas fa-exclamation-circle' title='Unmatched phone'></i></span>";
+                }
+                return "<span class='badge badge-warning'>Unknown</span>";
             })->addColumn("ftype", function ($item) {
                 if ($item->ftype == 1) {
                     return "<span class='badge badge-danger'>Expenditure</span>";
@@ -1150,8 +1164,7 @@ class FinancialController extends DashboardController
                     }//$query->where('email', 'like', "%{$request->get('email')}%");
                 }
             })->addColumn("action", function ($item) {
-                return "<!--<a href='" . $item->id . "' class='btn btn-primary btn-sm fundsedit'>Edit</a>-->
-                <a href='" . url('dashboard/finances/funds/remove/' . $item->id) . "' class='btn btn-danger btn-sm'>Delete</a>";
+                return "";
             })->addColumn("note", function ($item) {
                 return \Str::words($item->description, 5);
             })->addColumn("user", function ($item) {
@@ -1270,5 +1283,98 @@ class FinancialController extends DashboardController
         } else {
             return response()->json(["error" => "Phone provided does not match selected user hash!"], 401);
         }
+    }
+
+    public function populateMpesaHashes(Request $request)
+    {
+        $contacts = \DB::table('contacts')
+            ->join('users', 'users.id', '=', 'contacts.user_id')
+            ->whereNotNull('contacts.phone')
+            ->where('contacts.phone', '<>', '')
+            ->select('contacts.phone', 'contacts.user_id', 'users.firstname', 'users.lastname')
+            ->get();
+
+        $added = 0;
+        foreach ($contacts as $contact) {
+            $phone = trim($contact->phone);
+            // Convert to international format 254...
+            if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
+                $phone = '254' . substr($phone, 1);
+            } elseif (strlen($phone) == 9) {
+                $phone = '254' . $phone;
+            } elseif (substr($phone, 0, 1) == '+') {
+                $phone = substr($phone, 1);
+            }
+
+            if (strlen($phone) != 12) {
+                continue;
+            }
+
+            $hash = hash('sha256', $phone);
+
+            // Skip if hash already exists
+            if (MpesaPhone::where('phone_hash', $hash)->exists()) {
+                continue;
+            }
+
+            MpesaPhone::create([
+                'name' => $contact->firstname . ' ' . $contact->lastname,
+                'phone' => $phone,
+                'phone_hash' => $hash,
+            ]);
+            $added++;
+        }
+
+        return response()->json(['success' => "Populated $added new hash entries."]);
+    }
+
+    public function retroMatchFunds(Request $request)
+    {
+        $unmatched = \DB::table('funds')
+            ->where('user_id', 0)
+            ->where('source', 1) // mpesa source
+            ->get();
+
+        $matched = 0;
+        foreach ($unmatched as $fund) {
+            // Find corresponding mpesa_transaction by matching description/amount
+            $transaction = \DB::table('mpesa_transactions')
+                ->where('TransAmount', $fund->amount)
+                ->whereDate('created_at', \Carbon\Carbon::parse($fund->created_at)->toDateString())
+                ->first();
+
+            if (!$transaction) {
+                continue;
+            }
+
+            $msisdn = $transaction->MSISDN;
+
+            // Try direct match (unhashed phone)
+            if (strlen($msisdn) <= 12) {
+                $contact = \DB::table('contacts')->where('phone', $msisdn)
+                    ->orWhere('phone', '0' . substr($msisdn, 3))
+                    ->first();
+                if ($contact) {
+                    \DB::table('funds')->where('id', $fund->id)->update(['user_id' => $contact->user_id]);
+                    $matched++;
+                    continue;
+                }
+            }
+
+            // Try hash match
+            $mpesaPhone = MpesaPhone::where('phone_hash', $msisdn)->first();
+            if ($mpesaPhone) {
+                // Find user by phone
+                $contact = \DB::table('contacts')->where('phone', $mpesaPhone->phone)
+                    ->orWhere('phone', '0' . substr($mpesaPhone->phone, 3))
+                    ->first();
+                if ($contact) {
+                    \DB::table('funds')->where('id', $fund->id)->update(['user_id' => $contact->user_id]);
+                    $matched++;
+                }
+            }
+        }
+
+        return response()->json(['success' => "Matched $matched fund records to users."]);
     }
 }

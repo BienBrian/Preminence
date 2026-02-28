@@ -28,8 +28,19 @@ class SearchController extends Controller
 
     public function searchUsers(Request $request)
     {
-        return json_encode(User::select('id', DB::Raw('CONCAT(name, " ", "(", email,")") as name'))
-            ->where('name', 'LIKE', '%' . $request->q . '%')->orWhere('email', 'LIKE', '%' . $request->q . '%')
-            ->orderBy('name', 'asc')->get());
+        $users = User::select('id', 'firstname', 'lastname', 'email')
+            ->where('firstname', 'LIKE', '%' . $request->q . '%')
+            ->orWhere('lastname', 'LIKE', '%' . $request->q . '%')
+            ->orWhere('email', 'LIKE', '%' . $request->q . '%')
+            ->orderBy('firstname', 'asc')
+            ->get();
+
+        return response()->json($users->map(function($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->firstname . ' ' . $user->lastname,
+                'email' => $user->email
+            ];
+        }));
     }
 }

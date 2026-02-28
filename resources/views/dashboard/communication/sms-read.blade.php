@@ -35,9 +35,9 @@
                                         <strong>Message</strong><br>
                                         <hr style='width: 20px; border: 2px solid #ccc' class='m-0'>
                                         <br>
-                                        {!! html_entity_decode($sms->message) !!}
+                                        {{ $sms->message }}
                                         <div class='text-center m-3'>
-                                            <a href='{{ url('dashboard/communication/sms/remove/' . $sms->id) }}'
+                                            <a href='#' onclick="return postAction('{{ url('dashboard/communication/sms/remove/' . $sms->id) }}', 'Remove this SMS?')"
                                                 class='btn btn-danger btn-sm'>Remove</a>
                                         </div>
                                     </div>

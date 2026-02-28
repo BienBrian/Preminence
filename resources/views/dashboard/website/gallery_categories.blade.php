@@ -62,7 +62,7 @@
                                                     <a href="{{ url('dashboard/website/gallery/category/' . $category->id) }}"
                                                         class='btn text-primary btn-sm' title='view'
                                                         data-toggle="tooltip"><i class='fas fa-eye'></i></a>
-                                                    <a href="{{ url('dashboard/website/gallery/category/delete/' . $category->id) }}"
+                                                    <a href="#" onclick="return postAction('{{ url('dashboard/website/gallery/category/delete/' . $category->id) }}', 'Delete this category?')"
                                                         class='btn text-danger btn-sm' title='Delete'
                                                         data-toggle='tooltip'><i class='fas fa-trash'></i></a>
                                                 </td>

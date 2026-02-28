@@ -1,220 +1,208 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $ministryIcons = ['fa-users', 'fa-hands-helping', 'fa-dove', 'fa-praying-hands', 'fa-church', 'fa-cross'];
+    $ministryColors = ['icon-wrap-primary', 'icon-wrap-success', 'icon-wrap-warning', 'icon-wrap-info', 'icon-wrap-indigo', 'icon-wrap-teal'];
+    $deptIcons = ['fa-music', 'fa-microphone-alt', 'fa-book-reader', 'fa-hand-holding-heart', 'fa-child', 'fa-globe-africa'];
+    $deptColors = ['icon-wrap-danger', 'icon-wrap-purple', 'icon-wrap-info', 'icon-wrap-success', 'icon-wrap-warning', 'icon-wrap-primary'];
+    $articleAccents = ['card-accent', 'card-accent-success', 'card-accent-warning'];
+@endphp
 
-<!-- Header -->
-<div class="header pb-8 pt-5 pt-lg-8 d-flex align-items-center" style="background-image: url('./images/people.jpg'); background-size: cover; background-position: center top; min-height: 60vh;">
-    <!-- Mask -->
-    <span class="mask bg-gradient-dark opacity-8"></span>
-    <!-- Header container -->
-    <div class="container d-flex align-items-center">
-        <div class="row">
-            <div class="col-lg-5 col-md-8">
-                <h1 class="display-4 text-white mt-4">We are a strong community embracing all people without discrimination</h1>
-                <p class="text-white mt-0 mb-5">We have different communities that support each other in the journey of faith. The Book of Amon encourages us to walk together.</p>
-            </div>
-        </div>
+<!-- Hero -->
+<section class="hero-section hero-short" style="background-image: url('./images/people.jpg');">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+        <span class="hero-badge"><i class="fas fa-users mr-1"></i> Our People</span>
+        <h1 class="hero-title">We Are a Strong Community</h1>
+        <p class="hero-subtitle">Embracing all people without discrimination. We walk together in faith, love and hope.</p>
     </div>
-</div>
+</section>
 
-<!-- Departments -->
-<div class="container-fluid pt-4">
+<!-- Pastors (images kept) -->
+<section class="section section-gray">
     <div class="container">
-        <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4">Church Leaders</h3>
-                <p>We have a team of God-fearing and supportive leaders</p>
-            </div>
-            <!--
-            <div class="col-sm-6">
-                <div id="carouselExampleCaptions" class="carousel slide mb-4" data-ride="carousel">
-                    <div class="carousel-inner">
-                        <div class="carousel-item active">
-                            <img src="{{asset('images/Rev. Hosea.png')}}" class="d-block w-100">
-                            <div class="carousel-caption">
-                                <span class="mask bg-gradient-dark opacity-3"></span>
-                                <p class="">Rev. Hosea</p>
-                                <p class="font-weight-bold">Senior Pastor</p>
-                            </div>
-                        </div>
+        <div class="text-center mb-5">
+            <span class="section-label">Leadership</span>
+            <h2 class="section-heading">Church Leaders</h2>
+            <p class="section-subheading">A team of God-fearing and supportive leaders</p>
+        </div>
+        <div class="row align-items-center">
+            <!-- Senior Pastor -->
+            <div class="col-lg-5 mb-4">
+                <div class="senior-pastor-card">
+                    <img src="{{ $senior == null ? asset('images/people.jpg') : ($senior->image == '' ? asset('images/people.jpg') : asset('profile_images/'.$senior->image)) }}" alt="Senior Pastor">
+                    <div class="pastor-overlay">
+                        <h4>{{ $senior == null ? "Not Set" : $senior->firstname." ".$senior->lastname }}</h4>
+                        <span>{{ $senior->title ?? 'Senior Pastor' }}</span>
                     </div>
                 </div>
             </div>
-            <div class="col-sm-6">
-                <div id="carouselExampleCaptions" class="carousel slide mb-4" data-ride="carousel">
-                    <div class="carousel-inner">
-                        <div class="carousel-item active">
-                            <img src="{{asset('images/Pst. Zipporah.png')}}" class="d-block w-100">
-                            <div class="carousel-caption">
-                                <span class="mask bg-gradient-dark opacity-3"></span>
-                                <p class="">Pst. Zipporah</p>
-                                <p class="font-weight-bold">Pastor</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>-->
-            <div class="col-sm-6">
-                <div id="carouselExampleCaptions" class="carousel slide mb-4" data-ride="carousel">
-                    <div class="carousel-inner">
-                        <div class="carousel-item active">
-                            <img src="{{$senior == null?asset('images/people.jpg'):($senior->image == ''?asset('images/people.jpg'):asset('profile_images/'.$senior->image))}}" class="d-block w-100">
-                            <div class="carousel-caption">
-                                <p><span class='badge text-white' style='background-color: rgba(0,0,0,0.3);'>{{$senior == null?"Not Set":$senior->firstname." ".$senior->lastname}}
-                                <br><br>Senior Pastor</span></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-sm-6">
-                <div class="row">
+            <!-- Other Pastors -->
+            <div class="col-lg-7">
+                <div class="row justify-content-center">
                     @foreach($pastors as $pastor)
-                    <div class="col-sm-6 mb-4">
-                        <div id="carouselExampleCaptions" class="carousel slide" data-ride="carousel">
-                            <div class="carousel-inner">
-                                <div class="carousel-item active">
-                                    <img src="{{$pastor->image == ''?asset('images/people.jpg'):asset('profile_images/'.$pastor->image)}}" class="d-block w-100">
-                                    <div class="carousel-caption">
-                                        <p><span class='badge text-white' style='background-color: rgba(0,0,0,0.3);'>{{$pastor->firstname}} {{$pastor->lastname}}<br><br>Pastor</span></p>
-                                    </div>
-                                </div>
+                        <div class="col-6 col-sm-4 col-md-3 mb-4">
+                            <div class="pastor-thumb">
+                                <img src="{{ $pastor->image == '' ? asset('images/people.jpg') : asset('profile_images/'.$pastor->image) }}" alt="{{ $pastor->firstname }}">
+                                <h6>{{ $pastor->firstname }} {{ $pastor->lastname }}</h6>
+                                <span>{{ $pastor->title ?? 'Pastor' }}</span>
                             </div>
                         </div>
-                    </div>
                     @endforeach
                 </div>
             </div>
-
         </div>
     </div>
-</div>
+</section>
 
-<!-- Communities -->
-<div class="container-fluid mt-4 bg-white">
+<!-- Ministries (icon hlist-cards, no images) -->
+<section class="section section-white">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Serve Together</span>
+            <h2 class="section-heading">Church Ministries</h2>
+            <p class="section-subheading">We encourage our members to join at least one ministry and share the good news</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4">Church Ministries</h3>
-                <p>We encourage our members to join at least one ministry and share the good news</p>
-            </div>
             @foreach($communities as $community)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$community->banner == null ? asset('website/default.jpg') :  asset('peoples/'.$community->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{$community->name}}</h3>
-                    <p>{!!html_entity_decode(\Str::words($community->description, 35, '...')) !!}</p>
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('communities/'.$community->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-6 mb-4">
+                    <a href="{{ url('communities/'.$community->id) }}" class="hlist-card">
+                        <div class="hlist-icon">
+                            <div class="icon-wrap icon-wrap-sm {{ $ministryColors[$loop->index % 6] }}">
+                                <i class="fas {{ $ministryIcons[$loop->index % 6] }}"></i>
+                            </div>
+                        </div>
+                        <div class="hlist-body">
+                            <h5>{{ $community->name }}</h5>
+                            <div class="hlist-meta">
+                                @if($community->leader_firstname)
+                                    <span><i class="far fa-user"></i> {{ $community->leader_firstname }} {{ $community->leader_lastname }}</span>
+                                @endif
+                                <span><i class="fas fa-users"></i> {{ $community->member_count }} members</span>
+                            </div>
+                            <p>{{ \Str::words(strip_tags($community->description), 20, '...') }}</p>
+                            <span class="card-link">Learn More <i class="fas fa-arrow-right ml-1"></i></span>
+                        </div>
+                    </a>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
-<!-- Departments -->
-<div class="container-fluid mt-4">
+<!-- Departments (icon hlist-cards, no images) -->
+<section class="section section-gray">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Organization</span>
+            <h2 class="section-heading">Church Departments</h2>
+            <p class="section-subheading">Together, these departments enhance efficiency in the delivery of the Word of God</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4">Church Departments</h3>
-                <p>Together, these departments enhance efficiency in the delivery of the Word of God</p>
-            </div>
             @foreach($departments as $department)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$department->banner == null ? asset('website/default.jpg') :  asset('peoples/'.$department->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{\Str::words($department->name, 7, '...')}}</h3>
-                    <p>{!!html_entity_decode(\Str::words($department->description, 35, '...')) !!}</p>
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('departments/view/'.$department->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-6 mb-4">
+                    <a href="{{ url('departments/view/'.$department->id) }}" class="hlist-card">
+                        <div class="hlist-icon">
+                            <div class="icon-wrap icon-wrap-sm {{ $deptColors[$loop->index % 6] }}">
+                                <i class="fas {{ $deptIcons[$loop->index % 6] }}"></i>
+                            </div>
+                        </div>
+                        <div class="hlist-body">
+                            <h5>{{ \Str::words($department->name, 7, '...') }}</h5>
+                            <div class="hlist-meta">
+                                @if($department->leader_firstname)
+                                    <span><i class="far fa-user"></i> {{ $department->leader_firstname }} {{ $department->leader_lastname }}</span>
+                                @endif
+                                <span><i class="fas fa-users"></i> {{ $department->member_count }} members</span>
+                            </div>
+                            <p>{{ \Str::words(strip_tags($department->description), 20, '...') }}</p>
+                            <span class="card-link">Learn More <i class="fas fa-arrow-right ml-1"></i></span>
+                        </div>
+                    </a>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
 <!-- Articles -->
-<div class="container-fluid mt-4 bg-white">
+<section class="section section-white">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Insights</span>
+            <h2 class="section-heading">From Our People</h2>
+            <p class="section-subheading">Articles written by our members and affiliate communities for the enlightenment of all</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4">Insights from our people</h3>
-                <p>These articles have been written by our members and affiliate communities for the enlightenment of all</p>
-            </div>
             @foreach($articles as $article)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$article->banner == null ? asset('website/default.jpg') :  asset('article/'.$article->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{\Str::words($article->title, 7, '...')}}</h3>
-                    {!! html_entity_decode(\Str::words($article->description, 35, '...')) !!}
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('articles/'.$article->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-4 mb-4">
+                    <div class="article-card-modern">
+                        <div class="{{ $articleAccents[$loop->index % 3] }}"></div>
+                        <div class="card-body">
+                            @if(isset($article->created_at))
+                                <div class="card-date"><i class="far fa-calendar-alt mr-1"></i> {{ \Carbon\Carbon::parse($article->created_at)->format('M d, Y') }}</div>
+                            @endif
+                            <h5>{{ \Str::words($article->title, 8, '...') }}</h5>
+                            <p>{{ \Str::words(strip_tags($article->description), 25, '...') }}</p>
+                            <a href="{{ url('articles/'.$article->id) }}" class="card-link">Read More <i class="fas fa-arrow-right ml-1"></i></a>
+                        </div>
+                    </div>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
-<!-- Order of Services -->
-<div class="container-fluid pt-4 pb-4">
-    <div class="container mb-4">
-        <div class="row d-flex justify-content-center">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4 text-center">Testimonials</h3>
-                <p class=" text-center">We strive to impact lives and help people to reach their destinies. We've done it in the past.</p>
-            </div>
-            <div class="col-md-8 col-lg-6 mt-4 mb-4">
+<!-- Testimonials -->
+<section class="section section-gray">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Stories</span>
+            <h2 class="section-heading">Testimonials</h2>
+            <p class="section-subheading">We strive to impact lives and help people to reach their destinies</p>
+        </div>
 
-                <div id="demo" class="carousel slide" data-ride="carousel">
-                    <!-- Indicators -->
-                    <ul class="carousel-indicators">
-                        <?php $i = 0; ?>
-                        @foreach($testimonials as $testimonial)
-                            <li data-target="#demo" data-slide-to="{{$i}}" class="{{$i == 0?'active':''}}"></li>
-                        <?php $i++ ?>
-                        @endforeach
-                    </ul>
-
-                    <!-- The slideshow -->
-                    <div class="carousel-inner">
-                        <?php $i = 0; ?>
-                        @foreach($testimonials as $testimonial)
-                            <div class="carousel-item {{$i == 0?' active':''}}">
-                                <div class="row">
-                                    <div class="col-sm-12 d-flex justify-content-center">
-                                        <img src="{{$testimonial->image == "" ? asset('profile_images/default.jpg'): asset('profile_images/'.$testimonial->image)}}" class="rounded-circle">
-                                    </div>
-                                    <div class="col-sm-12 p-4 text-center mb-5">
-                                        <p><i class="fas fa-quote-left"></i> {{$testimonial->testimonial}} <i class="fas fa-quote-right"></i></p>
-                                        <p class="font-weight-bold">{{$testimonial->firstname}} {{$testimonial->lastname}}</p>
-                                        <p>Member/User</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php $i++ ?>
-                        @endforeach
-
+        <div id="testimonial-carousel" class="carousel slide" data-ride="carousel">
+            <div class="carousel-inner">
+                @php $ti = 0; @endphp
+                @foreach($testimonials as $testimonial)
+                    <div class="carousel-item {{ $ti == 0 ? 'active' : '' }}">
+                        <div class="testimonial-card">
+                            <div class="quote-icon"><i class="fas fa-quote-left"></i></div>
+                            <img src="{{ $testimonial->image == '' ? asset('profile_images/default.jpg') : asset('profile_images/'.$testimonial->image) }}"
+                                 class="testimonial-avatar" alt="{{ $testimonial->firstname }}">
+                            <p class="testimonial-quote">{{ $testimonial->testimonial }}</p>
+                            <p class="testimonial-name">{{ $testimonial->firstname }} {{ $testimonial->lastname }}</p>
+                            <p class="testimonial-role">Church Member</p>
+                        </div>
                     </div>
-                </div>
-
-                <div class="text-center">
-                    <a href="{{url('login')}}" class="btn btn-primary" style="border-radius: 100px;">Share your experience</a>
-                </div>
+                    @php $ti++; @endphp
+                @endforeach
             </div>
+
+            @if(count($testimonials) > 1)
+                <div class="text-center mt-4">
+                    <a href="#testimonial-carousel" data-slide="prev" class="text-indigo mr-3" style="font-size:1.2rem;">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    @for($i = 0; $i < count($testimonials); $i++)
+                        <span class="d-inline-block mx-1" style="width:10px; height:10px; border-radius:50%; background: {{ $i == 0 ? '#5e72e4' : '#d1d5db' }}; cursor:pointer;"
+                              data-target="#testimonial-carousel" data-slide-to="{{ $i }}"></span>
+                    @endfor
+                    <a href="#testimonial-carousel" data-slide="next" class="text-indigo ml-3" style="font-size:1.2rem;">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            @endif
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="{{ url('login') }}" class="btn btn-primary" style="border-radius:50px; padding:.6rem 2rem; font-weight:600;">
+                <i class="fas fa-pen mr-1"></i> Share Your Experience
+            </a>
         </div>
     </div>
-
-    <div class="separator separator-bottom separator-skew zindex-100">
-        <svg x="0" y="0" viewBox="0 0 2560 100" preserveAspectRatio="none" version="1.1" xmlns="http://www.w3.org/2000/svg">
-            <polygon class="fill-dark" points="2560 0 2560 100 0 100"></polygon>
-        </svg>
-    </div>
-</div>
-
+</section>
 
 @endsection

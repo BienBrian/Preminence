@@ -25,9 +25,8 @@ class MpesaAPIController extends Controller
     public function lipaNaMpesaPassword()
     {
         $lipa_time = Carbon::rawParse('now')->format('YmdHms');
-        $passkey = "43ea7e68502a5aa0a4c29c1cc2b1eb0ea164863d9f12d3faf4010574405d4179";
-       // $passkey = env('MPESA_LNMO_PASSKEY');
-        $BusinessShortCode = 186903;
+        $passkey = env('MPESA_LNMO_PASSKEY');
+        $BusinessShortCode = env('MPESA_SHORTCODE');
         $timestamp =$lipa_time;
         $lipa_na_mpesa_password = base64_encode($BusinessShortCode.$passkey.$timestamp);
         return $lipa_na_mpesa_password;
@@ -48,23 +47,23 @@ class MpesaAPIController extends Controller
         if($validator->passes()){
             //return $request->phone;
             $phone = "254".intval($request->phone);
-            $url = 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+            $url = env('MPESA_STK_URL');
             $curl = curl_init();
             curl_setopt($curl, CURLOPT_URL, $url);
             curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$this->generateAccessToken()));
+            $shortcode = env('MPESA_SHORTCODE');
             $curl_post_data = [
                 //Fill in the request parameters with valid values
-                'BusinessShortCode' => 186903,
+                'BusinessShortCode' => $shortcode,
                 'Password' => $this->lipaNaMpesaPassword(),
                 'Timestamp' => Carbon::rawParse('now')->format('YmdHms'),
                 'TransactionType' => 'CustomerPayBillOnline',
                 'Amount' => intval($request->amount),
-                'PartyA' => $phone, // replace this with your phone number
-                'PartyB' => 186903,
-                'PhoneNumber' => $phone, // replace this with your phone number
-                'CallBackURL' => 'https://happychurchruiru.org/api/stk/confirmation?firstname='
-                .$request->firstname."&lastname=".$request->lastname."&account=".$request->account,
-                'AccountReference' => "Church Donation",
+                'PartyA' => $phone,
+                'PartyB' => $shortcode,
+                'PhoneNumber' => $phone,
+                'CallBackURL' => env('MPESA_CALLBACK_BASE_URL').'/api/stk/confirmation',
+                'AccountReference' => env('MPESA_ACCOUNT_REF'),
                 'TransactionDesc' => "Church donation via mpesa"
             ];
             $data_string = json_encode($curl_post_data);
@@ -80,15 +79,15 @@ class MpesaAPIController extends Controller
 
     public function generateAccessToken()
     {
-        $consumer_key="nCqpncqiIOazyXdpMqaMCxoa2fMnAtp8";
-        $consumer_secret="KgcGBsfCKPzcdFMR";
+        $consumer_key = env('MPESA_CONSUMER_KEY');
+        $consumer_secret = env('MPESA_CONSUMER_SECRET');
         $credentials = base64_encode($consumer_key.":".$consumer_secret);
-        $url = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
+        $url = env('MPESA_OAUTH_URL');
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array("Authorization: Basic ".$credentials));
         curl_setopt($curl, CURLOPT_HEADER,false);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         $curl_response = curl_exec($curl);
         $access_token=json_decode($curl_response);
@@ -118,8 +117,7 @@ class MpesaAPIController extends Controller
 
     /*stk callback url*/
     public function stkResponse(Request $request){
-        \Log::info("STK PUSH NAME:".$request->firstname." ".$request->lastname);
-        \Log::info($request->getContent());
+        \Log::info("STK PUSH callback received");
         /*$content=json_decode($request->getContent());
         if($content->Body->stkCallback->ResultCode == 0) {
             //\Log::info(json_encode($content->Body->stkCallback->ResultDesc));
@@ -188,7 +186,7 @@ class MpesaAPIController extends Controller
      */
     public function mpesaConfirmation(Request $request)
     {
-        Log::info($request->getContent());
+        Log::info("M-Pesa confirmation callback received");
         $content=json_decode($request->getContent());
         $mpesa_transaction = new MpesaTransaction();
         $mpesa_transaction->TransactionType = $content->TransactionType;
@@ -206,36 +204,51 @@ class MpesaAPIController extends Controller
         $mpesa_transaction->LastName = $content->LastName;
         $mpesa_transaction->save();
 
-        $user = \DB::table("contacts")->where("phone", "0".substr($content->MSISDN, 3))->first();
-        $gender = "";
-        $message = "Dear, ".$content->FirstName." Thank you for honouring the LORD with your income (Proverbs 3:9). Your support of Ksh. " .number_format(doubleval($content->TransAmount), 2). " through ".strtoupper($content->BillRefNumber). " account will support the ministry in different ways. Be blessed. \r\n Reverend Hosea. \r\n For Prayers call 0721895977.";
-        if($user != null){
-            /*$gender = $user->gender == null?"":$user->gender==0?"Bro":"Sis";
-            //save funds
-            $message = "Praise God ".$gender." ".$content->FirstName.", Your tithe amounting Ksh ".number_format(doubleval($content->TransAmount), 2).
-            " has been received with gratitude. May God bless you abudantly. Regards. Rev Hosea. 0721895977.";
-            */
-            //insert
-            $funds = new Funds();
-            $funds->amount = doubleval($content->TransAmount);
-            $funds->description = $message;
-            $funds->source = 1;
-            $funds->user_id = $user->user_id;
-            $funds->mode = 2;
-            $funds->save();
-        }else{
-            $funds = new Funds;
-            $funds->amount = doubleval($content->TransAmount);
-            $funds->description = $message;
-            $funds->source = 1;
-            $funds->user_id = 0;
-            $funds->mode = 2;
-            $funds->save();
+        // Build message from DB settings or fallback to default
+        $mpesaSettings = \DB::table('mpesa_message_settings')->first();
+        if ($mpesaSettings && $mpesaSettings->active && $mpesaSettings->message) {
+            $message = str_replace(
+                ['{{NAME}}', '{{AMOUNT}}', '{{ACCOUNT}}'],
+                [$content->FirstName, number_format(doubleval($content->TransAmount), 2), strtoupper($content->BillRefNumber)],
+                $mpesaSettings->message
+            );
+        } else {
+            $message = "Dear, ".$content->FirstName." Thank you for honouring the Lord with your finances (Proverbs 3:9). Your support of Ksh. " .number_format(doubleval($content->TransAmount), 2). " through ".strtoupper($content->BillRefNumber). " account will support the ministry in great ways. Be blessed. \r\nGod loves a cheerful giver II Cor 9:7. \r\n#2026:Year of Growth. \r\n For Prayers call Reverend Hosea (0721895977).";
         }
+
+        // Try to match the phone number to a contact
+        $user = null;
+        $actualPhone = null;
+
+        // First: try direct phone lookup (works when MSISDN is plain number like 254712345678)
+        if (strlen($content->MSISDN) <= 15 && is_numeric($content->MSISDN)) {
+            $user = \DB::table("contacts")->where("phone", "0".substr($content->MSISDN, 3))->first();
+            $actualPhone = $content->MSISDN;
+        }
+
+        // Second: try mpesa_phones hash lookup (works when MSISDN is hashed)
         $mpesaPhone = MpesaPhone::where('phone_hash', $content->MSISDN)->first();
-        if($mpesaPhone != null){
+        if ($user == null && $mpesaPhone != null) {
+            $user = \DB::table("contacts")->where("phone", "0".substr($mpesaPhone->phone, 3))->first();
+            $actualPhone = $mpesaPhone->phone;
+        }
+
+        // Create funds record
+        $funds = new Funds();
+        $funds->amount = doubleval($content->TransAmount);
+        $funds->description = $message;
+        $funds->source = 1;
+        $funds->user_id = $user != null ? $user->user_id : 0;
+        $funds->mode = 2;
+        $funds->save();
+
+        // Send SMS and track phone
+        if ($mpesaPhone != null) {
             $this->send($mpesaPhone->phone, $message);
-        }else{
+        } elseif ($actualPhone != null) {
+            $this->send($actualPhone, $message);
+        } else {
+            // Phone not recognized - add to missing phones
             $missingMpesaPhone = new MissingMpesaPhone();
             $missingMpesaPhone->name = $content->FirstName;
             $missingMpesaPhone->trans_id = $content->TransID;
@@ -254,18 +267,19 @@ class MpesaAPIController extends Controller
     public function mpesaRegisterUrls()
     {
         $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, 'https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl');
+        curl_setopt($curl, CURLOPT_URL, env('MPESA_C2B_REGISTER_URL'));
         curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization: Bearer '. $this->generateAccessToken()));
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_POST, true);
+        $baseUrl = env('MPESA_CALLBACK_BASE_URL');
         curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode(array(
-            'ShortCode' => "186903",
+            'ShortCode' => env('MPESA_SHORTCODE'),
             'ResponseType' => 'Completed',
-            'ConfirmationURL' => "https://happychurchruiru.org/api/transaction/confirmation",
-            'ValidationURL' => "https://happychurchruiru.org/api/validation"
+            'ConfirmationURL' => $baseUrl."/api/transaction/confirmation",
+            'ValidationURL' => $baseUrl."/api/validation"
         )));
         $curl_response = curl_exec($curl);
-        echo $curl_response;
+        return response()->json(json_decode($curl_response, true) ?? ['error' => 'Invalid response']);
     }
 
     public function testSMS(Request $request){
@@ -287,9 +301,10 @@ class MpesaAPIController extends Controller
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'apikey='.env('SMS_API_KEY').'&partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
+            CURLOPT_POSTFIELDS => 'partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
             CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/x-www-form-urlencoded'
+                'Content-Type: application/x-www-form-urlencoded',
+                'Authorization: Bearer ' . env('SMS_API_KEY'),
             ),
         )
         );

@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Events</li>
                     </ol>
                 </div><!-- /.col -->
@@ -87,7 +87,7 @@
                                             <td class='text-right' style='white-space: nowrap;'>
                                                 <a href="{{ $event->id }}" class='btn btn-primary btn-sm edit-event'><i
                                                         class='fas fa-edit'></i></a>&nbsp;
-                                                <a href="{{ url('dashboard/events_and_seminars/events/delete/' . $event->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/events_and_seminars/events/delete/' . $event->id) }}', 'Delete this event?')"
                                                     class='btn btn-danger btn-sm'><i class='fas fa-trash'></i></a>
                                             </td>
                                         </tr>

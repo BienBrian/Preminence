@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Products</li>
                     </ol>
                 </div><!-- /.col -->
@@ -79,7 +79,7 @@
                                             <td class='text-right'>
                                                 <a href="{{ url('dashboard/shop/products/' . $product->id) }}"
                                                     class='btn btn-primary btn-sm'>Details</a>
-                                                <a href="{{ url('dashboard/shop/products/remove/' . $product->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/shop/products/remove/' . $product->id) }}', 'Remove this product?')"
                                                     class='btn btn-danger btn-sm'>Remove</a>
                                             </td>
                                         </tr>

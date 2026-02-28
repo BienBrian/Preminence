@@ -21,10 +21,10 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', 'unique:users'],
-            'phone' => ['required', 'digits:10', 'unique:users'],
-            'referrer' => ['required', 'string', 'exists:users,username'],
+            'phone' => ['required', 'regex:/^\d{9,15}$/', 'unique:users'],
+            'referrer' => ['required', 'string', 'exists:users,username,status,1'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'min:12', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'terms_and_conditions' => ['required', 'integer', 'min:1', 'max:1'],
         ]);
         if ($validator->fails()) {
@@ -41,6 +41,7 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->referrer = $request->referrer;
         $user->phone = $request->phone;
+        $user->status = 1;
         if ($user->save()) {
             $user->assignRole($role);
             $credentials = request(['email', 'password']);
@@ -81,9 +82,13 @@ class AuthController extends Controller
         $login = request()->input('email');
         $fieldType = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
         request()->merge([$fieldType => $login]);
-        $credentials = request([$fieldType/*'email'*/, 'password']);
+        $credentials = array_merge(request([$fieldType, 'password']), ['status' => 1]);
         if (!Auth::attempt($credentials)) {
             return response()->json(['error' => 'Invalid username/password'], 401);
+        }
+        if (auth()->user()->approval_status !== null && auth()->user()->approval_status != 1) {
+            Auth::logout();
+            return response()->json(['error' => 'Your account is pending approval'], 403);
         }
         $user = $request->user();
         $tokenResult = $user->createToken('Personal Access Token');

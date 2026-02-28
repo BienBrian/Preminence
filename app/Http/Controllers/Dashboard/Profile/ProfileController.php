@@ -37,7 +37,6 @@ class ProfileController extends DashboardController
     public function editProfile(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'id' => 'required|integer|min:1',
             'firstname' => 'required|string',
             'lastname' => 'required|string',
         ]);
@@ -45,7 +44,7 @@ class ProfileController extends DashboardController
             return response()->json(['errors' => $validator->messages()], 400);
         }
 
-        $user = User::findOrFail($request->id);
+        $user = User::findOrFail(Auth::id());
         $user->firstname = $request->firstname;
         $user->lastname = $request->lastname;
         if ($user->save()) {

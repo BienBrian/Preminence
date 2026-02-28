@@ -55,7 +55,7 @@
                                         </tr>
                                         <tr>
                                             <td class="text-right" colspan="2">
-                                                <a href="{{ url('dashboard/website/gallery/category/delete/' . $category->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/website/gallery/category/delete/' . $category->id) }}', 'Delete this category?')"
                                                     class='btn btn-danger btn-sm' title='Delete'><i
                                                         class='fas fa-trash'></i> Delete</a>
                                             </td>

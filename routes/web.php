@@ -28,6 +28,13 @@ use App\Http\Controllers\Dashboard\Users\AttendanceController;
 use App\Http\Controllers\Dashboard\People\PastorsController;
 use App\Http\Controllers\Dashboard\Users\RolesController;
 use App\Http\Controllers\Dashboard\Users\UsersController;
+use App\Http\Controllers\Dashboard\Settings\TagsController;
+use App\Http\Controllers\Dashboard\Settings\SettingsLookupController;
+use App\Http\Controllers\Dashboard\Settings\IntegrationsController;
+use App\Http\Controllers\Dashboard\FileManager\FileManagerController;
+use App\Http\Controllers\Dashboard\PrayerRequests\PrayerRequestController;
+use App\Http\Controllers\Dashboard\Reports\ReportsController;
+use App\Http\Controllers\PrayerWallController;
 use App\Http\Controllers\Dashboard\Websites\GalleryController;
 use App\Http\Controllers\Dashboard\Websites\HomePageSettingsController;
 use App\Http\Controllers\Dashboard\Websites\OrderOfServiceSettingsController;
@@ -58,7 +65,8 @@ Route::get('/our_gallery', [IndexController::class, 'gallery']);
 Route::get('/our_articles', [IndexController::class, 'articles']);
 Route::get('/shop', [IndexController::class, 'shop']);
 Route::get('communities/{id}', [IndexController::class, "community"]);
-Route::get('articles/{id}', [IndexController::class, "article"]);
+Route::get('articles/{id}/{slug?}', [IndexController::class, "article"]);
+Route::get('/our_articles/category/{slug}', [IndexController::class, 'articlesByCategory']);
 Route::get('sermons/{id}', [IndexController::class, "sermon"]);
 Route::get('notices/view/{id}', [IndexController::class, "notice"]);
 Route::get('departments/view/{id}', [IndexController::class, "department"]);
@@ -71,12 +79,57 @@ Route::get('see/mail', function(){
     return view('mails.mail');
 });*/
 
+// Public profile verification route
+Route::get('verify-profile/{token}', [\App\Http\Controllers\VerifyProfileController::class, 'show'])->name('verify-profile');
+Route::post('verify-profile/{token}', [\App\Http\Controllers\VerifyProfileController::class, 'submit'])->name('verify-profile.submit');
+
+// Public onboarding routes (invitation-based registration)
+Route::get('onboarding/{token}', [\App\Http\Controllers\OnboardingController::class, 'show'])->name('onboarding');
+Route::post('onboarding/{token}/step1', [\App\Http\Controllers\OnboardingController::class, 'step1'])->name('onboarding.step1');
+Route::post('onboarding/{token}/step2', [\App\Http\Controllers\OnboardingController::class, 'step2'])->name('onboarding.step2');
+Route::post('onboarding/{token}/step3', [\App\Http\Controllers\OnboardingController::class, 'step3'])->name('onboarding.step3');
+
+// Public Prayer Wall
+Route::get('/prayer-wall', [PrayerWallController::class, 'index']);
+Route::post('/prayer-wall/submit', [PrayerWallController::class, 'submit'])->middleware('throttle:5,1');
+Route::post('/prayer-wall/{id}/prayed', [PrayerWallController::class, 'prayedFor'])->middleware('throttle:30,1');
+
+// Discipleship & Mentorship
+Route::group(['prefix' => 'dashboard/spiritual/discipleship', 'middleware' => ['auth']], function () {
+    Route::get('/', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'index']);
+    
+    // Tracks
+    Route::get('tracks', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'tracks']);
+    Route::get('tracks/{id}', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'showTrack']);
+    Route::post('tracks/{id}/add-step', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'addStep'])->middleware('can:Manage Discipleship');
+    Route::post('steps/{id}/complete', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'completeStep']);
+    
+    // Admin Routes
+    Route::post('tracks/create', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'createTrack'])->middleware('can:Manage Discipleship');
+    Route::post('tracks/assign', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'assignTrack'])->middleware('can:Manage Discipleship');
+    Route::post('mentorship/match', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'matchMentor'])->middleware('can:Manage Discipleship');
+
+    // Mentorship
+    Route::get('mentorship', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'mentorship']);
+    Route::post('mentorship/log', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'logSession']);
+
+    // Journal
+    Route::get('journal', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'journal']);
+    Route::post('journal/save', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'saveJournal']);
+});
+
 Auth::routes(/*['verify' => true]*/);
 
 Route::get('home', function () {
     return redirect()->to('dashboard/home');
 });
-Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
+// Force password change routes (must be outside dashboard group)
+Route::middleware(['auth', 'throttle:10,1'])->group(function () {
+    Route::get('password/force-change', [\App\Http\Controllers\Auth\ForcePasswordChangeController::class, 'showForm']);
+    Route::post('password/force-change', [\App\Http\Controllers\Auth\ForcePasswordChangeController::class, 'update']);
+});
+
+Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_change']], function () {
     //home
     Route::get('home', [HomeController::class, 'index'])->name('home');
     Route::get('/view/{years}', [HomeController::class, 'years']);
@@ -99,8 +152,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('website/gallery/categories/add', [GalleryController::class, 'addcategory']);
     Route::post('website/gallery/upload', [GalleryController::class, 'uploadgallery']);
     Route::get('/website/gallery/category/{id}', [GalleryController::class, 'viewcategory']);
-    Route::get('website/gallery/category/delete/{id}', [GalleryController::class, 'deletecategory']);
-    Route::get('website/gallery/delete/{id}', [GalleryController::class, 'deletegallery']);
+    Route::post('website/gallery/category/delete/{id}', [GalleryController::class, 'deletecategory']);
+    Route::post('website/gallery/delete/{id}', [GalleryController::class, 'deletegallery']);
     //Pastors Settings
     Route::get('website/pastorsmessage', [PastorSettingsController::class, 'getMessage']);
     Route::post('website/pastorsmessage/image/upload', [PastorSettingsController::class, 'uploadimage']);
@@ -114,7 +167,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('/removecommunity/{id}', 'CommunitiesController@removecommunity');*/
     Route::get('website/orderofservice', [OrderOfServiceSettingsController::class, 'orderofservice']);
     Route::post('website/service/add', [OrderOfServiceSettingsController::class, 'addservice']);
-    Route::get('website/service/remove/{id}', [OrderOfServiceSettingsController::class, 'removeservice']);
+    Route::post('website/service/remove/{id}', [OrderOfServiceSettingsController::class, 'removeservice']);
 
     Route::get('website/weeklyverse', [OrderOfServiceSettingsController::class, 'weeklyverse']);
     Route::post('website/weeklyverse/add', [OrderOfServiceSettingsController::class, 'addverse']);
@@ -133,13 +186,13 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
 
     Route::post('finances/funds/save', [FinancialController::class, 'savefunds']);
-    Route::get('finances/funds/remove/{id}', [FinancialController::class, 'removefund']);
+    Route::post('finances/funds/remove/{id}', [FinancialController::class, 'removefund']);
 
     //Payments Settings
     Route::get('/settings/funds/sources', [FinancialController::class, 'fundsource']);
     Route::post('/settings/funds/sources/save', [FinancialController::class, 'savefundsource']);
-    Route::get('settings/funds/sources/remove/{id}', [FinancialController::class, 'removefundsource']);
-    Route::get('settings/funds/mode/remove/{id}', [FinancialController::class, 'removefundmode']);
+    Route::post('settings/funds/sources/remove/{id}', [FinancialController::class, 'removefundsource']);
+    Route::post('settings/funds/mode/remove/{id}', [FinancialController::class, 'removefundmode']);
     Route::post('settings/funds/mode/save', [FinancialController::class, 'saveModeOfPayment']);
     Route::get('settings/ajax/sources/{id}', [FinancialController::class, 'getsources']);
     Route::get('settings/ajax/payment/{id}', [FinancialController::class, 'getpayments']);
@@ -147,16 +200,18 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('finances/donations', [FinancialController::class, 'donations']);
     Route::get('finances/assets', [FinancialController::class, 'assets']);
     Route::post('finances/assets/add', [FinancialController::class, 'saveassets']);
-    Route::get('finances/assets/remove/{id}', [FinancialController::class, 'removeasset']);
+    Route::post('finances/assets/remove/{id}', [FinancialController::class, 'removeasset']);
 
     //missing phones
     Route::get('finances/missing_mpesa_phones', [FinancialController::class, 'missingMpesaPhones']);
     Route::get('finances/datatable/missing_mpesa_phones', [FinancialController::class, 'getMissingMpesaPhones']);
     Route::post('finances/missing_mpesa_phones/add', [FinancialController::class, 'addMissingMpesaPhone']);
+    Route::post('finances/mpesa/populate-hashes', [FinancialController::class, 'populateMpesaHashes']);
+    Route::post('finances/mpesa/retro-match', [FinancialController::class, 'retroMatchFunds']);
 
     //Activities and Pledges
     Route::get('finances/activities', [FinancialController::class, 'activities']);
-    Route::get("finances/activities/remove/{id}", [FinancialController::class, "removeactivity"]);
+    Route::post("finances/activities/remove/{id}", [FinancialController::class, "removeactivity"]);
     Route::post('finances/activities/add', [FinancialController::class, 'addactivity']);
     Route::get('/getactivity/{id}', [FinancialController::class, 'getactivity']);
     Route::get('finances/activities/pledges/{id}', [FinancialController::class, 'pledges']);
@@ -164,18 +219,18 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('ajax/pledge/{id}', [FinancialController::class, 'getPledges']);
     Route::post('finances/activities/pledges/import', [FinancialController::class, 'importPledges']);
 
-    Route::post('finances/activities/pledges/sms', [SMSController::class, 'pledges']); //add pledge and send sms
-    Route::post('pledge/edit', [SMSController::class, 'editPledge']);//edit pledge and send sms
-    Route::post('finances/activities/pledge/remind', [SMSController::class, 'pledgeReminder']);
-    Route::get('pledges/remove/{id}', [FinancialController::class, 'removepledge']);
-    Route::post('pledge/pay', [SMSController::class, 'paypledge']);
+    Route::post('finances/activities/pledges/sms', [SMSController::class, 'pledges'])->middleware('throttle:10,1'); //add pledge and send sms
+    Route::post('pledge/edit', [SMSController::class, 'editPledge'])->middleware('throttle:10,1');//edit pledge and send sms
+    Route::post('finances/activities/pledge/remind', [SMSController::class, 'pledgeReminder'])->middleware('throttle:5,1');
+    Route::post('pledges/remove/{id}', [FinancialController::class, 'removepledge']);
+    Route::post('pledge/pay', [SMSController::class, 'paypledge'])->middleware('throttle:10,1');
 
     Route::get('finances/ajax/pledges/users', [FinancialController::class, 'getUsers']);
     Route::get('finances/activities/pledges/groups/{id}', [FinancialController::class, 'groups']);
     Route::get('ajax/groups/users', [FinancialController::class, 'getAjaxUsers']);
-    Route::get('/pledges/recieved/{id}', [FinancialController::class, 'recieved']);
-    Route::get('/groups/recieved/{id}', [FinancialController::class, 'recievedgroups']);
-    Route::get('/groups/remove/{id}', [FinancialController::class, 'removegroup']);
+    Route::post('/pledges/recieved/{id}', [FinancialController::class, 'recieved']);
+    Route::post('/groups/recieved/{id}', [FinancialController::class, 'recievedgroups']);
+    Route::post('/groups/remove/{id}', [FinancialController::class, 'removegroup']);
     Route::get('finances/activities/groups/participants/{id}', [FinancialController::class, 'groupsparticipants']);
     Route::post('finances/activities/groups/pledges/members/add', [SMSController::class, 'addpledgegroupmembers']);
 
@@ -185,7 +240,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     //Budget
     Route::get("finances/budgets", [FinancialController::class, "budgets"]);
     Route::post("finances/budget/save", [FinancialController::class, "addbudget"]);
-    Route::get("finances/budgets/remove/{id}", [FinancialController::class, "removebudget"]);
+    Route::post("finances/budgets/remove/{id}", [FinancialController::class, "removebudget"]);
     Route::get("finances/budgets/edit/{id}", [FinancialController::class, "budget"]);
     Route::get("finances/budgets/preview/{id}", [FinancialController::class, "previewbudget"]);
 
@@ -204,26 +259,26 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('spiritual/sermons/add', [SermonController::class, 'addsermon']);
     Route::get('spiritual/sermons/edit/{id}', [SermonController::class, 'editsermon']);
     Route::post('spiritual/sermons/edit', [SermonController::class, 'editmysermon']);
-    Route::get('spiritual/sermons/delete/{id}', [SermonController::class, 'deletesermon']);
+    Route::post('spiritual/sermons/delete/{id}', [SermonController::class, 'deletesermon']);
 
     //Testimonials
     Route::get('spiritual/testimonials', [TestimonialController::class, 'index'])->name('testimonials');
     Route::post('spiritual/testimonials/add', [TestimonialController::class, 'save']);
-    Route::get('spiritual/testimonials/activate/{id}', 'TestimonialController@activate');
-    Route::get('spiritual/testimonials/deactivate/{id}', 'TestimonialController@deactivate');
-    Route::get('spiritual/testimonials/{id}', "TestimonialController@testimonial");
+    Route::get('spiritual/testimonials/activate/{id}', [TestimonialController::class, 'activate']);
+    Route::get('spiritual/testimonials/deactivate/{id}', [TestimonialController::class, 'deactivate']);
+    Route::get('spiritual/testimonials/{id}', [TestimonialController::class, 'testimonial']);
 
     //events
     Route::get('events_and_notices/events', [EventsController::class, 'index']);
     Route::post('events_and_notices/events/add', [EventsController::class, 'addevent']);
     Route::get('events_and_notices/events/{id}', [EventsController::class, 'getevent']);
-    Route::get('events_and_seminars/events/delete/{id}', [EventsController::class, 'removeEvent']);
+    Route::post('events_and_seminars/events/delete/{id}', [EventsController::class, 'removeEvent']);
 
     //notices
     Route::get('events_and_notices/notices', [NoticesController::class, 'index']);
     Route::post('events_and_notices/notices/add', [NoticesController::class, 'addnotice']);
     Route::get('events_and_notices/notices/{id}', [NoticesController::class, 'getnotice']);
-    Route::get('events_and_notices/notices/delete/{id}', [NoticesController::class, 'deletenotice']);
+    Route::post('events_and_notices/notices/delete/{id}', [NoticesController::class, 'deletenotice']);
     /*
     Route::get('/departments', 'DepartmentsController@index');
     Route::post('/adddepartment', 'DepartmentsController@adddepartment');
@@ -242,33 +297,35 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('people/users', [PeopleController::class, 'users']);
     Route::get('people/edit/{category}/{id}', [PeopleController::class, 'newpeople']);
     Route::get('people/members/{id}', [PeopleController::class, 'members']);
+    Route::get('people/members/datatable/{id}', [PeopleController::class, 'getMembersDataTable']);
     Route::post('people/members/add', [PeopleController::class, 'addmembers']);
     Route::post('people/add', [PeopleController::class, 'addpeoplegroups']);
     Route::get('/people/communities', [PeopleController::class, 'people']);
     Route::get('/people/departments', [PeopleController::class, 'people']);
-    Route::get('/people/member/activate/{id}', [PeopleController::class, 'activate']);
-    Route::get('/people/member/deactivate/{id}', [PeopleController::class, 'deactivate']);
-    Route::get('/people/member/remove/{id}', [PeopleController::class, 'remove']);
+    Route::post('/people/member/activate/{id}', [PeopleController::class, 'activate']);
+    Route::post('/people/member/deactivate/{id}', [PeopleController::class, 'deactivate']);
+    Route::post('/people/member/remove/{id}', [PeopleController::class, 'remove']);
 
-    //prayers
-    Route::get('/spiritual/prayers', [PrayersController::class, 'index']);
+    //prayers (legacy → redirect to new Prayer Requests module)
+    Route::get('/spiritual/prayers', function () { return redirect()->to('dashboard/prayer-requests'); });
     Route::get('spiritual/prayers/{id}', [PrayersController::class, 'getprayer']);
     Route::post('spiritual/prayers/add', [PrayersController::class, 'addprayer']);
-    Route::get('spiritual/prayers/delete/{id}', [PrayersController::class, 'deleteprayer']);
+    Route::post('spiritual/prayers/delete/{id}', [PrayersController::class, 'deleteprayer']);
 
     //shop
+    Route::get("shop", [ShopController::class, "index"]);
     Route::get("shop/products", [ShopController::class, "products"]);
     Route::get("shop/products/{id}", [ShopController::class, "product"]);
     Route::post("shop/products/add", [ShopController::class, "addproduct"]);
     Route::post("shop/products/save", [ShopController::class, "saveproduct"]);
     Route::post("shop/products/image/edit", [ShopController::class, 'editproductimage']);
     Route::post("shop/products/edit", [ShopController::class, "editproduct"]);
-    Route::get("shop/products/remove/{id}", [ShopController::class, "removeproduct"]);
+    Route::post("shop/products/remove/{id}", [ShopController::class, "removeproduct"]);
 
     Route::get("shop/purchases", [ShopController::class, "purchases"]);
 
     //update contacts
-    Route::get("user/contacts/update", "UsersController@updateMyContacts");
+    Route::get("user/contacts/update", [UsersController::class, "updateMyContacts"]);
 
     //Attendance
     Route::get("attendance", [AttendanceController::class, "index"]);
@@ -287,7 +344,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('children/save/attendance', [AttendanceController::class, 'saveChildrenAttendance']);
     Route::post('children/save', [AttendanceController::class, 'saveChild']);
     Route::get('children/datatable/attendance/{id}', [AttendanceController::class, 'getChildrenAttendance']);
-    Route::get('children/checkout/{id}', [AttendanceController::class, 'checkOut']);
+    Route::post('children/checkout/{id}', [AttendanceController::class, 'checkOut']);
 
     Route::get("ajax/attendance/{group}/{time}", [AttendanceController::class, "ajaxAttendance"]);
     Route::get("ajax/events", [AttendanceController::class, "ajaxEvents"]);
@@ -298,22 +355,27 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post("events_and_notices/attendance/group/add", [AttendanceController::class, "addAttendanceGroup"]);
     Route::post("events_and_notices/attendance/add", [AttendanceController::class, "addAttendance"]);
     Route::get("events_and_notices/attendance/new", [AttendanceController::class, "newAttendance"]);
-    Route::get("events_and_notices/attendance/remove/{id}", [AttendanceController::class, "removeAttendance"]);
-    Route::get("events_and_notices/attendance/groups/remove/{id}", [AttendanceController::class, "removeAttendanceGroup"]);
+    Route::post("events_and_notices/attendance/remove/{id}", [AttendanceController::class, "removeAttendance"]);
+    Route::post("events_and_notices/attendance/groups/remove/{id}", [AttendanceController::class, "removeAttendanceGroup"]);
 
     //pastors
     Route::get('people/pastors', [PastorsController::class, 'pastors']);
     Route::post('/addpastor', [PastorsController::class, 'addpastor']);
-    Route::get('/remove/pastor/{id}', [PastorsController::class, 'removepastor']);
-    Route::get('/pastor/senior/{id}', [PastorsController::class, 'seniorpastor']);
+    Route::post('/pastors/update-title', [PastorsController::class, 'updateTitle']);
 
     //articles
     Route::get('/articles', [ArticlesController::class, 'index']);
+    Route::get('/articles/datatable', [ArticlesController::class, 'getArticlesDataTable']);
     Route::get('/articles/new', [ArticlesController::class, 'newarticle']);
+    Route::get('/articles/edit/{id}', [ArticlesController::class, 'editarticle']);
     Route::post('/articles/add', [ArticlesController::class, 'addarticle']);
-    Route::get('/articles/activate/{id}', [ArticlesController::class, 'activate']);
-    Route::get('/articles/deactivate/{id}', [ArticlesController::class, 'deactivate']);
-    Route::get('/articles/remove/{id}', [ArticlesController::class, 'removearticle']);
+    Route::post('/articles/activate/{id}', [ArticlesController::class, 'activate']);
+    Route::post('/articles/deactivate/{id}', [ArticlesController::class, 'deactivate']);
+    Route::post('/articles/remove/{id}', [ArticlesController::class, 'removearticle']);
+    Route::post('/articles/toggle-featured/{id}', [ArticlesController::class, 'toggleFeatured']);
+    Route::get('/articles/categories', [ArticlesController::class, 'categories']);
+    Route::post('/articles/categories/add', [ArticlesController::class, 'addCategory']);
+    Route::post('/articles/categories/delete/{id}', [ArticlesController::class, 'deleteCategory']);
 
     /*Route::get('/profile', 'UsersController@profile');
     Route::post('/updateprofile', 'UsersController@updateprofile');
@@ -334,24 +396,38 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('emails/view/{id}', [EmailController::class, 'viewEmail']);*/
 
     //communication
+    Route::get("communication", function () { return redirect()->to('dashboard/communication/sms'); });
     Route::get("communication/emails", [EmailController::class, "index"]);
+    Route::get("communication/emails/datatable", [EmailController::class, "getEmailsDataTable"]);
     Route::get("communication/emails/users", [EMailController::class, "getemails"]);
+    Route::get('communication/emails/scheduled/datatable', [EmailController::class, 'getScheduledEmailsDataTable']);
+    Route::post('communication/emails/schedule/cancel', [EmailController::class, 'cancelScheduledEmail']);
     Route::get("communication/emails/view/{id}", [EmailController::class, "email"]);
-    Route::get('communication/emails/delete/{id}', [EmailController::class, 'removeemail']);
+    Route::get("communication/emails/json/{id}", [EmailController::class, "emailJson"]);
+    Route::post('communication/emails/delete/{id}', [EmailController::class, 'removeemail']);
     Route::post('communication/emails/send', [EMailController::class, 'html_email']);
 
     //sms
     Route::get("communication/sms", [SMSController::class, "sms"]);
-    Route::post('communication/sms/send', [SMSController::class, 'sendSms']);
+    Route::get("communication/sms/datatable", [SMSController::class, "getSmsDataTable"]);
+    Route::get("communication/sms/summary", [SMSController::class, "getSmsSummary"]);
+    Route::post('communication/sms/send', [SMSController::class, 'sendSms'])->middleware('throttle:10,1');
+    Route::get('communication/sms/scheduled/datatable', [SMSController::class, 'getScheduledDataTable']);
+    Route::post('communication/sms/schedule/cancel', [SMSController::class, 'cancelSchedule']);
+    Route::get('communication/sms/birthday/settings', [SMSController::class, 'getBirthdaySettings']);
+    Route::post('communication/sms/birthday/settings', [SMSController::class, 'saveBirthdaySettings']);
+    Route::get('communication/sms/mpesa/settings', [SMSController::class, 'getMpesaSettings']);
+    Route::post('communication/sms/mpesa/settings', [SMSController::class, 'saveMpesaSettings']);
     Route::get('communication/sms/phone_numbers', [SMSController::class, "phoneNumbers"]);
     Route::get('communication/sms/phone_numbers/{search}', [SMSController::class, "phoneNumbers"]);
     Route::get('communication/sms/view/{id}', [SMSController::class, 'readsms']);
-    Route::get('communication/sms/remove/{id}', [SMSController::class, 'removesms']);
+    Route::get('communication/sms/json/{id}', [SMSController::class, 'readsmsJson']);
+    Route::post('communication/sms/remove/{id}', [SMSController::class, 'removesms']);
 
-    //scheduling
-    Route::get("communication/schedule/sms", [ScheduleController::class, "schedules"]);
-    Route::get("communication/schedule/sms/{id}", [ScheduleController::class, "schedule"]);
-    Route::get("communication/schedule/sms/cancel/{id}", [ScheduleController::class, "cancelschedule"]);
+    // Legacy scheduling redirects
+    Route::get("communication/schedule/sms", function () { return redirect()->to('dashboard/communication/sms'); });
+    Route::get("communication/schedule/sms/{id}", function () { return redirect()->to('dashboard/communication/sms'); });
+    Route::post("communication/schedule/sms/cancel/{id}", [ScheduleController::class, "cancelschedule"]);
     /*
     Route::get('user/phone/{id}', 'SMSController@getPhone');
     Route::post('users/sendsms', 'SMSController@sendsinglesms');
@@ -365,11 +441,60 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('settings/email', [EmailSettingsController::class, 'index']);
     Route::post('settings/email/add', [EmailSettingsController::class, 'addEmailSettings']);
 
+    //tags
+    Route::get('settings/tags', [TagsController::class, 'index']);
+    Route::get('settings/tags/datatable', [TagsController::class, 'getTags']);
+    Route::post('settings/tags/add', [TagsController::class, 'addTag']);
+    Route::post('settings/tags/delete/{id}', [TagsController::class, 'deleteTag']);
+    Route::get('settings/tags/search', [TagsController::class, 'searchTags']);
+    Route::post('settings/tags/assign', [TagsController::class, 'assignTag']);
+    Route::post('settings/tags/remove', [TagsController::class, 'removeUserTag']);
+
+    //lookups (sunday school classes & residences)
+    Route::get('settings/lookups', [SettingsLookupController::class, 'index']);
+    Route::get('settings/sunday-school-classes/datatable', [SettingsLookupController::class, 'getSundaySchoolClasses']);
+    Route::post('settings/sunday-school-classes/add', [SettingsLookupController::class, 'addSundaySchoolClass']);
+    Route::post('settings/sunday-school-classes/delete/{id}', [SettingsLookupController::class, 'deleteSundaySchoolClass']);
+    Route::get('settings/sunday-school-classes/search', [SettingsLookupController::class, 'searchSundaySchoolClasses']);
+    Route::get('settings/residences/datatable', [SettingsLookupController::class, 'getResidences']);
+    Route::post('settings/residences/add', [SettingsLookupController::class, 'addResidence']);
+    Route::post('settings/residences/delete/{id}', [SettingsLookupController::class, 'deleteResidence']);
+    Route::get('settings/residences/search', [SettingsLookupController::class, 'searchResidences']);
+
+    //integrations
+    Route::get('settings/integrations', [IntegrationsController::class, 'index']);
+    Route::get('settings/integrations/datatable', [IntegrationsController::class, 'datatable']);
+    Route::get('settings/integrations/schema', [IntegrationsController::class, 'getFieldSchema']);
+    Route::post('settings/integrations/save', [IntegrationsController::class, 'store']);
+    Route::post('settings/integrations/delete/{id}', [IntegrationsController::class, 'delete']);
+    Route::post('settings/integrations/toggle/{id}', [IntegrationsController::class, 'toggleActive']);
+    Route::post('settings/integrations/default/{id}', [IntegrationsController::class, 'setDefault']);
+
     //users
     Route::get('users/all', [UsersController::class, 'index']);
     Route::get('users/datatable', [UsersController::class, 'getUsers']);
     Route::post('users/add', [UsersController::class, 'addUser']);
+    Route::post('users/import', [UsersController::class, 'importUsers']);
+    Route::get('users/duplicates', [UsersController::class, 'duplicates']);
+    Route::get('users/duplicates/scan', [UsersController::class, 'scanDuplicates']);
     Route::get('users/view/{id}', [UsersController::class, 'viewUser']);
+    Route::post('users/update/basic', [UsersController::class, 'updateBasic']);
+    Route::post('users/update/contacts', [UsersController::class, 'updateContacts']);
+    Route::post('users/update/church', [UsersController::class, 'updateChurch']);
+    Route::post('users/update/family', [UsersController::class, 'updateFamily']);
+    Route::post('users/update/profession', [UsersController::class, 'updateProfession']);
+    Route::post('users/update/education', [UsersController::class, 'updateEducation']);
+    Route::post('users/sendsms', [UsersController::class, 'sendUserSms'])->middleware('throttle:10,1');
+    Route::post('users/invite', [UsersController::class, 'inviteUser'])->middleware('throttle:10,1');
+    Route::get('users/invitations', [UsersController::class, 'invitations']);
+    Route::get('users/invitations/datatable', [UsersController::class, 'invitationsDataTable']);
+    Route::post('users/toggle-verification', [UsersController::class, 'toggleVerification']);
+    Route::post('users/send-verification-request', [UsersController::class, 'sendVerificationRequest'])->middleware('throttle:5,1');
+    Route::post('users/merge', [UsersController::class, 'mergeUsers']);
+    Route::post('users/quick-edit', [UsersController::class, 'quickEditUser']);
+    Route::post('users/archive', [UsersController::class, 'archiveUser']);
+    Route::post('users/unarchive', [UsersController::class, 'unarchiveUser']);
+    Route::post('users/delete', [UsersController::class, 'deleteUser']);
     Route::post('users/share/add', [UsersController::class, 'addShare']);
     Route::get('users/view/datatable/shares/{id}', [UsersController::class, 'getShares']);
     Route::get('users/roles', [RolesController::class, 'index']);
@@ -397,6 +522,37 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     Route::get('settings/general', [GeneralSettingsController::class, 'index']);
     Route::post('settings/general/add', [GeneralSettingsController::class, 'addGeneralSettings']);
+
+    //reports
+    Route::get('reports', [ReportsController::class, 'index']);
+    Route::get('reports/mpesa-logs', [ReportsController::class, 'mpesaLogs']);
+    Route::get('reports/mpesa-logs/datatable', [ReportsController::class, 'mpesaLogsDataTable']);
+    Route::post('reports/mpesa-logs/rehash', [ReportsController::class, 'rehashTransaction']);
+    Route::post('reports/mpesa-logs/bulk-rehash', [ReportsController::class, 'bulkRehash']);
+
+    //prayer requests
+    Route::get('prayer-requests', [PrayerRequestController::class, 'index']);
+    Route::get('prayer-requests/datatable', [PrayerRequestController::class, 'datatable']);
+    Route::get('prayer-requests/stats', [PrayerRequestController::class, 'stats']);
+    Route::get('prayer-requests/{id}', [PrayerRequestController::class, 'show']);
+    Route::post('prayer-requests', [PrayerRequestController::class, 'store']);
+    Route::put('prayer-requests/{id}', [PrayerRequestController::class, 'update']);
+    Route::post('prayer-requests/{id}/note', [PrayerRequestController::class, 'addNote']);
+    Route::post('prayer-requests/{id}/assign', [PrayerRequestController::class, 'assign']);
+    Route::post('prayer-requests/{id}/status', [PrayerRequestController::class, 'changeStatus']);
+    Route::post('prayer-requests/{id}/moderate', [PrayerRequestController::class, 'moderate']);
+    Route::post('prayer-requests/{id}/prayed', [PrayerRequestController::class, 'prayedFor']);
+    Route::post('prayer-requests/{id}/delete', [PrayerRequestController::class, 'delete']);
+
+    //file manager
+    Route::get('file-manager', [FileManagerController::class, 'index']);
+    Route::get('file-manager/folders', [FileManagerController::class, 'getFolders']);
+    Route::get('file-manager/files', [FileManagerController::class, 'getFiles']);
+    Route::post('file-manager/folder/create', [FileManagerController::class, 'createFolder']);
+    Route::post('file-manager/folder/update', [FileManagerController::class, 'updateFolder']);
+    Route::post('file-manager/folder/delete', [FileManagerController::class, 'deleteFolder']);
+    Route::post('file-manager/upload', [FileManagerController::class, 'uploadFiles']);
+    Route::post('file-manager/file/delete', [FileManagerController::class, 'deleteFile']);
 
     //profile
     Route::get('profile', [ProfileController::class, 'index']);

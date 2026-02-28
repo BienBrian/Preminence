@@ -96,24 +96,27 @@ class RolesController extends DashboardController
 
     public function addPermissions(Request $request)
     {
-        //if (auth()->user()->can("Edit Roles") || auth()->user()->can("Add Roles")) {
+        if (auth()->user()->can("Edit Roles") || auth()->user()->can("Add Roles")) {
             $validator = Validator::make($request->all(), [
                 'id' => 'required|integer|exists:roles,id',
-                'permissions.*' => 'nullable|integer|exists:permissions,id',
+                'permissions' => 'nullable|array',
+                'permissions.*' => 'integer|exists:permissions,id',
             ]);
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->messages()], 400);
             }
 
-            $permissions = Permission::whereIn('id', $request->permissions != "" ? $request->permissions : [$request->permissions])->pluck("name");
+            $permissionIds = $request->input('permissions', []);
+            $permissions = !empty($permissionIds) ? Permission::whereIn('id', $permissionIds)->pluck("name") : [];
             $role = Role::where('id', $request->id)->first();
-            if ($role->syncPermissions($permissions)) {
+            try {
+                $role->syncPermissions($permissions);
                 return response()->json(['success' => 'Permissions updated successfully!']);
-            } else {
-                return response()->json(['error' => 'Unable to update permissions'], 401);
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Unable to update permissions: ' . $e->getMessage()], 500);
             }
-        /*} else {
+        } else {
             return response()->json(['error' => 'Permissions to Add/Edit Role Denied'], 401);
-        }*/
+        }
     }
 }

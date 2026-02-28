@@ -72,11 +72,11 @@
                                             {{ \Carbon\Carbon::parse($sermon->sermondate)->format('d, M Y') }}
                                             {{ $sermon->time }}
                                         </span>
-                                        {!! html_entity_decode(\Str::words($sermon->description, $limit = 35, $end = '...')) !!}
+                                        {{ \Str::words(strip_tags($sermon->description), 35, '...') }}
                                         <p class='text-right'>
                                             <a href="{{ url('dashboard/spiritual/sermons/edit/' . $sermon->id) }}"
                                                 class='btn btn-primary btn-sm'>Edit</a>
-                                            <a href="{{ url('dashboard/spiritual/sermons/delete/' . $sermon->id) }}"
+                                            <a href="#" onclick="return postAction('{{ url('dashboard/spiritual/sermons/delete/' . $sermon->id) }}', 'Delete this sermon?')"
                                                 class='btn btn-danger btn-sm'>Delete</a>
                                         </p>
                                     </div>

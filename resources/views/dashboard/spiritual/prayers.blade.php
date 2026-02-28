@@ -77,7 +77,7 @@
                                             <td class='text-right'>
                                                 <a href="{{ $prayer->id }}"
                                                     class='btn btn-primary btn-sm view-prayer'>View</a>
-                                                <a href="{{ url('dashboard/spiritual/prayers/delete/' . $prayer->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/spiritual/prayers/delete/' . $prayer->id) }}', 'Delete this prayer?')"
                                                     class='btn btn-danger btn-sm'>Delete</a>
                                             </td>
                                         </tr>

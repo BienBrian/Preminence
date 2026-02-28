@@ -35,9 +35,9 @@
                                 <strong>Message</strong><br>
                                 <hr style='width: 20px; border: 2px solid #ccc' class='m-0'>
                                 <br>
-                                {!! html_entity_decode($schedule->message) !!}
+                                {{ $schedule->message }}
                                 <div class='pt-3 pb-3'>
-                                    <a href='{{url("dashboard/communication/schedule/sms/cancel/".$schedule->id)}}' class='text-danger'>Cancel Message</a>
+                                    <a href='#' onclick="return postAction('{{url("dashboard/communication/schedule/sms/cancel/".$schedule->id)}}', 'Cancel this scheduled message?')" class='text-danger'>Cancel Message</a>
                                 </div>
                             </div>
                             <div class='col-sm'>

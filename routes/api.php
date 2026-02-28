@@ -6,16 +6,20 @@ use App\Http\Controllers\APIs\Dashboard\Shares\ShareAPIController;
 use App\Http\Controllers\APIs\MpesaAPIController;
 use Illuminate\Support\Facades\Route;
 
-Route::any('test/sms', [MpesaAPIController::class, 'testSMS']);
-Route::post('/access/token', [MpesaAPIController::class, 'generateAccessToken']);
-Route::post('/stk/push',  [MpesaAPIController::class, 'customerMpesaSTKPush']);
+// Protected Mpesa admin routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/access/token', [MpesaAPIController::class, 'generateAccessToken']);
+    Route::post('/stk/push',  [MpesaAPIController::class, 'customerMpesaSTKPush']);
+    Route::post('/register/url',  [MpesaAPIController::class, 'mpesaRegisterUrls']);
+});
+
+// Public Safaricom callback routes
 Route::post('stk/confirmation',  [MpesaAPIController::class, 'stkResponse']);
 Route::post('/validation',  [MpesaAPIController::class, 'mpesaValidation']);
 Route::post('/transaction/confirmation',  [MpesaAPIController::class, 'mpesaConfirmation']);
-Route::post('/register/url',  [MpesaAPIController::class, 'mpesaRegisterUrls']);
 
 
-Route::group(['prefix' => 'auth'], function () {
+Route::group(['prefix' => 'auth', 'middleware' => 'throttle:5,1'], function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
 

@@ -15,13 +15,18 @@ class Recaptcha implements ValidationRule
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        $g_response = Http::asForm()->post("https://www.google.com/recaptcha/api/siteverify", [
+        $g_response = Http::timeout(10)->asForm()->post("https://www.google.com/recaptcha/api/siteverify", [
             'secret'=>config('services.recaptcha.secret_key'),
             'response'=>$value,
             'remoteip'=>request()->ip(),
         ]);
-        if (!$g_response->json('success')) {
+        if (!$g_response->successful() || !$g_response->json('success')) {
             $fail("The {$attribute} is invalid.");
+            return;
+        }
+        $score = $g_response->json('score');
+        if ($score !== null && $score < 0.5) {
+            $fail("The {$attribute} verification failed. Please try again.");
         }
     }
 }

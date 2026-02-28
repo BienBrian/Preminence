@@ -32,10 +32,10 @@
                             <div class='container'>
                                 <div class='row'>
                                     <div class='col-sm-8'>
-                                        <strong>{{ html_entity_decode($email->subject) }}</strong><br>
+                                        <strong>{{ $email->subject }}</strong><br>
                                         <hr style='width: 20px; border: 2px solid #ccc' class='m-0'>
                                         <br>
-                                        {!! html_entity_decode($email->message) !!}
+                                        {!! strip_tags($email->message, '<p><br><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><table><thead><tbody><tr><th><td><div><span><hr>') !!}
                                     </div>
                                     <div class='col-sm'>
                                         <div class='alert alert-success'>

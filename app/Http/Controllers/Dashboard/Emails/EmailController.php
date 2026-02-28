@@ -7,6 +7,7 @@ use App\Mail\MyEmail;
 use App\Models\Email;
 use App\Models\EmailRecipient;
 use App\Models\User;
+use App\Traits\SanitizesHtml;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ use Yajra\DataTables\DataTables;
 
 class EmailController extends Controller
 {
+    use SanitizesHtml;
     public function __construct()
     {
     $this->middleware(['auth', 'verified']);
@@ -69,7 +71,7 @@ class EmailController extends Controller
         }
         $email  = new Email;
         $email->subject = $request->subject;
-        $email->body = $request->body;
+        $email->body = $this->purify($request->body);
         $email->user_id = Auth::user()->id;
         if($email->save()){
             foreach($request->recipients as $recipient_id){

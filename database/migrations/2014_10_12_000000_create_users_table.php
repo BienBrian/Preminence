@@ -31,9 +31,8 @@ return new class extends Migration
                 'firstname' => 'James',
                 'lastname' => 'Githiora',
                 'email' => 'jaygithiora@gmail.com',
-                'password' => \Hash::make("12345"),
-                'status' =>1,
-                'role'=>1,
+                'password' => \Hash::make(\Str::random(32)),
+                'status' => 1,
             )
         );
     }

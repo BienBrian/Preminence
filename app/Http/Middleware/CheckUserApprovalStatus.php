@@ -17,8 +17,9 @@ class CheckUserApprovalStatus
     public function handle(Request $request, Closure $next): Response
     {
         if (Auth::check()) {
-            if (auth()->user()->approval_status == 2 || auth()->user()->approval_status == 0 || auth()->user()->status == 0) {
-                return redirect('dashboard/status'); // Replace '/rejected-page' with the actual URL
+            $user = \App\Models\User::find(Auth::id());
+            if ($user && ($user->approval_status == 2 || $user->approval_status == 0 || $user->status == 0)) {
+                return redirect('dashboard/status');
             }
         }
         return $next($request);

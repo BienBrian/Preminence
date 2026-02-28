@@ -143,7 +143,10 @@ class AttendanceController extends DashboardController
         return DataTables::of(\DB::table("guardians")->select('users.id', 'firstname', 'lastname', 'surname', 'email', 'phone', 'relationship')
             ->join('users', 'users.id', '=', 'guardians.user_id')->where('guardians.child_id', $request->id)->orderBy('users.firstname', 'ASC'))
             ->addColumn("guardian", function ($item) {
-                return $item->firstname . ' ' . $item->lastname . ' ' . $item->surname;
+                if ($item->firstname) {
+                    return '<span class="font-weight-bold">' . e($item->firstname) . ' ' . e($item->lastname) . '</span>';
+                }
+                return '<span class="badge badge-secondary">No Guardian</span>';
             })->filter(function ($query) use ($request) {
                 if ($request->has('search')) {
                     if ($request->search != null) {
@@ -177,12 +180,16 @@ class AttendanceController extends DashboardController
     public function importChildren(Request $request)
     {
         $request->validate([
-            'import_file' => 'required'
+            'import_file' => 'required|mimes:xlsx,xls,csv|max:5120'
         ]);
 
-        Excel::import(new ChildrenImport, request()->file('import_file'));
+        $import = new \App\Imports\ChildrenImport();
+        \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('import_file'));
 
-        return back()->with('success', 'Insert Record successfully.');
+        $imported = $import->getImported();
+        $skipped = $import->getSkipped();
+
+        return back()->with('success', "Import complete: {$imported} children imported, {$skipped} rows skipped.");
     }
     public function childrenAttendance()
     {
@@ -343,6 +350,9 @@ class AttendanceController extends DashboardController
             "gender" => "string|required",
             "residence" => "string|required",
             "sunday_school_class" => "string|nullable",
+            "guardian_id" => "nullable|integer",
+            "relationship" => "nullable|string",
+            "no_guardian" => "nullable",
         ]);
         $dob = \Carbon\Carbon::parse($request->dob);
         if ($request->id > 0) {
@@ -364,23 +374,32 @@ class AttendanceController extends DashboardController
                 return back()->with('error', 'Unable to update child');
             }
         } else {
-            if (
-                \DB::table("children")->insert([
-                    'firstname' => $request->firstname,
-                    'lastname' => $request->lastname,
-                    'surname' => $request->surname,
-                    'dob' => $dob,
-                    'residence' => $request->residence,
-                    'sunday_school_class' => $request->sunday_school_class,
-                    'gender' => $request->gender,
-                    'created_at' => \Carbon\Carbon::now()
-                ])
-            ) {
+            $childId = \DB::table("children")->insertGetId([
+                'firstname' => $request->firstname,
+                'lastname' => $request->lastname,
+                'surname' => $request->surname,
+                'dob' => $dob,
+                'residence' => $request->residence,
+                'sunday_school_class' => $request->sunday_school_class,
+                'gender' => $request->gender,
+                'user_id' => 0,
+                'created_at' => \Carbon\Carbon::now()
+            ]);
+
+            if ($childId) {
+                // Handle guardian
+                if (!$request->has('no_guardian') && $request->guardian_id > 0) {
+                    \DB::table("guardians")->insert([
+                        'child_id' => $childId,
+                        'user_id' => $request->guardian_id,
+                        'relationship' => $request->relationship ?? 'Guardian',
+                        'created_at' => \Carbon\Carbon::now(),
+                    ]);
+                }
                 return redirect()->back()->with("success", "Child Added");
             } else {
                 return back()->with('error', 'Unable to add child');
             }
-
         }
     }
 
@@ -422,7 +441,7 @@ class AttendanceController extends DashboardController
                 $action = '<div class="text-right">
                 <span class="d-none id">' . $item->id . '</span>';
                 if ($item->timeout == null) {
-                    $action .= '<a href="' . url("dashboard/children/checkout/" . $item->id) . '" class="btn btn-primary p-1 pr-2 pl-2" data-toggle="tooltip" data-placement="bottom" title="View">
+                    $action .= '<a href="#" onclick="return postAction(\'' . url("dashboard/children/checkout/" . $item->id) . '\')" class="btn btn-primary p-1 pr-2 pl-2" data-toggle="tooltip" data-placement="bottom" title="Checkout">
                                     <i class="fas fa-redo"></i> Checkout
                                 </a>';
                 } else {
@@ -608,7 +627,7 @@ class AttendanceController extends DashboardController
             })->addColumn('date', function ($item) {
                 return \Carbon\Carbon::parse($item->day)->format('D d M, Y h:i A');
             })->addColumn('action', function ($item) {
-                return "<a href='" . url("dashboard/events_and_notices/attendance/remove/" . $item->id) . "' class='btn btn-danger btn-sm'>Delete</a>";
+                return "<a href='#' onclick=\"return postAction('" . url("dashboard/events_and_notices/attendance/remove/" . $item->id) . "', 'Delete this attendance record?')\" class='btn btn-danger btn-sm'>Delete</a>";
             })->make();
     }
 

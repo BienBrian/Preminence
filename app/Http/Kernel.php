@@ -37,6 +37,7 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ],
 
         'api' => [
@@ -71,5 +72,6 @@ class Kernel extends HttpKernel
         'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,
         //personal middleware
         'check_approval_status' => \App\Http\Middleware\CheckUserApprovalStatus::class,
+        'force_password_change' => \App\Http\Middleware\ForcePasswordChange::class,
     ];
 }

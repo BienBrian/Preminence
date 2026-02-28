@@ -31,13 +31,13 @@
                 @if (\Session::has('success'))
                     <div class="alert alert-success alert-dismissable m-1">
                         <a href="#" class="close text-white" data-dismiss="alert" aria-label="close">&times;</a>
-                        <i class='fas fa-check-circle'></i> {!! \Session::get('success') !!}
+                        <i class='fas fa-check-circle'></i> {{ \Session::get('success') }}
                     </div>
                 @endif
                 @if (\Session::has('error'))
                     <div class="alert alert-danger alert-dismissable m-1">
                         <a href="#" class="close text-white" data-dismiss="alert" aria-label="close">&times;</a>
-                            <i class='fas fa-exclamation-circle'></i> {!! \Session::get('error') !!}
+                            <i class='fas fa-exclamation-circle'></i> {{ \Session::get('error') }}
                     </div>
                 @endif
                 @if (count($errors) > 0)

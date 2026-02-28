@@ -74,7 +74,7 @@
                                                 <td class="text-right">
                                                     <a href="#" class='btn text-primary btn-sm btn-view'
                                                         title='View'><i class='fas fa-eye'></i></a>
-                                                    <a href="{{ url('dashboard/website/gallery/delete/' . $gallery->id) }}"
+                                                    <a href="#" onclick="return postAction('{{ url('dashboard/website/gallery/delete/' . $gallery->id) }}', 'Delete this image?')"
                                                         class='btn text-danger btn-sm' title='Delete'><i
                                                             class='fas fa-trash'></i></a>
                                                 </td>

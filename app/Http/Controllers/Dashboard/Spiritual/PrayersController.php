@@ -89,9 +89,9 @@ class PrayersController extends DashboardController
             }else{
                 return redirect()->back()->with("error", "Unable to remove prayer!");
             }
-        }else if(\Auth::user()->role == 1){
+        }else if(\Auth::user()->hasRole('Super Admin') || \Auth::user()->can('Manage Prayers')){
             $prayer = Prayer::where("id", $request->id)->first();
-            if($prayer->delete()){
+            if($prayer && $prayer->delete()){
                 return redirect()->back()->with("success", "Deleted prayer request successfully!");
             }else{
                 return redirect()->back()->with("error", "Unable to remove prayer!");

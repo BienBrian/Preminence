@@ -157,17 +157,20 @@ class HomeController extends DashboardController
     }
 
     public function years(Request $request){
-        $dashboard = \DB::table('funds')->where("sources.ftype", 0)->join("sources", "sources.id", "funds.source")->select(\DB::raw('sum(funds.amount) as totals'), \DB::raw('YEAR(funds.created_at) year, MONTH(funds.created_at) month'))->where(\DB::raw('YEAR(funds.created_at)'), $request->years)->groupby(\DB::raw('YEAR(funds.created_at)'), \DB::raw('MONTH(funds.created_at)'))->get();
+        $year = intval($request->years);
+        $dashboard = \DB::table('funds')->where("sources.ftype", 0)->join("sources", "sources.id", "funds.source")->select(\DB::raw('sum(funds.amount) as totals'), \DB::raw('YEAR(funds.created_at) year, MONTH(funds.created_at) month'))->whereYear('funds.created_at', $year)->groupby(\DB::raw('YEAR(funds.created_at)'), \DB::raw('MONTH(funds.created_at)'))->get();
         return json_encode($dashboard);
     }
 
     public function expenditure(Request $request){
-        $dashboard = \DB::table('funds')->where("sources.ftype", 1)->join("sources", "sources.id", "funds.source")->select(\DB::raw('sum(funds.amount) as totals'), \DB::raw('YEAR(funds.created_at) year, MONTH(funds.created_at) month'))->where(\DB::raw('YEAR(funds.created_at)'), $request->years)->groupby(\DB::raw('YEAR(funds.created_at)'), \DB::raw('MONTH(funds.created_at)'))->get();
+        $year = intval($request->years);
+        $dashboard = \DB::table('funds')->where("sources.ftype", 1)->join("sources", "sources.id", "funds.source")->select(\DB::raw('sum(funds.amount) as totals'), \DB::raw('YEAR(funds.created_at) year, MONTH(funds.created_at) month'))->whereYear('funds.created_at', $year)->groupby(\DB::raw('YEAR(funds.created_at)'), \DB::raw('MONTH(funds.created_at)'))->get();
         return json_encode($dashboard);
     }
 
     public function myfunds(Request $request){
-        $dashboard = \DB::table('funds')->where("source", $request->id)->select(\DB::raw('sum(amount) as totals'), \DB::raw('YEAR(created_at) year, MONTH(created_at) month'))->where(\DB::raw('YEAR(created_at)'), $request->years)->groupby(\DB::raw('YEAR(created_at)'), \DB::raw('MONTH(created_at)'))->get();
+        $year = intval($request->years);
+        $dashboard = \DB::table('funds')->where("source", $request->id)->select(\DB::raw('sum(amount) as totals'), \DB::raw('YEAR(created_at) year, MONTH(created_at) month'))->whereYear('created_at', $year)->groupby(\DB::raw('YEAR(created_at)'), \DB::raw('MONTH(created_at)'))->get();
         return json_encode($dashboard);
     }
 

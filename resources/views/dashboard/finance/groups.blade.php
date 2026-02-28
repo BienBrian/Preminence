@@ -9,7 +9,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item"><a href="{{ url('finances/activities') }}">Activities</a></li>
                         <li class="breadcrumb-item active">Groups</li>
                     </ol>
@@ -92,9 +92,9 @@
                                                 <a href="{{ url('dashboard/finances/activities/groups/participants/' . $group->id) }}"
                                                     class='btn btn-default btn-sm'>Participants</a>
                                                 @if ($group->status == 0)
-                                                    <a href="{{ url('dashboard/groups/recieved/' . $group->id) }}"
+                                                    <a href="#" onclick="return postAction('{{ url('dashboard/groups/recieved/' . $group->id) }}')"
                                                         class='btn btn-success btn-sm'>Recieved</a>
-                                                    <a href="{{ url('dashboard/groups/remove/'. $group->id) }}" class='btn btn-danger btn-sm'>Delete</a>
+                                                    <a href="#" onclick="return postAction('{{ url('dashboard/groups/remove/'. $group->id) }}', 'Delete this group?')" class='btn btn-danger btn-sm'>Delete</a>
                                                 @endif
                                             </td>
                                         </tr>

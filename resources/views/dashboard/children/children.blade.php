@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Children</li>
                     </ol>
                 </div><!-- /.col -->
@@ -136,6 +136,10 @@
                 <div class="modal-body">
                     <form action="{{ url('dashboard/children/upload') }}" method="post" enctype="multipart/form-data">
                         @csrf
+                        <div class="mb-2">
+                            <label>Upload an Excel file with columns: <strong>First Name, Surname, Last Name, Gender, Date of Birth, Parent Phone, Residence, Sunday School Class, Relationship</strong></label>
+                            <a href="{{ asset('samples/children_import_sample.xlsx') }}" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i> Download Sample File</a>
+                        </div>
                         <div class='form-group'>
                             <label>Excel File:</label>
                             <div class="input-group">
@@ -144,7 +148,7 @@
                                             class='fas fa-cloud text-primary'></i></span>
                                 </div>
                                 <input type="file" class="form-control" name="import_file"
-                                    placeholder='Upload excel file' required>
+                                    accept=".xlsx,.xls,.csv" placeholder='Upload excel file' required>
                             </div>
                         </div>
                         <div class="form-group text-right">
@@ -159,7 +163,7 @@
     <!-- Modal -->
     <div class="modal fade" id="childModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
         aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header border-bottom">
                     <h5 class="modal-title" id="exampleModalLabel"><i class='fas fa-child'></i> Add Child</h5>
@@ -171,19 +175,20 @@
                     <form action="{{ url('dashboard/children/save') }}" method="post" class='row'>
                         @csrf
                         <input type='hidden' name='id' value='0'>
-                        <div class='form-group col-sm-6'>
+                        <div class="col-12 mb-2"><strong>Child Details</strong><hr class="mt-1 mb-2"></div>
+                        <div class='form-group col-sm-4'>
                             <label>First Name:</label>
                             <input type="text" class="form-control" name="firstname" placeholder='First Name'>
                         </div>
-                        <div class='form-group col-sm-6'>
+                        <div class='form-group col-sm-4'>
                             <label>Last Name:</label>
                             <input type="text" class="form-control" name="lastname" placeholder='Last Name'>
                         </div>
-                        <div class='form-group col-sm-6'>
+                        <div class='form-group col-sm-4'>
                             <label>Surname:</label>
                             <input type="text" class="form-control" name="surname" placeholder='Surname'>
                         </div>
-                        <div class='form-group'>
+                        <div class='form-group col-sm-4'>
                             <label>Gender:</label>
                             <select class="custom-select" name="gender">
                                 <option value="MALE">Male</option>
@@ -192,19 +197,43 @@
                                 <option value="RATHER NOT SAY">Rather Not Say</option>
                             </select>
                         </div>
-                        <div class='form-group col-sm-6'>
+                        <div class='form-group col-sm-4'>
                             <label>DOB:</label>
                             <input type="date" class="form-control" name="dob" placeholder='Enter DOB' required>
                         </div>
-                        <div class='form-group col-sm-6'>
+                        <div class='form-group col-sm-4'>
                             <label>Residence:</label>
-                            <input type="text" class="form-control" name="residence" placeholder='Residence'
-                                required>
+                            <select class="form-control" name="residence" id="residenceSelect" required></select>
                         </div>
                         <div class='form-group col-sm-12'>
                             <label>Sunday School Class:</label>
-                            <input type="text" class="form-control" name="sunday_school_class"
-                                placeholder='Sunday School Class' required>
+                            <select class="form-control" name="sunday_school_class" id="classSelect" required></select>
+                        </div>
+
+                        <!-- Guardian Section -->
+                        <div class="col-12 mt-2 mb-2"><strong>Guardian Information</strong><hr class="mt-1 mb-2"></div>
+                        <div class="col-sm-12 mb-2">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="noGuardianCheck" name="no_guardian" value="1">
+                                <label class="custom-control-label" for="noGuardianCheck">Child has no guardian in this church</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-8 guardian-fields">
+                            <div class='form-group'>
+                                <label>Search Guardian:</label>
+                                <select class='form-control' name='guardian_id' id='guardianSelect'></select>
+                            </div>
+                        </div>
+                        <div class="col-sm-4 guardian-fields">
+                            <div class='form-group'>
+                                <label>Relationship:</label>
+                                <select class="custom-select" name="relationship">
+                                    <option value="Mother">Mother</option>
+                                    <option value="Father">Father</option>
+                                    <option value="Relative">Relative</option>
+                                    <option value="Guardian">Guardian</option>
+                                </select>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -349,6 +378,89 @@
             });
             $('#childModal .btn-submit').click(function() {
                 $('#childModal form').submit();
+            });
+
+            // Sunday School Class Select2
+            $('#classSelect').select2({
+                width: '100%',
+                placeholder: 'Select Sunday School Class',
+                allowClear: true,
+                dropdownParent: $('#childModal'),
+                tags: true,
+                ajax: {
+                    url: '{{ url("dashboard/settings/sunday-school-classes/search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return {
+                            results: $.map(data, function(item) {
+                                return { text: item.name, id: item.name };
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+            // Residence Select2
+            $('#residenceSelect').select2({
+                width: '100%',
+                placeholder: 'Select Residence',
+                allowClear: true,
+                dropdownParent: $('#childModal'),
+                tags: true,
+                ajax: {
+                    url: '{{ url("dashboard/settings/residences/search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return {
+                            results: $.map(data, function(item) {
+                                return { text: item.name, id: item.name };
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+            // Guardian Select2
+            $('#guardianSelect').select2({
+                width: '100%',
+                placeholder: 'Search for a guardian...',
+                allowClear: true,
+                dropdownParent: $('#childModal'),
+                ajax: {
+                    url: '{{ url("dashboard/children/parents/search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return { q: params.term };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: $.map(data, function(item) {
+                                return {
+                                    text: item.firstname + ' ' + item.lastname + (item.phone ? ' (' + item.phone + ')' : ''),
+                                    id: item.id
+                                }
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+            // Toggle guardian fields
+            $('#noGuardianCheck').change(function() {
+                if ($(this).is(':checked')) {
+                    $('.guardian-fields').hide();
+                    $('#guardianSelect').val(null).trigger('change');
+                } else {
+                    $('.guardian-fields').show();
+                }
             });
         });
     </script>

@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Attendance Groups</li>
                     </ol>
                 </div><!-- /.col -->
@@ -64,7 +64,7 @@
                                             </td>
                                             <td class='text-right'>
                                                 <!--<a href="{{ url('editcommunity/' . $group->id) }}" class='btn btn-primary btn-sm'>Edit</a>-->
-                                                <a href="{{ url('dashboard/events_and_notices/attendance/groups/remove/' . $group->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/events_and_notices/attendance/groups/remove/' . $group->id) }}', 'Delete this group?')"
                                                     class='btn btn-danger btn-sm'>Delete</a>
                                             </td>
                                         </tr>

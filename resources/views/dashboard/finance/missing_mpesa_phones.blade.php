@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Missing Mpesa Phones</li>
                     </ol>
                 </div><!-- /.col -->
@@ -22,6 +22,28 @@
     <!-- Main content -->
     <section class="content">
         <div class="container-fluid">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="card shadow">
+                        <div class="card-body">
+                            <h6 class="font-weight-bold">Populate Hash Table</h6>
+                            <p class="small text-muted mb-2">Generate SHA256 hashes from existing contacts phone numbers and add them to the mpesa_phones lookup table.</p>
+                            <button class="btn btn-primary btn-sm btn-populate-hashes"><i class="fas fa-database"></i> Populate Hash Table</button>
+                            <span class="ml-2 populate-result"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow">
+                        <div class="card-body">
+                            <h6 class="font-weight-bold">Re-match Unlinked Transactions</h6>
+                            <p class="small text-muted mb-2">Try to match unlinked mpesa fund records (user_id=0) against the hash table to link them to users.</p>
+                            <button class="btn btn-success btn-sm btn-retro-match"><i class="fas fa-link"></i> Re-match Unlinked Transactions</button>
+                            <span class="ml-2 retro-result"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class='row'>
                 <div class="col-xl-12 mb-5 mb-xl-0">
                     <div class="card shadow">
@@ -106,7 +128,12 @@
                         </div>
                         <div class='form-group'>
                             <label class='small'>Phone Number</label>
-                            <input type="text" class="form-control" name="phone" placeholder='Phone Number' required>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">+{{ $site_settings->phone_code ?? '254' }}</span>
+                                </div>
+                                <input type="text" class="form-control" name="phone" placeholder='712345678' required>
+                            </div>
                         </div>
                         <div class='alert feedback border d-none'>
                             <i class='fas fa-spinner fa-pulse'></i> Saving... Please wait
@@ -160,6 +187,14 @@
                     }, {
                         extend: 'pdf',
                         text: '<i class="fas fa-file-pdf"></i> PDF',
+                        className: 'btn border btn-sm',
+                        title: 'Missing Mpesa Phones',
+                        exportOptions: {
+                            columns: ':not(.notexport)'
+                        }
+                    }, {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> Print',
                         className: 'btn border btn-sm',
                         title: 'Missing Mpesa Phones',
                         exportOptions: {
@@ -273,6 +308,43 @@
                     }, 3000);
                     btn.removeAttr('disabled');
                 });
+            });
+        });
+
+        // Populate Hashes
+        $('.btn-populate-hashes').click(function() {
+            var btn = $(this);
+            btn.attr('disabled', 'disabled').html("<i class='fas fa-spinner fa-pulse'></i> Processing...");
+            $('.populate-result').html('');
+            $.ajax({
+                url: '{{ url("dashboard/finances/mpesa/populate-hashes") }}',
+                type: 'POST',
+                data: {_token: $('meta[name="csrf-token"]').attr('content')},
+            }).done(function(data) {
+                $('.populate-result').html("<span class='badge badge-success'>" + data.success + "</span>");
+                btn.removeAttr('disabled').html("<i class='fas fa-database'></i> Populate Hash Table");
+            }).fail(function() {
+                $('.populate-result').html("<span class='badge badge-danger'>Error occurred</span>");
+                btn.removeAttr('disabled').html("<i class='fas fa-database'></i> Populate Hash Table");
+            });
+        });
+
+        // Retro Match
+        $('.btn-retro-match').click(function() {
+            var btn = $(this);
+            btn.attr('disabled', 'disabled').html("<i class='fas fa-spinner fa-pulse'></i> Processing...");
+            $('.retro-result').html('');
+            $.ajax({
+                url: '{{ url("dashboard/finances/mpesa/retro-match") }}',
+                type: 'POST',
+                data: {_token: $('meta[name="csrf-token"]').attr('content')},
+            }).done(function(data) {
+                $('.retro-result').html("<span class='badge badge-success'>" + data.success + "</span>");
+                btn.removeAttr('disabled').html("<i class='fas fa-link'></i> Re-match Unlinked Transactions");
+                table.draw();
+            }).fail(function() {
+                $('.retro-result').html("<span class='badge badge-danger'>Error occurred</span>");
+                btn.removeAttr('disabled').html("<i class='fas fa-link'></i> Re-match Unlinked Transactions");
             });
         });
     </script>

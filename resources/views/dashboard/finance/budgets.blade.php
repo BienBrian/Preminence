@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Budgets</li>
                     </ol>
                 </div><!-- /.col -->
@@ -93,7 +93,7 @@
                                                             <a href='{{ url('dashboard/finances/budgets/edit/' . $b->id) }}'
                                                                 class='btn btn-primary btn-sm'><i class='fas fa-edit'></i>
                                                                 Edit</a>
-                                                            <a href='{{ url('dashboard/finances/budgets/remove/' . $b->id) }}'
+                                                            <a href='#' onclick="return postAction('{{ url('dashboard/finances/budgets/remove/' . $b->id) }}', 'Delete this budget?')"
                                                                 class='btn btn-danger btn-sm'><i class='fas fa-trash'></i>
                                                                 Delete</a>
                                                         </td>

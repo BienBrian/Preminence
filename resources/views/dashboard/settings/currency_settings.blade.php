@@ -11,7 +11,7 @@
                 <div class="col-sm-6 d-none d-sm-block p-2">
 
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Share Maturity Settings</li>
                     </ol>
                 </div><!-- /.col -->

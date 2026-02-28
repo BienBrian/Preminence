@@ -64,14 +64,14 @@ class PastorSettingsController extends DashboardController
             if (
                 !\DB::table('pastorsmessage')->where("id", $request->id)->update([
                     "title" => $request->title,
-                    "description" => $request->description
+                    "description" => $this->purify($request->description)
                 ])
             ) {
                 return redirect()->back()->with('error', 'Unable to update!');
             }
         } else {
             //insert
-            if (!\DB::table('pastorsmessage')->insert(["title" => $request->title, "description" => $request->description, "image" => ""])) {
+            if (!\DB::table('pastorsmessage')->insert(["title" => $request->title, "description" => $this->purify($request->description), "image" => ""])) {
                 return redirect()->back()->with('error', 'Unable to save!');
             }
         }

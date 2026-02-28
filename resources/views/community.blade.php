@@ -23,7 +23,7 @@
                 </div>
                 <img src="{{$community->banner == "" ? asset("website/homepage/default.jpg") : asset("peoples/".$community->banner)}}" class="img-fluid">
                 <div class='card-body'>
-                    <p>{!! html_entity_decode(e($community->description)) !!}</p>
+                    <p>{{ $community->description }}</p>
                 </div>
             </div>
         </div>

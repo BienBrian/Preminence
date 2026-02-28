@@ -27,13 +27,13 @@
                 @if (\Session::has('success'))
                     <div class="alert alert-success alert-dismissable m-1">
                         <a href="#" class="close text-white" data-dismiss="alert" aria-label="close">&times;</a>
-                        <i class='fas fa-check-circle'></i> {!! \Session::get('success') !!}
+                        <i class='fas fa-check-circle'></i> {{ \Session::get('success') }}
                     </div>
                 @endif
                 @if (\Session::has('error'))
                     <div class="alert alert-danger alert-dismissable m-1">
                         <a href="#" class="close text-white" data-dismiss="alert" aria-label="close">&times;</a>
-                            <i class='fas fa-exclamation-circle'></i> {!! \Session::get('error') !!}
+                            <i class='fas fa-exclamation-circle'></i> {{ \Session::get('error') }}
                     </div>
                 @endif
                 @if (count($errors) > 0)
@@ -89,7 +89,7 @@
                                                 <a href="{{$activity->id}}" class='btn btn-primary btn-sm btn-edit-activity'>Edit</a>
                                             @endif
                                             @if($activity->status == 0)
-                                                <a href="{{url('/pledges/recieved/'.$activity->id)}}" class='btn btn-success btn-sm'>Recieved?</a>
+                                                <a href="#" onclick="return postAction('{{url('/pledges/recieved/'.$activity->id)}}')" class='btn btn-success btn-sm'>Recieved?</a>
                                                 <a href="{{$activity->id}}" class='btn btn-danger btn-sm'>Delete</a>
                                             @endif
                                         </td>

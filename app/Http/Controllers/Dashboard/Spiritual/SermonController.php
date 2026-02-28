@@ -106,7 +106,7 @@ class SermonController extends DashboardController
             $update = Sermon::where('id', '=', $request->id)->update(
                 array(
                     'title' => $request->title,
-                    'description' => $request->description,
+                    'description' => $this->purify($request->description),
                     "youtube" => $request->youtube,
                     "audio" => $request->audio_link,
                     "duration" => $minutes
@@ -133,7 +133,7 @@ class SermonController extends DashboardController
             'banner' => 'mimes:jpg,jpeg,png| max:1024',
         ]);
 
-        $description = $request->description;
+        $description = $this->purify($request->description);
         $dom = new \DomDocument();
         $dom->loadHtml($description, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         $images = $dom->getElementsByTagName('img');

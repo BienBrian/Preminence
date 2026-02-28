@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item active">Pastors</li>
                     </ol>
                 </div><!-- /.col -->
@@ -64,25 +64,14 @@
                                             <td>{{ $count }}</td>
                                             <td>{{ $pastor->firstname }} {{ $pastor->lastname }}</td>
                                             <td>{{ $pastor->email }}</td>
-                                            <td>
-                                                @if ($pastor->status == 0)
-                                                    Pastor
-                                                @else
-                                                    Senior Pastor
-                                                @endif
-                                            </td>
+                                            <td>{{ $pastor->title }}</td>
                                             <td class="text-right">
-                                                @if ($pastor->status == 0)
-                                                    <a class="btn btn-sm btn-success"
-                                                        href="{{ url('dashboard/pastor/senior/' . $pastor->id) }}"
-                                                        data-toggle="tooltip" title="Make Senior Pastor">
-                                                        <i class="fas fa-sync"></i>
-                                                    </a>
-                                                @endif
-                                                <a class="btn btn-sm btn-danger"
-                                                    href="{{ url('dashboard/remove/pastor/' . $pastor->id) }}">
-                                                    <i class="fas fa-trash"></i>
-                                                </a>
+                                                <button class="btn btn-sm btn-primary btn-edit-title"
+                                                    data-id="{{ $pastor->id }}"
+                                                    data-title="{{ $pastor->title }}"
+                                                    data-toggle="tooltip" title="Edit Title">
+                                                    <i class="fas fa-pencil-alt"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                         <?php $count++; ?>
@@ -101,6 +90,36 @@
         </div>
     </section>
 
+
+    <!-- Edit Title Modal -->
+    <div class="modal fade" id="editTitleModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-sm" role="document">
+            <div class="modal-content">
+                <form action="{{ url('dashboard/pastors/update-title') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="id" id="editTitlePastorId">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-pencil-alt"></i> Edit Title</h5>
+                        <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Title / Position</label>
+                            <select name="title" id="editTitleSelect" class="form-control">
+                                @foreach($titles as $t)
+                                    <option value="{{ $t }}">{{ $t }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="pastorsusers" style="background-color: rgba(0,0,0,.5)">
         <div class="message-div">
@@ -149,6 +168,12 @@
                 }
             });
 
+            $('.btn-edit-title').click(function() {
+                $('#editTitlePastorId').val($(this).data('id'));
+                $('#editTitleSelect').val($(this).data('title'));
+                $('#editTitleModal').modal('show');
+            });
+
             $('.pastorsusers .close').click(function() {
                 $('.pastorsusers').hide();
             });
@@ -188,7 +213,7 @@
                     $('.lazy').show();
                     allowscroll();
                     $.ajax({
-                        url: "/people/users?search=" + search,
+                        url: "{{ url('dashboard/people/users') }}?search=" + search,
                         method: "GET",
                     }).done(function(data) {
                         displayContacts(data);
@@ -216,7 +241,7 @@
                 var search = $('input[name="search"]').val();
                 var limit = parseInt($('.scroll input[name="limit"]').val()) + 10;
                 $.ajax({
-                    url: '/people/users?search=' + search + "&limit=" + limit,
+                    url: "{{ url('dashboard/people/users') }}?search=" + search + "&limit=" + limit,
                     type: 'GET',
                 }).done(function(data) {
                     displayContacts(data);

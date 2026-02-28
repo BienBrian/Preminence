@@ -49,7 +49,7 @@ class SeminarController extends DashboardController
             $startdate = \Carbon\Carbon::parse($request->startdate)->format('Y-m-d H:i:s');
             $enddate = \Carbon\Carbon::parse($request->enddate)->format('Y-m-d H:i:s');
 
-            $update = \DB::table('seminars')->where('id', '=', $request->id)->update(array('title' => $request->title, 'banner'=>$banner, 'description' => $request->description,
+            $update = \DB::table('seminars')->where('id', '=', $request->id)->update(array('title' => $request->title, 'banner'=>$banner, 'description' => $this->purify($request->description),
                 "start"=>$startdate, "location"=>$request->location, "end"=>$enddate, "cost"=>$request->budget, "entry"=>$request->entry, "theme"=>$request->theme));
             if($update){
                 return redirect()->back()->with('success', 'Seminar has been updated successfully');
@@ -70,7 +70,7 @@ class SeminarController extends DashboardController
             $startdate = \Carbon\Carbon::parse($request->startdate)->format('Y-m-d H:i:s');
             $enddate = \Carbon\Carbon::parse($request->enddate)->format('Y-m-d H:i:s');
 
-            $save = \DB::table('seminars')->insert(array('title' => $request->title, 'banner'=>$banner, 'description' => $request->description,
+            $save = \DB::table('seminars')->insert(array('title' => $request->title, 'banner'=>$banner, 'description' => $this->purify($request->description),
             "start"=>$startdate, "location"=>$request->location, "end"=>$enddate, "cost"=>$request->budget, "entry"=>$request->entry, "theme"=>$request->theme));
             if($save){
                 return redirect()->back()->with('success', 'Your Seminar has been saved successfully');

@@ -15,7 +15,7 @@ class SendSMSController extends Controller
         curl_setopt_array(
             $curl,
             array(
-                CURLOPT_URL => 'https://sms.tenasms.com/api/services/sendsms',
+                CURLOPT_URL => env('SMS_URL'),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_ENCODING => '',
                 CURLOPT_MAXREDIRS => 10,
@@ -23,10 +23,9 @@ class SendSMSController extends Controller
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
                 CURLOPT_CUSTOMREQUEST => 'GET',
-                CURLOPT_POSTFIELDS => 'apikey=35cef1afb8e2cba10d4b981e6d673ee0&partnerID=4052&message=' . urlencode($message) . '&shortcode=KOMIUT&mobile=' . $phone,
+                CURLOPT_POSTFIELDS => 'apikey='.env('SMS_API_KEY').'&partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile=' . $phone,
                 CURLOPT_HTTPHEADER => array(
                     'Content-Type: application/x-www-form-urlencoded',
-                    'Cookie: PHPSESSID=tsjel5rclvs3vlt2co1cjnq4ua'
                 ),
             )
         );

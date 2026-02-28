@@ -1,168 +1,174 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $communityIcons = ['fa-users', 'fa-hands-helping', 'fa-dove'];
+    $communityColors = ['icon-wrap-primary', 'icon-wrap-success', 'icon-wrap-warning'];
+    $articleAccents = ['card-accent', 'card-accent-success', 'card-accent-warning'];
+    $sermonAccents = ['', 'sermon-accent-success', 'sermon-accent-warning'];
+@endphp
 
-<!-- Header -->
-<div class="header pb-8 pt-5 pt-lg-8 d-flex align-items-center" style="background-image: url('./website/homepage/home.jpg'); background-size: cover; background-position: center top; min-height: 90vh;">
-    <!-- Mask -->
-    <span class="mask bg-gradient-primary opacity-8"></span>
-    <!-- Header container -->
-    <div class="container d-flex align-items-center">
-        <div class="row">
-            <div class="col-lg-6 col-md-8">
-                <h1 class="text-white big">{{($homepage == null)?"Default Header":$homepage->title}}</h1>
-                <p class="text-white mt-0 mb-5">{!!($homepage == null)?"Default Header":html_entity_decode($homepage->description)!!}</p>
-                <a href="{{url('login')}}" class="btn bg-indigo text-light" style="border-radius: 100px;">Send prayer request</a>
+<!-- Hero -->
+<section class="hero-section" style="background-image: url('./website/homepage/home.jpg');">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+        <span class="hero-badge"><i class="fas fa-church mr-1"></i> Welcome to {{ $site_settings->name ?? 'Our Church' }}</span>
+        <h1 class="hero-title">{{ ($homepage == null) ? "Experience Faith, Hope & Love" : $homepage->title }}</h1>
+        <p class="hero-subtitle">{!! ($homepage == null) ? "Join us every Sunday as we grow together in faith and community." : html_entity_decode($homepage->description) !!}</p>
+        <div class="hero-cta">
+            <a href="{{ url('/prayer-wall') }}" class="btn btn-light"><i class="fas fa-pray mr-1"></i> Prayer Request</a>
+            <a href="#" class="btn btn-outline-light" data-toggle="modal" data-target="#donate"><i class="fas fa-heart mr-1"></i> Donate</a>
+        </div>
+    </div>
+    <a href="#pastor-section" class="hero-scroll"><i class="fas fa-chevron-down"></i></a>
+</section>
+
+<!-- Pastor's Message -->
+<section id="pastor-section" class="section pastor-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-5 mb-4 mb-lg-0 text-center">
+                <img src="{{ $message == null ? asset('website/default.png') : ($message->image == '' ? asset('website/default.png') : asset('website/pastors/'.$message->image)) }}"
+                     class="pastor-image" alt="Senior Pastor">
+            </div>
+            <div class="col-lg-7">
+                <span class="pastor-label"><i class="fas fa-cross mr-1"></i> Pastor's Message</span>
+                <h2 class="section-heading">{{ $message == null ? "Pastor's Message" : $message->title }}</h2>
+                <div class="mt-3" style="color: #4a5568; line-height: 1.8;">
+                    {!! $message == null ? "<p>A warm welcome from our senior pastor.</p>" : html_entity_decode($message->description) !!}
+                </div>
+                <p class="pastor-signature">&mdash; Senior Pastor</p>
             </div>
         </div>
     </div>
-</div>
-
-<!-- Pastors Message -->
-<div class="container mt-4">
-    <div class="row d-flex align-items-center">
-        <div class="col-xl-6 order-xl-2 mb-5 mb-xl-0">
-            <img src="{{$message == null ? asset('website/default.png') : ($message->image == '' ? asset('website/default.png') : asset('website/pastors/'.$message->image))}}" class="img-fluid">
-        </div>
-        <div class="col-xl-6 order-xl-2 mb-5 mb-xl-0">
-            <h4 class="display-4 mb-sm-5 mt-sm-5">{{$message == null ? "Pastor's Message Here" : $message->title}}</h4>
-            {!!$message == null ? "Pastor's Message Here" : html_entity_decode($message->description)!!}
-            <p class="font-weight-bold mb-sm-5 text-right">Senior Pastor</p>
-        </div>
-    </div>
-</div>
+</section>
 
 <!-- Communities -->
-<div class="container-fluid mt-4 bg-white">
+<section class="section section-white">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Our Community</span>
+            <h2 class="section-heading">We Are a Community</h2>
+            <p class="section-subheading">We have grouped ourselves into communities that serve under the union of Christ</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4">We are a community</h3>
-                <p>We have grouped ourselves into communities that serve under the union of Christ</p>
-            </div>
             @foreach($communities as $community)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$community->banner == null ? asset('website/default.jpg') :  asset('peoples/'.$community->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{$community->name}}</h3>
-                    <p class='text-dark'>{!! html_entity_decode(\Str::words($community->description, 35, '...')) !!}</p>
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('communities/'.$community->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-4 mb-4">
+                    <div class="icon-card">
+                        <div class="icon-wrap {{ $communityColors[$loop->index % 3] }}">
+                            <i class="fas {{ $communityIcons[$loop->index % 3] }}"></i>
+                        </div>
+                        <h5>{{ $community->name }}</h5>
+                        <p>{{ \Str::words(strip_tags($community->description), 25, '...') }}</p>
+                        <a href="{{ url('communities/'.$community->id) }}" class="card-link">Learn More <i class="fas fa-arrow-right"></i></a>
+                    </div>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
 <!-- Articles -->
-<div class="container-fluid mt-4">
+<section class="section section-gray">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">Insights</span>
+            <h2 class="section-heading">Featured Articles</h2>
+            <p class="section-subheading">Written by our members and affiliate communities for the enlightenment of all</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4 text-center">Featured Articles</h3>
-            </div>
             @foreach($articles as $article)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$article->banner == null ? asset('website/default.jpg') :  asset('article/'.$article->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{$article->title}}</h3>
-                    <p>{!! html_entity_decode(\Str::words($article->description, 35, '...')) !!}</p>
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('articles/'.$article->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-4 mb-4">
+                    <div class="article-card-modern">
+                        <div class="{{ $articleAccents[$loop->index % 3] }}"></div>
+                        <div class="card-body">
+                            @if(isset($article->created_at))
+                                <div class="card-date"><i class="far fa-calendar-alt mr-1"></i> {{ \Carbon\Carbon::parse($article->created_at)->format('M d, Y') }}</div>
+                            @endif
+                            <h5>{{ \Str::words($article->title, 8, '...') }}</h5>
+                            <p>{{ \Str::words(strip_tags($article->description), 25, '...') }}</p>
+                            <a href="{{ url('articles/'.$article->id) }}" class="card-link">Read More <i class="fas fa-arrow-right ml-1"></i></a>
+                        </div>
+                    </div>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
-<!-- sermons and sermon notes -->
-<div class="container-fluid mt-4 bg-white">
+<!-- Sermons -->
+<section class="section section-white">
     <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label">The Word</span>
+            <h2 class="section-heading">Sermons &amp; Notes</h2>
+            <p class="section-subheading">Grow deeper in faith through our latest sermons and study notes</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4 text-center">Sermon and Sermon Notes</h3>
-            </div>
             @foreach($sermons as $sermon)
-                <div class="col-md-4 col-md-3 order-xl-2 mb-5 mb-xl-0 seminar">
-                    <img src="{{$sermon->banner == null ? asset('website/default.jpg') :  asset('sermon/'.$sermon->banner)}}" class="img-fluid">
-                    <small class='text-white'>.</small>
-                    <h3 class="display-5 mb-sm-3">{{$sermon->title}}</h3>
-                    {!! html_entity_decode(\Str::words($sermon->description, 35, '...')) !!}
-                    <p class="font-weight-bold mb-sm-5 text-center">
-                        <a href="{{url('sermons/'.$sermon->id)}}" class="text-indigo">Learn More...</a>
-                    </p>
+                <div class="col-md-4 mb-4">
+                    <div class="sermon-card {{ $sermonAccents[$loop->index % 3] }}">
+                        <div class="sermon-icon"><i class="fas fa-bible"></i></div>
+                        <h5>{{ \Str::words($sermon->title, 8, '...') }}</h5>
+                        <p>{{ \Str::words(strip_tags($sermon->description), 25, '...') }}</p>
+                        <a href="{{ url('sermons/'.$sermon->id) }}" class="card-link">Listen / Read <i class="fas fa-arrow-right ml-1"></i></a>
+                    </div>
                 </div>
             @endforeach
         </div>
     </div>
-</div>
+</section>
 
-<!-- Order of Services -->
-<div class="container-fluid pt-4 text-white pb-4 bg-primary">
-    <div class="container mb-4">
+<!-- Fellowship Programs -->
+<section class="section schedule-section">
+    <div class="container">
+        <div class="text-center mb-5">
+            <span class="section-label" style="color:rgba(255,255,255,.6);">Join Us</span>
+            <h2 class="section-heading" style="color:#fff;">Our Fellowship Programs</h2>
+            <p class="section-subheading" style="color:rgba(255,255,255,.6);">Come worship and fellowship with us throughout the week</p>
+        </div>
         <div class="row">
-            <div class="col-12 mt-4 mb-4">
-                <h3 class="display-4 text-center text-white">Our fellowship programs</h3>
-            </div>
-            <div class="col-md-6 col-md-3 order-xl-2 mb-5 mb-xl-0">
-                <h2 class="mt-3 mb-3 text-white">What we do on Sunday</h2>
-                <div class="row">
-                    <div class="col-6 font-weight-bold text-white">
-                        Time
-                    </div>
-                    <div class="col-6 font-weight-bold text-white">
-                        Activity
-                    </div>
+            <!-- Sunday Services -->
+            <div class="col-lg-6 mb-4">
+                <div class="schedule-card">
+                    <h4><i class="fas fa-sun mr-2" style="color:#fbb140;"></i> Sunday Services</h4>
                     @foreach($services as $service)
                         @if($service->day == "Sunday")
-                        <div class="col-6">
-                            <p class='text-white'>{{$service->time}}</p>
-                        </div>
-                        <div class="col-6">
-                            <p class='text-white font-weight-bold'>{{$service->description}}</p>
-                        </div>
+                            <div class="schedule-row">
+                                <span class="schedule-activity">{{ $service->description }}</span>
+                                <span class="schedule-time">{{ $service->time }}</span>
+                            </div>
                         @endif
-                     @endforeach
+                    @endforeach
                 </div>
             </div>
-
-            <div class="col-md-6 col-md-3 order-xl-2 mb-5 mb-xl-0 border-left">
-                <h2 class="mt-3 mb-4 text-white">Weekly Fellowship</h2>
-                <div class="row">
-                    <div class="col-4 text-white font-weight-bold">
-                        Day
-                    </div>
-                    <div class="col-4 text-white font-weight-bold">
-                        Time
-                    </div>
-                    <div class="col-4 text-white font-weight-bold">
-                        Activity
-                    </div>
+            <!-- Weekday Fellowship -->
+            <div class="col-lg-6 mb-4">
+                <div class="schedule-card">
+                    <h4><i class="fas fa-calendar-week mr-2" style="color:#2dce89;"></i> Weekly Fellowship</h4>
                     @foreach($services as $service)
                         @if($service->day != "Sunday")
-                        <div class="col-4">
-                            <p class='text-white'>{{$service->day}}</p>
-                        </div>
-                        <div class="col-4">
-                            <p class='text-white'>{{$service->time}}</p>
-                        </div>
-                        <div class="col-4">
-                            <p class='text-white'>{{$service->description}}</p>
-                        </div>
+                            <div class="schedule-row">
+                                <span class="schedule-day">{{ $service->day }}</span>
+                                <span class="schedule-activity">{{ $service->description }}</span>
+                                <span class="schedule-time">{{ $service->time }}</span>
+                            </div>
                         @endif
-                     @endforeach
+                    @endforeach
                 </div>
             </div>
         </div>
     </div>
+</section>
 
-    <div class="separator separator-bottom separator-skew zindex-100">
-        <svg x="0" y="0" viewBox="0 0 2560 100" preserveAspectRatio="none" version="1.1" xmlns="http://www.w3.org/2000/svg">
-            <polygon class="fill-dark" points="2560 0 2560 100 0 100"></polygon>
-        </svg>
+<!-- Donate CTA -->
+<section class="donate-cta">
+    <div class="container">
+        <div class="donate-icon"><i class="fas fa-heart"></i></div>
+        <h3>Support Our Mission</h3>
+        <p>Your generous contributions help us serve the community and spread the gospel to all corners of the earth.</p>
+        <a href="#" class="btn btn-light" data-toggle="modal" data-target="#donate"><i class="fas fa-hand-holding-heart mr-1"></i> Donate Now</a>
     </div>
-</div>
+</section>
 
 @endsection

@@ -75,10 +75,13 @@
                             <div class="col-sm-6 mb-3">
                                 <label for="phone">{{ __('Phone') }}</label>
 
-                                <div>
-                                    <input id="phone" type="phone"
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">+{{ $site_settings->phone_code ?? '254' }}</span>
+                                    </div>
+                                    <input id="phone" type="text"
                                         class="form-control @error('phone') is-invalid @enderror" name="phone"
-                                        value="{{ old('phone') }}" placeholder='Phone Number' required
+                                        value="{{ old('phone') }}" placeholder='712345678' required
                                         autocomplete="phone">
 
                                     @error('phone')

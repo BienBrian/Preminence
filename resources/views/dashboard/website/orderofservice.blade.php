@@ -65,7 +65,7 @@
                                                     <a href="{{ $service->id }}"
                                                         class='btn text-primary btn-sm btn-edit-service'
                                                         title='Edit'><i class='fas fa-edit'></i></a>
-                                                    <a href="{{ url('dashboard/website/service/remove/' . $service->id) }}"
+                                                    <a href="#" onclick="return postAction('{{ url('dashboard/website/service/remove/' . $service->id) }}', 'Remove this service?')"
                                                         class='btn text-danger btn-sm' title='Delete'><i
                                                             class='fas fa-trash'></i></a>
                                                 </td>

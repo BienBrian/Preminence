@@ -28,6 +28,13 @@ class ScheduleController extends DashboardController
     }
 
     public function cancelschedule(Request $request){
+        $schedule = \DB::table("schedules")->where("id", $request->id)->first();
+        if ($schedule === null) {
+            return back()->with("error", "Schedule not found!");
+        }
+        if ($schedule->user_id != \Auth::id() && !\Auth::user()->hasPermissionTo('Send SMS')) {
+            return back()->with("error", "You do not have permission to cancel this schedule.");
+        }
         if(\DB::table("schedules")->where("id", $request->id)->delete()){
             return redirect()->to("dashboard/communication/schedule/sms")->with("success", "Scheduled Message has been cancelled!");
         }

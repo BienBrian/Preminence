@@ -11,6 +11,11 @@ class ShopController extends DashboardController
     public function __construct(){
         parent::__construct();
     }
+    public function index()
+    {
+        return view('dashboard.shop.index');
+    }
+
     public function products()
     {
         session()->forget("product");

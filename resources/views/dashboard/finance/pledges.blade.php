@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item"><a href="{{ url('dashboard/finances/activities') }}">Activities</a></li>
                         <li class="breadcrumb-item active">View</li>
                     </ol>
@@ -69,7 +69,7 @@
                                     class='text-danger font-weight-bold'>{{ \Carbon\Carbon::parse($activity->closes_on)->format('d M, Y') }}</span>
                             @endif
                             <br>
-                            {!! html_entity_decode($activity->description) !!}
+                            {{ $activity->description }}
                         </div>
                     </div>
                 </div>
@@ -147,7 +147,7 @@
                                                             <a href="{{ $act->id }}" class='dropdown-item recieved'>
                                                                 <i class='fas fa-donate'></i> Payments
                                                             </a>
-                                                            <a href="{{ url('dashboard/pledges/remove/' . $act->id) }}"
+                                                            <a href="#" onclick="return postAction('{{ url('dashboard/pledges/remove/' . $act->id) }}', 'Delete this pledge?')"
                                                                 class='dropdown-item bg-danger text-white'>
                                                                 <i class='fas fa-trash-alt'></i> Delete
                                                             </a>
@@ -392,7 +392,10 @@
 
                     <form action='{{ url('dashboard/finances/activities/pledges/import') }}' method='post' enctype="multipart/form-data">
                         <input type='hidden' name='activity_id' value="{{ $activity->id }}"/>
-                        <label>*Upload excel file as the sample below</label>
+                        <label>*Upload excel file with columns: <strong>Name, Phone, Amount</strong></label>
+                        <div class="mb-2">
+                            <a href="{{ asset('samples/pledge_import_sample.xlsx') }}" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i> Download Sample File</a>
+                        </div>
                         <img src="{{ asset('images/import_pledge_sample.png') }}" class="img-fluid"/>
                         @csrf
                         <div class="form-group">

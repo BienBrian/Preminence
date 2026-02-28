@@ -10,7 +10,7 @@
                 </div><!-- /.col -->
                 <div class="d-none d-sm-block col-sm-6 text-right">
                     <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ url('home') }}">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url('dashboard/home') }}">Home</a></li>
                         <li class="breadcrumb-item"><a href="{{ url('dashboard/finances/activities') }}">Activities</a></li>
                         <li class="breadcrumb-item active">Participants</li>
                     </ol>
@@ -95,7 +95,7 @@
                                             <td class='text-right'>
                                                 <a href="{{ $participant->id }}"
                                                     class="btn btn-outline-primary recieved btn-sm">Pay</a>
-                                                <a href="{{ url('dashboard/pledges/remove/' . $participant->id) }}"
+                                                <a href="#" onclick="return postAction('{{ url('dashboard/pledges/remove/' . $participant->id) }}', 'Delete this pledge?')"
                                                     class="btn btn-danger btn-sm">Delete</a>
                                             </td>
                                         </tr>

@@ -59,7 +59,7 @@ class NoticesController extends DashboardController
             $update = \DB::table('notices')->where('id', '=', $request->id)->update(
                 array(
                     'title' => $request->title,
-                    'description' => $request->description,
+                    'description' => $this->purify($request->description),
                     "noticedate" => \Carbon\Carbon::now(),
                     "user_id" => \Auth::user()->id,
                     "user_group" => $role,
@@ -77,7 +77,7 @@ class NoticesController extends DashboardController
             $update = \DB::table('notices')->insert(
                 array(
                     'title' => $request->title,
-                    'description' => $request->description,
+                    'description' => $this->purify($request->description),
                     "noticedate" => \Carbon\Carbon::now(),
                     "user_id" => \Auth::user()->id,
                     "user_group" => $role,

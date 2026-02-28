@@ -87,8 +87,8 @@ class WebsiteSettingsController extends DashboardController
                     'pinterest' => $request->pinterest,
                     'instagram' => $request->instagram,
                     'whatsapp' => $request->whatsapp,
-                    'aboutus' => $request->aboutus,
-                    "contactus" => $request->contactus
+                    'aboutus' => $this->purify($request->aboutus),
+                    "contactus" => $this->purify($request->contactus)
                 )
             );
             if ($update) {
@@ -113,8 +113,8 @@ class WebsiteSettingsController extends DashboardController
             $settings->whatsapp = $request->whatsapp;
             $settings->icon = "";
             $settings->favicon = "";
-            $settings->aboutus = $request->aboutus;
-            $settings->contactus = $request->contactus;
+            $settings->aboutus = $this->purify($request->aboutus);
+            $settings->contactus = $this->purify($request->contactus);
 
             if ($settings->save()) {
                 return redirect()->back()->with('success', 'Your settings has been created successfully');

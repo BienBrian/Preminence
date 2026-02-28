@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Dashboard\Websites;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Models\Gallery;
+use App\Traits\CompressesImages;
 use Illuminate\Http\Request;
 
 class GalleryController extends DashboardController
 {
+    use CompressesImages;
+
     /**
      * Create a new controller instance.
      *
@@ -28,7 +31,7 @@ class GalleryController extends DashboardController
      */
     public function index()
     {
-        $galleries = Gallery::select("galleries.*", "profile_categories.name")->leftJoin("profile_categories", "profile_categories.id", "=", "galleries.category")->paginate(15);
+        $galleries = Gallery::select("gallery.*", "profile_categories.name")->leftJoin("profile_categories", "profile_categories.id", "=", "gallery.category")->paginate(15);
         $categories = \DB::table("profile_categories")->get();
         return view('dashboard.website.gallery', @compact('galleries', "categories"));
 
@@ -92,11 +95,8 @@ class GalleryController extends DashboardController
             'gallery' => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $imageName = $request->gallery->getClientOriginalName();
-        if(Gallery::where('image', '=', $imageName)->count() > 0){
-            $imageName = time().".".$request->gallery->getClientOriginalExtension();
-        }
-        if(request()->gallery->move(public_path('website/gallery'), $imageName)){
+        $imageName = time() . '_' . \Str::random(8) . '.' . $request->gallery->getClientOriginalExtension();
+        if($this->compressAndSave($request->gallery, public_path('website/gallery'), $imageName)){
             $gallery = new Gallery();
             $gallery->description = $request->description;
             $gallery->image = $imageName;

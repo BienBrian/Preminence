@@ -72,7 +72,7 @@ class OrderOfServiceSettingsController extends DashboardController
 
         if($request->id > 0){
             //update
-            if(\DB::table('weeklyverse')->where("id", $request->id)->update(["verse"=>$request->verse, "description"=>$request->description,
+            if(\DB::table('weeklyverse')->where("id", $request->id)->update(["verse"=>$request->verse, "description"=>$this->purify($request->description),
             "version"=>$request->version])){
                 return redirect()->back()->with("success", "Verse succesfully updated!");
             }else{
@@ -80,7 +80,7 @@ class OrderOfServiceSettingsController extends DashboardController
             }
         }else{
             //insert
-            if(\DB::table('weeklyverse')->insert(["verse"=>$request->verse, "description"=>$request->description,
+            if(\DB::table('weeklyverse')->insert(["verse"=>$request->verse, "description"=>$this->purify($request->description),
             "version"=>$request->version])){
                 return redirect()->back()->with("success", "Verse succesfully added!");
             }else{
