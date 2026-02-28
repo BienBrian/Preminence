@@ -243,10 +243,11 @@ class MpesaAPIController extends Controller
         $funds->save();
 
         // Send SMS and track phone
+        $smsPhone = null;
         if ($mpesaPhone != null) {
-            $this->send($mpesaPhone->phone, $message);
+            $smsPhone = $mpesaPhone->phone;
         } elseif ($actualPhone != null) {
-            $this->send($actualPhone, $message);
+            $smsPhone = $actualPhone;
         } else {
             // Phone not recognized - add to missing phones
             $missingMpesaPhone = new MissingMpesaPhone();
@@ -255,6 +256,50 @@ class MpesaAPIController extends Controller
             $missingMpesaPhone->phone_hash = $content->MSISDN;
             $missingMpesaPhone->trans_date = Carbon::parse($content->TransTime);
             $missingMpesaPhone->save();
+        }
+
+        if ($smsPhone) {
+            $smsResponse = $this->send($smsPhone, $message);
+            $smsSentOk = false;
+
+            // Check if SMS API returned success
+            if (is_array($smsResponse)) {
+                $responseCode = $smsResponse['response-code'] ?? $smsResponse['response_code'] ?? $smsResponse['code'] ?? null;
+                $smsSentOk = ($responseCode === null || (int)$responseCode === 200 || (int)$responseCode === 0);
+            } elseif ($smsResponse !== null && $smsResponse !== false) {
+                $smsSentOk = true;
+            }
+
+            if ($smsSentOk) {
+                // Log to sms + sms_recipients tables
+                $mid = \DB::table('sms')->insertGetId([
+                    'people_id' => 0,
+                    'message'   => $message,
+                    'category'  => 'mpesa',
+                    'sent'      => Carbon::now(),
+                ]);
+                // Link to user if we found one
+                if ($user && $user->user_id > 0) {
+                    \DB::table('sms_recipients')->insert([
+                        'recipients' => $user->user_id,
+                        'sms_id'     => $mid,
+                        'sent'       => Carbon::now(),
+                    ]);
+                }
+            } else {
+                // SMS API failed (e.g. out of credits) — queue for retry
+                Log::warning("MPESA SMS failed for {$smsPhone}, queueing for retry. Response: " . json_encode($smsResponse));
+                \DB::table('pending_sms')->insert([
+                    'phone'          => $smsPhone,
+                    'message'        => $message,
+                    'transaction_id' => $content->TransID ?? null,
+                    'category'       => 'mpesa',
+                    'attempts'       => 0,
+                    'status'         => 'pending',
+                    'created_at'     => Carbon::now(),
+                    'updated_at'     => Carbon::now(),
+                ]);
+            }
         }
         // Responding to the confirmation request
 

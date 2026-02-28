@@ -309,6 +309,20 @@ class UsersController extends DashboardController
             }
         }
 
+        // === Rate limiting: 60 seconds between SMS invitations to same number ===
+        if ($request->method === 'sms' && $phone) {
+            $recentSms = DB::table('sms')
+                ->where('category', 'invitation')
+                ->where('sent', '>=', Carbon::now()->subSeconds(60))
+                ->join('sms_recipients', 'sms_recipients.sms_id', '=', 'sms.id')
+                ->join('users', 'users.id', '=', 'sms_recipients.recipients')
+                ->where('users.phone', $phone)
+                ->exists();
+            if ($recentSms) {
+                return response()->json(['error' => 'An SMS was recently sent to this number. Please wait 60 seconds before resending.'], 429);
+            }
+        }
+
         // Create invitation record
         $invitation = Invitation::create([
             'token' => $token,
@@ -340,13 +354,23 @@ class UsersController extends DashboardController
             curl_exec($curl);
             curl_close($curl);
 
-            // Log SMS
+            // Log SMS to sms table
             $mid = DB::table('sms')->insertGetId([
                 'people_id' => 0,
                 'message' => $message,
                 'category' => 'invitation',
                 'sent' => Carbon::now(),
             ]);
+
+            // Fix 0-recipients bug: log recipient if user already exists with this phone
+            $existingUser = DB::table('users')->where('phone', $phone)->first();
+            if ($existingUser) {
+                DB::table('sms_recipients')->insert([
+                    'recipients' => $existingUser->id,
+                    'sms_id' => $mid,
+                    'sent' => Carbon::now(),
+                ]);
+            }
 
             return response()->json(['success' => 'Invitation SMS sent to ' . $phone]);
         } else {
@@ -368,7 +392,7 @@ class UsersController extends DashboardController
             }
 
             // Log email
-            $eid = DB::table('emails')->insertGetId([
+            DB::table('emails')->insertGetId([
                 'subject' => "Invitation to Join - {$church_name}",
                 'message' => $message,
                 'category' => 'invitation',
@@ -746,6 +770,19 @@ class UsersController extends DashboardController
 
         $user = User::findOrFail($request->user_id);
 
+        // === Rate limiting: 60 seconds between verification SMS to same phone ===
+        if ($request->method === 'sms' && $user->phone) {
+            $recentSms = DB::table('sms')
+                ->where('category', 'verification')
+                ->where('sent', '>=', Carbon::now()->subSeconds(60))
+                ->join('sms_recipients', 'sms_recipients.sms_id', '=', 'sms.id')
+                ->where('sms_recipients.recipients', $user->id)
+                ->exists();
+            if ($recentSms) {
+                return response()->json(['error' => 'A verification SMS was recently sent to this user. Please wait 60 seconds before resending.'], 429);
+            }
+        }
+
         // Generate a token
         $token = Str::random(64);
         $user->verification_token = $token;
@@ -869,6 +906,110 @@ class UsersController extends DashboardController
 
             return response()->json(['success' => 'Verification SMS sent successfully to ' . $user->phone]);
         }
+    }
+
+    public function bulkInviteVerification(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:phone,email,both',
+        ]);
+
+        $type = $request->type;
+        $church_name = $this->site_settings != null ? $this->site_settings->name : 'Church App';
+        $phoneCode = optional(\DB::table('settings')->first())->phone_code ?? '254';
+        
+        $sent = 0;
+        $skipped = 0;
+        $failed = 0;
+        $rateLimited = 0;
+
+        $users = User::whereNull('archived_at');
+
+        if ($type === 'phone') {
+            $users->whereNull('phone_verified_at')->whereNotNull('phone')->where('phone', '<>', '');
+        } elseif ($type === 'email') {
+            $users->whereNull('email_verified_at')->whereNotNull('email')->where('email', '<>', '');
+        } else {
+            // both: users missing either verification
+            $users->where(function($q) {
+                $q->whereNull('phone_verified_at')
+                  ->orWhereNull('email_verified_at');
+            });
+        }
+
+        foreach ($users->get() as $user) {
+            // Generate token for this user
+            $token = Str::random(64);
+            $user->verification_token = $token;
+            $user->verification_token_expires_at = now()->addDays(7);
+            $user->save();
+
+            $verifyUrl = url('verify-profile/' . $token);
+            $userSent = false;
+
+            // Send via SMS if phone unverified and user has phone
+            if (($type === 'phone' || $type === 'both') && !$user->phone_verified_at && $user->phone) {
+                // Rate limit check
+                $recentSms = DB::table('sms')
+                    ->where('category', 'verification')
+                    ->where('sent', '>=', Carbon::now()->subSeconds(60))
+                    ->join('sms_recipients', 'sms_recipients.sms_id', '=', 'sms.id')
+                    ->where('sms_recipients.recipients', $user->id)
+                    ->exists();
+                
+                if ($recentSms) {
+                    $rateLimited++;
+                } else {
+                    $number = $user->phone;
+                    if (substr($number, 0, 1) === '0') {
+                        $number = '254' . substr($number, 1);
+                    }
+                    $smsMessage = "Dear {$user->firstname}, please verify your profile for {$church_name}: {$verifyUrl}";
+                    $curl = curl_init();
+                    curl_setopt_array($curl, [
+                        CURLOPT_URL => env('SMS_URL'), CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 15, CURLOPT_CUSTOMREQUEST => 'GET',
+                        CURLOPT_POSTFIELDS => 'apikey=' . env('SMS_API_KEY') . '&partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($smsMessage) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $number,
+                        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+                    ]);
+                    curl_exec($curl);
+                    curl_close($curl);
+                    $mid = DB::table('sms')->insertGetId(['people_id' => 0, 'message' => $smsMessage, 'category' => 'verification', 'sent' => Carbon::now()]);
+                    DB::table('sms_recipients')->insert(['recipients' => $user->id, 'sms_id' => $mid, 'sent' => Carbon::now()]);
+                    $userSent = true;
+                }
+            }
+
+            // Send via email if email unverified and user has email
+            if (($type === 'email' || $type === 'both') && !$user->email_verified_at && $user->email) {
+                $message = "Dear {$user->firstname},<br><br>Please verify your profile for {$church_name}:<br><a href='{$verifyUrl}'>{$verifyUrl}</a><br><br>This link expires in 7 days.<br><br>Thank you,<br>{$church_name}";
+                $data = ['name' => $user->firstname . ' ' . $user->lastname, 'mes' => $message];
+                try {
+                    \Mail::send('dashboard.communication.mail', $data, function ($mail) use ($user, $church_name) {
+                        $mail->to($user->email, $user->firstname . ' ' . $user->lastname)->subject('Profile Verification Request');
+                    });
+                    $userSent = true;
+                } catch (\Exception $e) {
+                    \Log::error('Bulk verify email failed for user ' . $user->id . ': ' . $e->getMessage());
+                }
+            }
+
+            if ($userSent) {
+                $sent++;
+            } else {
+                $skipped++;
+            }
+
+            // Small delay to avoid overloading SMS API
+            usleep(100000); // 100ms between sends
+        }
+
+        return response()->json([
+            'success' => "Bulk verification complete. Sent: {$sent}, Skipped/Rate-limited: {$skipped}, Rate-limited: {$rateLimited}.",
+            'sent' => $sent,
+            'skipped' => $skipped,
+            'rate_limited' => $rateLimited,
+        ]);
     }
 
     public function archiveUser(Request $request)

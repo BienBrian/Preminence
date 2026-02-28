@@ -9,12 +9,14 @@ class Invitation extends Model
     protected $fillable = [
         'token', 'phone', 'email', 'via', 'invited_by', 'user_id',
         'status', 'onboarding_step', 'expires_at', 'started_at', 'completed_at',
+        'phone_otp', 'email_otp', 'otp_expires_at',
     ];
 
     protected $casts = [
-        'expires_at' => 'datetime',
-        'started_at' => 'datetime',
-        'completed_at' => 'datetime',
+        'expires_at'     => 'datetime',
+        'started_at'     => 'datetime',
+        'completed_at'   => 'datetime',
+        'otp_expires_at' => 'datetime',
     ];
 
     public function invitedBy()

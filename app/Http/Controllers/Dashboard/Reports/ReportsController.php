@@ -50,12 +50,16 @@ class ReportsController extends DashboardController
     {
         $query = MpesaTransaction::query();
 
-        // Date range filter
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
+        // Default to last 90 days if no date filter to prevent full-table scans / timeout
+        if (!$request->filled('date_from') && !$request->filled('date_to')) {
+            $query->whereDate('created_at', '>=', \Carbon\Carbon::now()->subDays(90)->toDateString());
+        } else {
+            if ($request->filled('date_from')) {
+                $query->whereDate('created_at', '>=', $request->date_from);
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('created_at', '<=', $request->date_to);
+            }
         }
 
         // Status filter
@@ -68,50 +72,60 @@ class ReportsController extends DashboardController
                         );
                 });
             } elseif ($request->match_status === 'unmatched') {
-                // Transactions whose MSISDN is neither a known phone nor a known hash
                 $query->whereNotIn('MSISDN', function ($q) {
                     $q->select('phone_hash')->from('mpesa_phones');
                 })->where(function ($q) {
                     $q->where('MSISDN', 'NOT REGEXP', '^[0-9]{10,15}$')
                         ->orWhereNotIn('MSISDN', function ($sq) {
                             $sq->select(DB::raw("CONCAT('254', SUBSTRING(phone, 2))"))->from('contacts')
-                                ->where('phone', '<>', '')->whereNotNull('phone');
+                                ->where('phone', '<>','')->whereNotNull('phone');
                         });
                 });
             }
         }
 
+        // Pre-load ALL mpesa_phones hashes into memory to avoid N+1 per row
+        $allMpesaPhones = MpesaPhone::all()->keyBy('phone_hash');
+        // Pre-load missing_mpesa_phones hashes
+        $missingHashes = DB::table('missing_mpesa_phones')->pluck('phone', 'phone_hash');
+        // Pre-load contacts keyed by local phone
+        $allContacts = DB::table('contacts')
+            ->join('users', 'users.id', '=', 'contacts.user_id')
+            ->select('contacts.phone', 'contacts.user_id', 'users.firstname', 'users.lastname')
+            ->get()
+            ->keyBy('phone');
+
         return DataTables::of($query->orderBy('created_at', 'DESC'))
-            ->addColumn('match_status', function ($row) {
-                // Check if MSISDN is a plain number
-                if (strlen($row->MSISDN) <= 15 && is_numeric($row->MSISDN)) {
-                    $contact = DB::table('contacts')
-                        ->where('phone', '0' . substr($row->MSISDN, 3))
-                        ->first();
-                    if ($contact) {
-                        $user = DB::table('users')->where('id', $contact->user_id)->first();
-                        $name = $user ? $user->firstname . ' ' . $user->lastname : 'User #' . $contact->user_id;
+            ->addColumn('match_status', function ($row) use ($allMpesaPhones, $allContacts, $missingHashes) {
+                $msisdn = $row->MSISDN;
+
+                // Check if MSISDN is a plain numeric phone (e.g. 254712345678)
+                if (strlen($msisdn) <= 15 && is_numeric($msisdn)) {
+                    $localPhone = '0' . substr($msisdn, 3);
+                    if (isset($allContacts[$localPhone])) {
+                        $c = $allContacts[$localPhone];
+                        $name = $c->firstname . ' ' . $c->lastname;
                         return '<span class="badge bg-success">Matched</span> <small>' . e($name) . '</small>';
                     }
                 }
-                // Check hash match
-                $mpesaPhone = MpesaPhone::where('phone_hash', $row->MSISDN)->first();
-                if ($mpesaPhone) {
-                    $contact = DB::table('contacts')
-                        ->where('phone', '0' . substr($mpesaPhone->phone, 3))
-                        ->first();
-                    if ($contact) {
-                        $user = DB::table('users')->where('id', $contact->user_id)->first();
-                        $name = $user ? $user->firstname . ' ' . $user->lastname : 'User #' . $contact->user_id;
+
+                // Check hash match against pre-loaded mpesa_phones
+                if (isset($allMpesaPhones[$msisdn])) {
+                    $mp = $allMpesaPhones[$msisdn];
+                    $localPhone = '0' . substr($mp->phone, 3);
+                    if (isset($allContacts[$localPhone])) {
+                        $c = $allContacts[$localPhone];
+                        $name = $c->firstname . ' ' . $c->lastname;
                         return '<span class="badge bg-info">Hash Matched</span> <small>' . e($name) . '</small>';
                     }
                     return '<span class="badge bg-warning">Hash Found (No Contact)</span>';
                 }
-                // Check missing_mpesa_phones
-                $missing = DB::table('missing_mpesa_phones')->where('phone_hash', $row->MSISDN)->first();
-                if ($missing && $missing->phone) {
+
+                // Check missing phones
+                if (isset($missingHashes[$msisdn]) && $missingHashes[$msisdn]) {
                     return '<span class="badge bg-secondary">Manually Assigned</span>';
                 }
+
                 return '<span class="badge bg-danger">Unidentified</span>';
             })
             ->addColumn('amount_fmt', function ($row) {

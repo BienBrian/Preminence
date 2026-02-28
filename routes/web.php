@@ -88,6 +88,7 @@ Route::get('onboarding/{token}', [\App\Http\Controllers\OnboardingController::cl
 Route::post('onboarding/{token}/step1', [\App\Http\Controllers\OnboardingController::class, 'step1'])->name('onboarding.step1');
 Route::post('onboarding/{token}/step2', [\App\Http\Controllers\OnboardingController::class, 'step2'])->name('onboarding.step2');
 Route::post('onboarding/{token}/step3', [\App\Http\Controllers\OnboardingController::class, 'step3'])->name('onboarding.step3');
+Route::post('onboarding/{token}/resend-otp', [\App\Http\Controllers\OnboardingController::class, 'resendOtp'])->name('onboarding.resend-otp');
 
 // Public Prayer Wall
 Route::get('/prayer-wall', [PrayerWallController::class, 'index']);
@@ -487,6 +488,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::post('users/sendsms', [UsersController::class, 'sendUserSms'])->middleware('throttle:10,1');
     Route::post('users/invite', [UsersController::class, 'inviteUser'])->middleware('throttle:10,1');
     Route::get('users/invitations', [UsersController::class, 'invitations']);
+Route::post('users/bulk-verify', [UsersController::class, 'bulkInviteVerification']);
     Route::get('users/invitations/datatable', [UsersController::class, 'invitationsDataTable']);
     Route::post('users/toggle-verification', [UsersController::class, 'toggleVerification']);
     Route::post('users/send-verification-request', [UsersController::class, 'sendVerificationRequest'])->middleware('throttle:5,1');

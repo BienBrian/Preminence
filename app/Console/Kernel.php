@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         $schedule->command("app:send-pledges-sms")->everyMinute()->withoutOverlapping();
         $schedule->command("app:send-birthday-sms")->dailyAt('08:00')->withoutOverlapping();
         $schedule->command("app:prayer-follow-up")->dailyAt('10:00')->withoutOverlapping();
+        $schedule->command("app:retry-pending-sms")->everyFiveMinutes()->withoutOverlapping();
     }
 
     /**

@@ -25,7 +25,19 @@ class SMSController extends DashboardController
         $thisMonth = \DB::table("sms")->where("sent", ">=", Carbon::now()->startOfMonth())->count();
         $totalRecipients = \DB::table("sms_recipients")->distinct("recipients")->count("recipients");
         $scheduledCount = \DB::table("schedules")->where("type", 0)->count();
-        return view("dashboard.communication.sms", compact('totalSms', 'thisMonth', 'totalRecipients', 'scheduledCount'));
+        $invitationCount = \DB::table('sms')->where('category', 'invitation')->count();
+        return view("dashboard.communication.sms", compact('totalSms', 'thisMonth', 'totalRecipients', 'scheduledCount', 'invitationCount'));
+    }
+
+    public function getCreditsBalance(Request $request)
+    {
+        // Query available SMS and email credits from the credits table
+        $smsCredits  = \DB::table('credits')->where('type', 'sms')->sum('balance') ?? 0;
+        $emailCredits = \DB::table('credits')->where('type', 'email')->sum('balance') ?? 0;
+        return response()->json([
+            'sms'   => (int) $smsCredits,
+            'email' => (int) $emailCredits,
+        ]);
     }
 
     public function getSmsDataTable(Request $request){
@@ -78,27 +90,51 @@ class SMSController extends DashboardController
         $period = $request->period ?? 'daily';
         $category = $request->category ?? 'all';
 
-        $query = \DB::table("sms")
-            ->select(\DB::raw("DATE(sent) as date"), \DB::raw("COUNT(*) as total_messages"), \DB::raw("SUM(recipient_count) as total_recipients"))
-            ->leftJoin(\DB::raw("(SELECT sms_id, COUNT(*) as recipient_count FROM sms_recipients GROUP BY sms_id) as rc"), "rc.sms_id", "=", "sms.id");
-
-        if ($category != 'all') {
-            $query->where('sms.category', $category);
-        }
+        // Build the pre-grouped inner query — this becomes a clean subquery
+        // so DataTables' count wrapper never encounters non-grouped raw columns
+        $categoryFilter = ($category !== 'all') ? $category : null;
 
         if ($period == 'weekly') {
-            $query->select(\DB::raw("YEARWEEK(sent, 1) as period_key"), \DB::raw("MIN(DATE(sent)) as period_start"), \DB::raw("MAX(DATE(sent)) as period_end"), \DB::raw("COUNT(*) as total_messages"), \DB::raw("COALESCE(SUM(rc.recipient_count), 0) as total_recipients"))
-                  ->groupBy(\DB::raw("YEARWEEK(sent, 1)"))
-                  ->orderBy(\DB::raw("YEARWEEK(sent, 1)"), "DESC");
+            $innerSql = "SELECT
+                YEARWEEK(sms.sent, 1) AS period_key,
+                MIN(DATE(sms.sent)) AS period_start,
+                MAX(DATE(sms.sent)) AS period_end,
+                COUNT(*) AS total_messages,
+                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+            FROM sms
+            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
+                . ($categoryFilter ? " WHERE sms.category = ?" : "")
+                . " GROUP BY YEARWEEK(sms.sent, 1)
+            ORDER BY YEARWEEK(sms.sent, 1) DESC";
+            $bindings = $categoryFilter ? [$categoryFilter] : [];
         } elseif ($period == 'monthly') {
-            $query->select(\DB::raw("DATE_FORMAT(sent, '%Y-%m') as period_key"), \DB::raw("DATE_FORMAT(sent, '%M %Y') as period_label"), \DB::raw("COUNT(*) as total_messages"), \DB::raw("COALESCE(SUM(rc.recipient_count), 0) as total_recipients"))
-                  ->groupBy(\DB::raw("DATE_FORMAT(sent, '%Y-%m')"))
-                  ->orderBy(\DB::raw("DATE_FORMAT(sent, '%Y-%m')"), "DESC");
+            $innerSql = "SELECT
+                DATE_FORMAT(sms.sent, '%Y-%m') AS period_key,
+                DATE_FORMAT(sms.sent, '%M %Y') AS period_label,
+                COUNT(*) AS total_messages,
+                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+            FROM sms
+            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
+                . ($categoryFilter ? " WHERE sms.category = ?" : "")
+                . " GROUP BY DATE_FORMAT(sms.sent, '%Y-%m')
+            ORDER BY DATE_FORMAT(sms.sent, '%Y-%m') DESC";
+            $bindings = $categoryFilter ? [$categoryFilter] : [];
         } else {
-            $query->select(\DB::raw("DATE(sent) as period_key"), \DB::raw("DATE(sent) as date"), \DB::raw("COUNT(*) as total_messages"), \DB::raw("COALESCE(SUM(rc.recipient_count), 0) as total_recipients"))
-                  ->groupBy(\DB::raw("DATE(sent)"))
-                  ->orderBy(\DB::raw("DATE(sent)"), "DESC");
+            // daily — all selected columns are derived from DATE(sent) so fully grouped
+            $innerSql = "SELECT
+                DATE(sms.sent) AS period_key,
+                DATE(sms.sent) AS date,
+                COUNT(*) AS total_messages,
+                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+            FROM sms
+            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
+                . ($categoryFilter ? " WHERE sms.category = ?" : "")
+                . " GROUP BY DATE(sms.sent)
+            ORDER BY DATE(sms.sent) DESC";
+            $bindings = $categoryFilter ? [$categoryFilter] : [];
         }
+
+        $query = \DB::table(\DB::raw("({$innerSql}) AS grouped_sms"))->setBindings($bindings);
 
         return DataTables::of($query)
             ->addColumn('period', function ($row) use ($period) {

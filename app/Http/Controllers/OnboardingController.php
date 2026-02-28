@@ -8,12 +8,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Carbon;
 use Spatie\Permission\Models\Role;
 
 class OnboardingController extends Controller
 {
     use \App\Traits\AutoHashesMpesaPhone;
+
     private function getPhoneCode()
     {
         return optional(DB::table('settings')->first())->phone_code ?? '254';
@@ -33,6 +36,50 @@ class OnboardingController extends Controller
         return $phone;
     }
 
+    private function generateOtp(): string
+    {
+        return str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    private function sendSmsOtp(string $phone, string $otp, string $churchName): void
+    {
+        $message = "Your {$churchName} verification code is: {$otp}. Valid for 15 minutes.";
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL            => env('SMS_URL'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_MAXREDIRS      => 10,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST  => 'GET',
+            CURLOPT_POSTFIELDS     => 'partnerID=' . env('SMS_PARTNER_ID') .
+                                      '&message=' . urlencode($message) .
+                                      '&shortcode=' . env('SMS_SHORT_CODE') .
+                                      '&mobile=' . $phone,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/x-www-form-urlencoded',
+                'Authorization: Bearer ' . env('SMS_API_KEY'),
+            ],
+        ]);
+        curl_exec($curl);
+        curl_close($curl);
+    }
+
+    private function sendEmailOtp(string $email, string $otp, string $churchName): void
+    {
+        $message = "Your {$churchName} email verification code is: <strong>{$otp}</strong>.<br>This code is valid for 15 minutes.";
+        $data = ['name' => 'New Member', 'mes' => $message];
+        try {
+            \Mail::send('dashboard.communication.mail', $data, function ($mail) use ($email, $churchName, $otp) {
+                $mail->to($email)->subject("Email Verification Code — {$churchName}");
+            });
+        } catch (\Exception $e) {
+            Log::error('OTP email failed: ' . $e->getMessage());
+        }
+    }
+
     public function show($token)
     {
         $invitation = Invitation::active()->where('token', $token)->first();
@@ -40,7 +87,6 @@ class OnboardingController extends Controller
         $phoneCode = $this->getPhoneCode();
 
         if (!$invitation) {
-            // Check if it's completed
             $completed = Invitation::where('token', $token)->where('status', 'completed')->first();
             if ($completed) {
                 return view('onboarding', [
@@ -56,10 +102,9 @@ class OnboardingController extends Controller
             ]);
         }
 
-        // Determine step
         $step = $invitation->onboarding_step;
 
-        // If step 0, mark as started
+        // If step 0, mark as started and show step 1
         if ($step == 0) {
             $invitation->update([
                 'status' => 'started',
@@ -69,7 +114,6 @@ class OnboardingController extends Controller
             $step = 1;
         }
 
-        // If step is already 3, show completed
         if ($step >= 3 && $invitation->status === 'completed') {
             return view('onboarding', [
                 'state' => 'completed',
@@ -78,20 +122,22 @@ class OnboardingController extends Controller
             ]);
         }
 
-        // Load user if linked
         $user = $invitation->user_id ? User::find($invitation->user_id) : null;
 
         return view('onboarding', [
-            'state' => 'active',
-            'step' => $step,
-            'invitation' => $invitation,
-            'user' => $user,
-            'site_settings' => $site_settings,
-            'phoneCode' => $phoneCode,
-            'token' => $token,
+            'state'        => 'active',
+            'step'         => $step,
+            'invitation'   => $invitation,
+            'user'         => $user,
+            'site_settings'=> $site_settings,
+            'phoneCode'    => $phoneCode,
+            'token'        => $token,
         ]);
     }
 
+    /**
+     * Step 1: Collect phone, email, password → create user → send OTPs
+     */
     public function step1(Request $request, $token)
     {
         $invitation = Invitation::active()->where('token', $token)->first();
@@ -102,56 +148,80 @@ class OnboardingController extends Controller
         $phoneCode = $this->getPhoneCode();
 
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
+            'phone'    => 'required|string',
+            'email'    => 'nullable|email|max:255',
             'password' => 'required|string|min:8|confirmed',
         ]);
 
         if ($validator->fails()) {
+            // Flash step=1 so UI stays on step 1
             return redirect()->route('onboarding', $token)
                 ->withErrors($validator)
-                ->withInput();
+                ->withInput()
+                ->with('force_step', 1);
         }
 
         $phone = $this->normalizePhone($request->phone, $phoneCode);
 
         // Check if user with this phone already exists
         $user = User::where('phone', $phone)->first();
-
         if (!$user) {
-            // Create new user
             $user = new User();
             $user->firstname = '';
-            $user->lastname = '';
-            $user->phone = $phone;
-            $user->status = 1;
-            $user->password = Hash::make($request->password);
+            $user->lastname  = '';
+            $user->phone     = $phone;
+            $user->status    = 1;
+            $user->password  = Hash::make($request->password);
             $user->must_change_password = false;
-            $user->phone_verified_at = now();
             $user->save();
 
-            // Assign Member role
             $role = Role::where('name', 'Member')->first();
             if (!$role) $role = Role::where('name', 'User')->first();
             if ($role) $user->assignRole($role->name);
         } else {
-            // Update existing user's password
             $user->password = Hash::make($request->password);
             $user->must_change_password = false;
-            $user->phone_verified_at = $user->phone_verified_at ?? now();
             $user->save();
         }
 
-        // Auto-create mpesa hash and retro-match funds
-        $this->createMpesaHashAndMatch($phone, $user->firstname ?: 'New User', $user->id);
+        // Save email if provided
+        if ($request->filled('email')) {
+            $user->email = $request->email;
+            $user->save();
+        }
+
+        // Generate OTPs
+        $phoneOtp = $this->generateOtp();
+        $emailOtp = $request->filled('email') ? $this->generateOtp() : null;
+        $otpExpiry = Carbon::now()->addMinutes(15);
 
         $invitation->update([
-            'user_id' => $user->id,
-            'onboarding_step' => 2,
+            'user_id'        => $user->id,
+            'phone'          => $phone,
+            'email'          => $request->email,
+            'phone_otp'      => $phoneOtp,
+            'email_otp'      => $emailOtp,
+            'otp_expires_at' => $otpExpiry,
+            'onboarding_step'=> 2,
         ]);
 
-        return redirect()->route('onboarding', $token);
+        // Send OTPs
+        $churchName = $this->getSiteSettings()->name ?? 'Church App';
+        $this->sendSmsOtp($phone, $phoneOtp, $churchName);
+        if ($emailOtp && $request->filled('email')) {
+            $this->sendEmailOtp($request->email, $emailOtp, $churchName);
+        }
+
+        // Auto-create mpesa hash
+        $this->createMpesaHashAndMatch($phone, $user->firstname ?: 'New User', $user->id);
+
+        return redirect()->route('onboarding', $token)
+            ->with('success', 'Verification codes sent! Please check your phone' . ($request->filled('email') ? ' and email' : '') . '.');
     }
 
+    /**
+     * Step 2: Verify OTPs (or re-send if phone/email edited)
+     */
     public function step2(Request $request, $token)
     {
         $invitation = Invitation::active()->where('token', $token)->first();
@@ -160,30 +230,101 @@ class OnboardingController extends Controller
         }
 
         $user = User::findOrFail($invitation->user_id);
+        $churchName = $this->getSiteSettings()->name ?? 'Church App';
+        $phoneCode  = $this->getPhoneCode();
 
-        if ($request->filled('email')) {
-            $validator = Validator::make($request->all(), [
-                'email' => 'email|max:255|unique:users,email,' . $user->id,
-            ]);
+        // If user wants to edit phone/email and resend OTPs
+        if ($request->has('resend') || $request->filled('new_phone') || $request->filled('new_email')) {
+            $changed = false;
 
-            if ($validator->fails()) {
-                return redirect()->route('onboarding', $token)
-                    ->withErrors($validator)
-                    ->withInput();
+            if ($request->filled('new_phone')) {
+                $newPhone = $this->normalizePhone($request->new_phone, $phoneCode);
+                $user->phone = $newPhone;
+                $user->save();
+                $invitation->phone = $newPhone;
+                $changed = true;
+            }
+            if ($request->filled('new_email')) {
+                $user->email = $request->new_email;
+                $user->save();
+                $invitation->email = $request->new_email;
+                $changed = true;
             }
 
-            $user->email = $request->email;
-            $user->email_verified_at = now();
-            $user->save();
+            // Re-generate OTPs
+            $phoneOtp = $this->generateOtp();
+            $emailOtp = $user->email ? $this->generateOtp() : null;
+            $invitation->phone_otp      = $phoneOtp;
+            $invitation->email_otp      = $emailOtp;
+            $invitation->otp_expires_at = Carbon::now()->addMinutes(15);
+            $invitation->save();
+
+            $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName);
+            if ($emailOtp && $user->email) {
+                $this->sendEmailOtp($user->email, $emailOtp, $churchName);
+            }
+
+            return redirect()->route('onboarding', $token)
+                ->with('success', 'New verification codes sent!');
         }
 
+        // Validate OTP inputs
+        $rules = ['phone_otp' => 'required|digits:6'];
+        if ($invitation->email_otp) {
+            $rules['email_otp'] = 'required|digits:6';
+        }
+
+        $validator = Validator::make($request->all(), $rules);
+        if ($validator->fails()) {
+            return redirect()->route('onboarding', $token)
+                ->withErrors($validator)
+                ->withInput()
+                ->with('force_step', 2);
+        }
+
+        // Check OTP expiry
+        if ($invitation->otp_expires_at && Carbon::now()->isAfter($invitation->otp_expires_at)) {
+            return redirect()->route('onboarding', $token)
+                ->withErrors(['phone_otp' => 'Verification codes have expired. Please request new codes.'])
+                ->with('force_step', 2);
+        }
+
+        // Verify phone OTP
+        if ($request->phone_otp !== $invitation->phone_otp) {
+            return redirect()->route('onboarding', $token)
+                ->withErrors(['phone_otp' => 'Invalid phone verification code.'])
+                ->withInput()
+                ->with('force_step', 2);
+        }
+
+        // Verify email OTP
+        if ($invitation->email_otp && $request->email_otp !== $invitation->email_otp) {
+            return redirect()->route('onboarding', $token)
+                ->withErrors(['email_otp' => 'Invalid email verification code.'])
+                ->withInput()
+                ->with('force_step', 2);
+        }
+
+        // Mark phone as verified
+        $user->phone_verified_at = now();
+        if ($invitation->email_otp) {
+            $user->email_verified_at = now();
+        }
+        $user->save();
+
         $invitation->update([
+            'phone_otp'       => null,
+            'email_otp'       => null,
             'onboarding_step' => 3,
         ]);
 
-        return redirect()->route('onboarding', $token);
+        return redirect()->route('onboarding', $token)
+            ->with('success', 'Phone' . ($user->email ? ' and email' : '') . ' verified successfully!');
     }
 
+    /**
+     * Step 3: Optional alternate phone numbers, then complete registration and log in
+     */
     public function step3(Request $request, $token)
     {
         $invitation = Invitation::active()->where('token', $token)->first();
@@ -191,110 +332,71 @@ class OnboardingController extends Controller
             return redirect()->route('onboarding', $token)->with('error', 'Invalid session. Please start over.');
         }
 
-        $validator = Validator::make($request->all(), [
-            'firstname' => 'required|string|max:255',
-            'lastname' => 'required|string|max:255',
-            'surname' => 'nullable|string|max:255',
-            'gender' => 'nullable|integer',
-            'dob' => 'nullable|date',
-            'marital' => 'nullable|integer',
-            'resident' => 'nullable|string|max:255',
-            'children' => 'nullable|array|max:10',
-            'children.*.firstname' => 'nullable|string|max:255',
-            'children.*.lastname' => 'nullable|string|max:255',
-            'children.*.gender' => 'nullable|string|max:10',
-            'children.*.dob' => 'nullable|date',
-            'spouse_name' => 'nullable|string|max:255',
-            'spouse_phone' => 'nullable|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->route('onboarding', $token)
-                ->withErrors($validator)
-                ->withInput();
-        }
-
         $user = User::findOrFail($invitation->user_id);
+        $phoneCode = $this->getPhoneCode();
 
-        // Update user basic info
-        $user->firstname = $request->firstname;
-        $user->lastname = $request->lastname;
-        $user->surname = $request->surname;
-        $user->save();
-
-        // Save contacts (gender, dob, marital)
-        // contacts table has NOT NULL columns (phone, city, country, gender, dob) - provide defaults
-        $contactData = [
-            'gender' => $request->gender ?? '',
-            'dob' => $request->dob ?? '',
-            'marital' => $request->marital,
-        ];
-        $existingContact = DB::table('contacts')->where('user_id', $user->id)->first();
-        if ($existingContact) {
-            DB::table('contacts')->where('user_id', $user->id)->update($contactData);
-        } else {
-            $contactData['user_id'] = $user->id;
-            $contactData['phone'] = $user->phone ? '0' . substr($user->phone, strlen($this->getPhoneCode())) : '';
-            $contactData['city'] = '';
-            $contactData['country'] = '';
-            DB::table('contacts')->insert($contactData);
-        }
-
-        // Save secondary contacts (resident)
-        if ($request->filled('resident')) {
+        // Save alternate phone(s) if provided
+        if ($request->filled('alt_phone_1') || $request->filled('alt_phone_2')) {
+            $altPhones = [];
+            if ($request->filled('alt_phone_1')) {
+                $altPhones[] = $this->normalizePhone($request->alt_phone_1, $phoneCode);
+            }
+            if ($request->filled('alt_phone_2')) {
+                $altPhones[] = $this->normalizePhone($request->alt_phone_2, $phoneCode);
+            }
+            // Store in scontacts
             DB::table('scontacts')->updateOrInsert(
                 ['user_id' => $user->id],
-                ['resident' => $request->resident]
+                ['secondary_phone' => implode(',', $altPhones)]
             );
-        }
-
-        // Save children
-        if ($request->filled('children')) {
-            foreach ($request->children as $child) {
-                if (empty($child['firstname']) && empty($child['lastname'])) continue;
-
-                $childId = DB::table('children')->insertGetId([
-                    'firstname' => $child['firstname'] ?? '',
-                    'lastname' => $child['lastname'] ?? '',
-                    'gender' => $child['gender'] ?? null,
-                    'dob' => !empty($child['dob']) ? $child['dob'] : null,
-                    'user_id' => 0,
-                    'created_at' => now(),
-                ]);
-
-                if ($childId) {
-                    DB::table('guardians')->insert([
-                        'child_id' => $childId,
-                        'user_id' => $user->id,
-                        'relationship' => 'Parent',
-                        'created_at' => now(),
-                    ]);
-                }
-            }
-        }
-
-        // Save spouse/family
-        if ($request->filled('spouse_name') || $request->filled('spouse_phone')) {
-            $familyData = [];
-            if ($request->filled('spouse_name')) $familyData['name'] = $request->spouse_name;
-            if ($request->filled('spouse_phone')) {
-                $phoneCode = $this->getPhoneCode();
-                $familyData['phone'] = $this->normalizePhone($request->spouse_phone, $phoneCode);
-            }
-            $familyData['relationship'] = 1; // Spouse
-            DB::table('families')->updateOrInsert(['user_id' => $user->id], $familyData);
         }
 
         // Complete invitation
         $invitation->update([
             'onboarding_step' => 3,
-            'status' => 'completed',
-            'completed_at' => now(),
+            'status'          => 'completed',
+            'completed_at'    => now(),
         ]);
 
         // Log user in
         Auth::login($user);
 
-        return redirect()->to('dashboard/home')->with('success', 'Welcome! Your profile has been completed successfully.');
+        return redirect()->to('dashboard/home')
+            ->with('success', 'Welcome! Your account has been created. You can complete your profile from here.');
+    }
+
+    /**
+     * Resend OTPs (AJAX-friendly)
+     */
+    public function resendOtp(Request $request, $token)
+    {
+        $invitation = Invitation::active()->where('token', $token)->first();
+        if (!$invitation || !$invitation->user_id) {
+            return response()->json(['error' => 'Invalid invitation.'], 400);
+        }
+
+        // Rate limit resend — max once per 60 seconds
+        if ($invitation->otp_expires_at && Carbon::now()->isBefore($invitation->otp_expires_at->subMinutes(14))) {
+            return response()->json(['error' => 'Please wait at least 60 seconds before requesting a new code.'], 429);
+        }
+
+        $user = User::find($invitation->user_id);
+        $churchName = $this->getSiteSettings()->name ?? 'Church App';
+
+        $phoneOtp = $this->generateOtp();
+        $emailOtp = $user && $user->email ? $this->generateOtp() : null;
+
+        $invitation->update([
+            'phone_otp'      => $phoneOtp,
+            'email_otp'      => $emailOtp,
+            'otp_expires_at' => Carbon::now()->addMinutes(15),
+        ]);
+
+        $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName);
+        if ($emailOtp && $user->email) {
+            $this->sendEmailOtp($user->email, $emailOtp, $churchName);
+        }
+
+        return response()->json(['success' => 'New verification codes sent!']);
     }
 }

@@ -121,10 +121,10 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                 <li class="nav-item d-flex align-items-center" id="credits-chip-wrapper">
                     <a href="#" class="credits-chip" id="credits-chip" title="SMS & Email Credits">
                         <i class="fas fa-comment-sms"></i>
-                        <span class="credits-count" id="sms-credits">150</span>
+                        <span class="credits-count" id="sms-credits"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem;"></i></span>
                         <span class="credits-divider">|</span>
                         <i class="fas fa-envelope"></i>
-                        <span class="credits-count" id="email-credits">500</span>
+                        <span class="credits-count" id="email-credits"><i class="fas fa-spinner fa-spin" style="font-size:0.7rem;"></i></span>
                     </a>
 
                     {{-- Credits Purchase Popover --}}
@@ -143,14 +143,14 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                                         <i class="fas fa-comment-sms text-primary"></i>
                                         <div>
                                             <div class="credits-balance-label">SMS Credits</div>
-                                            <div class="credits-balance-value font-weight-bold">150</div>
+                                            <div class="credits-balance-value font-weight-bold" id="credits-balance-sms">—</div>
                                         </div>
                                     </div>
                                     <div class="credits-balance-item">
                                         <i class="fas fa-envelope text-primary"></i>
                                         <div>
                                             <div class="credits-balance-label">Email Credits</div>
-                                            <div class="credits-balance-value font-weight-bold">500</div>
+                                            <div class="credits-balance-value font-weight-bold" id="credits-balance-email">—</div>
                                         </div>
                                     </div>
                                 </div>
@@ -259,6 +259,13 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         <span class="dropdown-item-text py-2">
                             <span class="font-weight-bold">{{ \Auth::user()->firstname }} {{ \Auth::user()->lastname }}</span>
                             <br><small class="text-muted">{{ \Auth::user()->email }}</small>
+                            <br>
+                            @php $roles = \Auth::user()->getRoleNames(); @endphp
+                            @foreach($roles as $role)
+                                <span class="badge mt-1" style="background:#007bff;color:#fff;font-size:0.72rem;padding:3px 8px;border-radius:10px;">
+                                    <i class="fas fa-user-shield mr-1" style="font-size:0.7rem;"></i>{{ $role }}
+                                </span>
+                            @endforeach
                         </span>
                         <div class="dropdown-divider"></div>
                         <a href="{{ url('dashboard/profile') }}" class="dropdown-item">
@@ -904,6 +911,30 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                 $('#credits-step-1').show();
             });
             @endcan
+            @endcan
+
+            // ===== Load real credits balance via AJAX =====
+            @can('View Credits')
+            (function loadCreditsBalance() {
+                $.ajax({
+                    url: '{{ url("dashboard/communication/sms/credits-balance") }}',
+                    method: 'GET',
+                    success: function(data) {
+                        var sms   = parseInt(data.sms)   || 0;
+                        var email = parseInt(data.email) || 0;
+                        $('#sms-credits').text(sms.toLocaleString());
+                        $('#email-credits').text(email.toLocaleString());
+                        $('#credits-balance-sms').text(sms.toLocaleString());
+                        $('#credits-balance-email').text(email.toLocaleString());
+                    },
+                    error: function() {
+                        $('#sms-credits').text('—');
+                        $('#email-credits').text('—');
+                        $('#credits-balance-sms').text('—');
+                        $('#credits-balance-email').text('—');
+                    }
+                });
+            })();
             @endcan
 
             // ===== Login check =====

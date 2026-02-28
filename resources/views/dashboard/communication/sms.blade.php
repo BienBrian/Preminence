@@ -39,7 +39,7 @@
                         <div class="icon"><i class="fas fa-calendar-check"></i></div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="small-box bg-warning">
                         <div class="inner">
                             <h4>{{ number_format($totalRecipients) }}</h4>
@@ -48,7 +48,16 @@
                         <div class="icon"><i class="fas fa-users"></i></div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <div class="small-box" style="background:#6f42c1;color:#fff;">
+                        <div class="inner">
+                            <h4>{{ number_format($invitationCount) }}</h4>
+                            <p>Invitations Sent</p>
+                        </div>
+                        <div class="icon"><i class="fas fa-user-plus"></i></div>
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <div class="small-box bg-secondary">
                         <div class="inner">
                             <h4>{{ number_format($scheduledCount) }}</h4>
@@ -174,6 +183,9 @@
                             <a class="nav-link" id="verification-tab" data-toggle="tab" href="#verification-pane" role="tab" data-category="verification"><i class="fas fa-user-check"></i> Verification</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" id="invitation-tab" data-toggle="tab" href="#invitation-pane" role="tab" data-category="invitation"><i class="fas fa-user-plus"></i> Invitations <span class="badge bg-purple" style="background:#6f42c1;">{{ $invitationCount }}</span></a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" id="scheduled-tab" data-toggle="tab" href="#scheduled-pane" role="tab">Scheduled <span class="badge bg-secondary">{{ $scheduledCount }}</span></a>
                         </li>
                         <li class="nav-item">
@@ -202,6 +214,8 @@
                         <div class="tab-pane fade" id="birthday-pane" role="tabpanel"><div class="text-muted p-3"><i class="fas fa-spinner fa-pulse"></i> Loading...</div></div>
                         <div class="tab-pane fade" id="pledge-pane" role="tabpanel"><div class="text-muted p-3"><i class="fas fa-spinner fa-pulse"></i> Loading...</div></div>
                         <div class="tab-pane fade" id="manual-pane" role="tabpanel"><div class="text-muted p-3"><i class="fas fa-spinner fa-pulse"></i> Loading...</div></div>
+                        <div class="tab-pane fade" id="verification-pane" role="tabpanel"><div class="text-muted p-3"><i class="fas fa-spinner fa-pulse"></i> Loading...</div></div>
+                        <div class="tab-pane fade" id="invitation-pane" role="tabpanel"><div class="text-muted p-3"><i class="fas fa-spinner fa-pulse"></i> Loading...</div></div>
 
                         <!-- Scheduled Messages -->
                         <div class="tab-pane fade" id="scheduled-pane" role="tabpanel">
@@ -236,6 +250,7 @@
                                         <option value="birthday">Birthday</option>
                                         <option value="pledge">Pledges</option>
                                         <option value="verification">Verification</option>
+                                        <option value="invitation">Invitations</option>
                                         <option value="manual">Manual</option>
                                     </select>
                                 </div>

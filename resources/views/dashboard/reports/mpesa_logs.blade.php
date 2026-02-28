@@ -60,6 +60,8 @@
                 </div>
             </div>
 
+            <div class="alert alert-info py-2"><i class="fas fa-info-circle"></i> Showing last 90 days by default. Use the date filters to load older records or change the range.</div>
+
             <div class="card">
                 <div class="card-header">
                     <div class="row align-items-center">
@@ -117,6 +119,14 @@
 <script>
 $(document).ready(function () {
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') } });
+
+    // Default to last 90 days
+    var ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    var yyyy = ninetyDaysAgo.getFullYear();
+    var mm = String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0');
+    var dd = String(ninetyDaysAgo.getDate()).padStart(2, '0');
+    $('input[name=date_from]').val(yyyy + '-' + mm + '-' + dd);
 
     var table = $('#mpesa-table').DataTable({
         processing: true,
