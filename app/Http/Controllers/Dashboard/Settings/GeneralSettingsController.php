@@ -44,6 +44,9 @@ class GeneralSettingsController extends DashboardController
             'whatsapp' => 'nullable|string|max:255',
             'aboutus' => 'nullable|string',
             'contactus' => 'nullable|string',
+            'recaptcha_enabled' => 'nullable',
+            'recaptcha_site_key' => 'nullable|string|max:255',
+            'recaptcha_secret_key' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -77,6 +80,13 @@ class GeneralSettingsController extends DashboardController
         $settings->whatsapp = $request->whatsapp ?? '';
         $settings->aboutus = $this->purify($request->aboutus);
         $settings->contactus = $this->purify($request->contactus);
+        $settings->recaptcha_enabled = $request->has('recaptcha_enabled') ? 1 : 0;
+        if ($request->filled('recaptcha_site_key')) {
+            $settings->recaptcha_site_key = $request->recaptcha_site_key;
+        }
+        if ($request->filled('recaptcha_secret_key')) {
+            $settings->recaptcha_secret_key = $request->recaptcha_secret_key;
+        }
 
         if ($settings->save()) {
             return response()->json(['success' => 'Settings updated successfully']);

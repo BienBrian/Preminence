@@ -371,23 +371,10 @@ class UsersController extends DashboardController
 
         // === Rate limiting: 60 seconds between SMS invitations to same number ===
         if ($request->method === 'sms' && $phone) {
-            $recentSms = DB::table('sms')
-                ->where('category', 'invitation')
-                ->where('sent', '>=', Carbon::now()->subSeconds(60))
-                ->join('sms_recipients', 'sms_recipients.sms_id', '=', 'sms.id')
-                ->where(function ($q) use ($phone) {
-                    $q->where('sms_recipients.phone', $phone)
-                      ->orWhere(function ($q2) use ($phone) {
-                          $q2->where('sms_recipients.recipients', '>', 0)
-                             ->whereExists(function ($q3) use ($phone) {
-                                 $q3->select(DB::raw(1))->from('users')
-                                    ->whereColumn('users.id', 'sms_recipients.recipients')
-                                    ->where('users.phone', $phone);
-                             });
-                      });
-                })
+            $recentInvite = Invitation::where('phone', $phone)
+                ->where('created_at', '>=', Carbon::now()->subSeconds(60))
                 ->exists();
-            if ($recentSms) {
+            if ($recentInvite) {
                 return response()->json(['error' => 'An SMS was recently sent to this number. Please wait 60 seconds before resending.'], 429);
             }
         }

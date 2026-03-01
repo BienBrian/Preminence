@@ -31,8 +31,21 @@ class Handler extends ExceptionHandler
             //
         });
 
-        // Catch database connection failures and show a friendly error page
+        // Catch database CONNECTION failures only and show a friendly error page
         $this->renderable(function (PDOException|QueryException $e, $request) {
+            // Only handle actual connection failures (code 2002, 2006, 1045, etc.)
+            // Let query errors (missing tables/columns, syntax errors) propagate normally
+            $connectionCodes = [2002, 2006, 1045, 1049, 2003, 2005];
+            $code = (int) $e->getCode();
+            $isConnectionError = in_array($code, $connectionCodes)
+                || str_contains($e->getMessage(), 'SQLSTATE[HY000] [2002]')
+                || str_contains($e->getMessage(), 'Connection refused')
+                || str_contains($e->getMessage(), 'No such file or directory');
+
+            if (!$isConnectionError) {
+                return null; // Let Laravel handle non-connection errors normally
+            }
+
             Log::error('Database connection error: ' . $e->getMessage());
 
             if ($request->expectsJson()) {

@@ -307,6 +307,9 @@
             }, 4000);
         });
     </script>
+    @if(($settings->recaptcha_enabled ?? false) && ($settings->recaptcha_site_key ?? ''))
+    <script src="https://www.google.com/recaptcha/api.js?render={{ $settings->recaptcha_site_key }}"></script>
+    @endif
     @stack('js')
 </body>
 </html>

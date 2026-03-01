@@ -173,6 +173,38 @@
                     </div>
                 </div>
 
+                <!-- reCAPTCHA Settings -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-shield-alt mr-1"></i> reCAPTCHA (Login & Registration Security)</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-sm-12 mb-3">
+                                <div class="custom-control custom-switch">
+                                    <input type="checkbox" class="custom-control-input" id="recaptcha-enabled"
+                                        name="recaptcha_enabled" value="1"
+                                        {{ ($settings->recaptcha_enabled ?? false) ? 'checked' : '' }}>
+                                    <label class="custom-control-label" for="recaptcha-enabled">
+                                        Enable reCAPTCHA on Login & Registration
+                                    </label>
+                                </div>
+                                <small class="text-muted">When enabled, users must pass a Google reCAPTCHA check to login and register. Get your keys at <a href="https://www.google.com/recaptcha/admin" target="_blank">google.com/recaptcha/admin</a></small>
+                            </div>
+                            <div class="form-group col-sm-6" id="recaptcha-keys" style="{{ ($settings->recaptcha_enabled ?? false) ? '' : 'display:none;' }}">
+                                <label>Site Key</label>
+                                <input name="recaptcha_site_key" class="form-control" placeholder="reCAPTCHA Site Key"
+                                    value="{{ $settings->recaptcha_site_key ?? '' }}" autocomplete="off">
+                            </div>
+                            <div class="form-group col-sm-6" id="recaptcha-secret" style="{{ ($settings->recaptcha_enabled ?? false) ? '' : 'display:none;' }}">
+                                <label>Secret Key</label>
+                                <input name="recaptcha_secret_key" type="password" class="form-control" placeholder="reCAPTCHA Secret Key"
+                                    value="{{ $settings->recaptcha_secret_key ?? '' }}" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Save Button -->
                 <div class="card mb-4">
                     <div class="card-body text-right">
@@ -232,6 +264,15 @@ $(document).ready(function() {
         $('#phone-code-display').val(phone);
         $('#phone-code-input').val(phone);
         $('#country-name-input').val(name);
+    });
+
+    // reCAPTCHA toggle
+    $('#recaptcha-enabled').change(function() {
+        if ($(this).is(':checked')) {
+            $('#recaptcha-keys, #recaptcha-secret').show();
+        } else {
+            $('#recaptcha-keys, #recaptcha-secret').hide();
+        }
     });
 
     // Form submit via AJAX

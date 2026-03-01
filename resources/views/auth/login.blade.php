@@ -79,13 +79,26 @@
                                     </div>
     
     
+                                    @if(($site_settings->recaptcha_enabled ?? false) && ($site_settings->recaptcha_site_key ?? ''))
                                     <div class="">
-                                        <button data-sitekey="{{ config('services.recaptcha.site_key') }}"
+                                        @error('g-recaptcha-response')
+                                            <span class="invalid-feedback d-block" role="alert">
+                                                <strong>{{ $message }}</strong>
+                                            </span>
+                                        @enderror
+                                        <button data-sitekey="{{ $site_settings->recaptcha_site_key }}"
                                             data-callback='onSubmit' data-action='submit'
                                             class="g-recaptcha btn btn-primary w-100">
                                             {{ __('Login') }}
                                         </button>
                                     </div>
+                                    @else
+                                    <div class="">
+                                        <button type="submit" class="btn btn-primary w-100">
+                                            {{ __('Login') }}
+                                        </button>
+                                    </div>
+                                    @endif
                                 </form>
                             </div>
                         </div>
@@ -106,9 +119,11 @@
     </div>
 @endsection
 @push('js')
+    @if(($site_settings->recaptcha_enabled ?? false) && ($site_settings->recaptcha_site_key ?? ''))
     <script>
         function onSubmit(token) {
             document.getElementById("loginForm").submit();
         }
     </script>
+    @endif
 @endpush

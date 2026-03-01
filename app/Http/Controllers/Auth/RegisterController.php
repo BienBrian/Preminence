@@ -3,87 +3,87 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use App\Providers\RouteServiceProvider;
 use App\Models\User;
 use App\Rules\Recaptcha;
-use Closure;
 use Illuminate\Foundation\Auth\RegistersUsers;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Spatie\Permission\Models\Role;
 
 class RegisterController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Register Controller
-    |--------------------------------------------------------------------------
-    |
-    | This controller handles the registration of new users as well as their
-    | validation and creation. By default this controller uses a trait to
-    | provide this functionality without requiring any additional code.
-    |
-    */
-
     use RegistersUsers;
 
-    /**
-     * Where to redirect users after registration.
-     *
-     * @var string
-     */
     protected $redirectTo = RouteServiceProvider::HOME;
 
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
     public function __construct()
     {
         $this->middleware('guest');
+
+        $site_settings = DB::table('settings')->first();
+        \View::share('site_settings', $site_settings);
     }
 
-    /**
-     * Get a validator for an incoming registration request.
-     *
-     * @param  array  $data
-     * @return \Illuminate\Contracts\Validation\Validator
-     */
+    private function isRecaptchaEnabled(): bool
+    {
+        $settings = Setting::first();
+        return $settings
+            && $settings->recaptcha_enabled
+            && $settings->recaptcha_site_key
+            && $settings->recaptcha_secret_key;
+    }
+
     protected function validator(array $data)
     {
-        return Validator::make($data, [
-            'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'unique:users'],
-            'phone' => ['required','regex:/^\d{9,15}$/','unique:users'],
-            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'terms_and_conditions' => ['required', 'integer', 'min:1', 'max:1'],
-            'g-recaptcha-response' => ['required', new Recaptcha],
+        $rules = [
+            'firstname' => ['required', 'string', 'max:255'],
+            'lastname'  => ['required', 'string', 'max:255'],
+            'phone'     => ['required', 'regex:/^\d{9,15}$/', 'unique:users,phone'],
+            'email'     => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password'  => ['required', 'string', 'min:8', 'confirmed'],
+            'terms_and_conditions' => ['accepted'],
+        ];
+
+        if ($this->isRecaptchaEnabled()) {
+            $rules['g-recaptcha-response'] = ['required', new Recaptcha];
+        }
+
+        return Validator::make($data, $rules, [
+            'terms_and_conditions.accepted' => 'You must accept the Terms and Conditions.',
+            'phone.regex' => 'Enter a valid phone number (digits only, e.g. 712345678).',
         ]);
     }
 
-    /**
-     * Create a new user instance after a valid registration.
-     *
-     * @param  array  $data
-     * @return \App\Models\User
-     */
     protected function create(array $data)
     {
-        $role = Role::where('name', 'User')->first();
-        if($role == null){
+        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
+        $phone = preg_replace('/[^0-9]/', '', $data['phone']);
+        if (strlen($phone) <= 10) {
+            $phone = $phoneCode . ltrim($phone, '0');
+        }
+
+        $role = Role::where('name', 'Member')->first();
+        if ($role == null) {
+            $role = Role::where('name', 'User')->first();
+        }
+        if ($role == null) {
             $role = Role::create(['name' => 'User']);
         }
+
         $user = User::create([
-            'name' => $data['name'],
-            'username' => $data['username'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'phone' => $data['phone'],
+            'firstname' => $data['firstname'],
+            'lastname'  => $data['lastname'],
+            'email'     => $data['email'],
+            'phone'     => $phone,
+            'password'  => Hash::make($data['password']),
         ]);
+        $user->status = 1;
+        $user->save();
         $user->assignRole($role);
+
         return $user;
     }
 }
