@@ -363,6 +363,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('people/pastors', [PastorsController::class, 'pastors']);
     Route::post('/addpastor', [PastorsController::class, 'addpastor']);
     Route::post('/pastors/update-title', [PastorsController::class, 'updateTitle']);
+    Route::post('/pastors/remove', [PastorsController::class, 'removePastor']);
 
     //articles
     Route::get('/articles', [ArticlesController::class, 'index']);
@@ -487,8 +488,9 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::post('users/update/education', [UsersController::class, 'updateEducation']);
     Route::post('users/sendsms', [UsersController::class, 'sendUserSms'])->middleware('throttle:10,1');
     Route::post('users/invite', [UsersController::class, 'inviteUser'])->middleware('throttle:10,1');
+    Route::post('users/check-invite-phone', [UsersController::class, 'checkInvitePhone']);
     Route::get('users/invitations', [UsersController::class, 'invitations']);
-Route::post('users/bulk-verify', [UsersController::class, 'bulkInviteVerification']);
+    Route::post('users/bulk-verify', [UsersController::class, 'bulkInviteVerification']);
     Route::get('users/invitations/datatable', [UsersController::class, 'invitationsDataTable']);
     Route::post('users/toggle-verification', [UsersController::class, 'toggleVerification']);
     Route::post('users/send-verification-request', [UsersController::class, 'sendVerificationRequest'])->middleware('throttle:5,1');

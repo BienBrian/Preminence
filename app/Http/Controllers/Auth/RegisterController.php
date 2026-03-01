@@ -57,9 +57,8 @@ class RegisterController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', 'unique:users'],
             'phone' => ['required','regex:/^\d{9,15}$/','unique:users'],
-            'referrer'=>['required', 'string', 'exists:users,username,status,1'],
             'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:12', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
             'terms_and_conditions' => ['required', 'integer', 'min:1', 'max:1'],
             'g-recaptcha-response' => ['required', new Recaptcha],
         ]);
@@ -82,7 +81,6 @@ class RegisterController extends Controller
             'username' => $data['username'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'referrer' => $data['referrer'],
             'phone' => $data['phone'],
         ]);
         $user->assignRole($role);

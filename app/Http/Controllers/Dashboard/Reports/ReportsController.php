@@ -31,14 +31,15 @@ class ReportsController extends DashboardController
     public function mpesaLogs()
     {
         $totalTransactions = MpesaTransaction::count();
-        $matchedTransactions = DB::table('mpesa_transactions')
-            ->join('funds', function ($join) {
-                $join->on('mpesa_transactions.TransAmount', '=', 'funds.amount')
-                    ->on(DB::raw('DATE(mpesa_transactions.created_at)'), '=', DB::raw('DATE(funds.created_at)'));
-            })
-            ->where('funds.user_id', '>', 0)
+        // Use funds table directly — any fund with source=1 (mpesa) and user_id > 0 is matched
+        $matchedTransactions = DB::table('funds')
+            ->where('source', 1)
+            ->where('user_id', '>', 0)
             ->count();
-        $unmatchedTransactions = $totalTransactions - $matchedTransactions;
+        $unmatchedTransactions = DB::table('funds')
+            ->where('source', 1)
+            ->where('user_id', 0)
+            ->count();
         $totalHashes = MpesaPhone::count();
 
         return view('dashboard.reports.mpesa_logs', compact(

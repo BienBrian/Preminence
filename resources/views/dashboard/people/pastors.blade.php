@@ -72,6 +72,12 @@
                                                     data-toggle="tooltip" title="Edit Title">
                                                     <i class="fas fa-pencil-alt"></i>
                                                 </button>
+                                                <button class="btn btn-sm btn-outline-danger btn-remove-pastor"
+                                                    data-id="{{ $pastor->id }}"
+                                                    data-name="{{ $pastor->firstname }} {{ $pastor->lastname }}"
+                                                    data-toggle="tooltip" title="Remove Pastor">
+                                                    <i class="fas fa-user-minus"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                         <?php $count++; ?>
@@ -120,6 +126,12 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden Remove Pastor Form -->
+    <form id="removePastorForm" action="{{ url('dashboard/pastors/remove') }}" method="POST" class="d-none">
+        @csrf
+        <input type="hidden" name="id" id="removePastorId">
+    </form>
 
     <div class="pastorsusers" style="background-color: rgba(0,0,0,.5)">
         <div class="message-div">
@@ -172,6 +184,24 @@
                 $('#editTitlePastorId').val($(this).data('id'));
                 $('#editTitleSelect').val($(this).data('title'));
                 $('#editTitleModal').modal('show');
+            });
+
+            $('.btn-remove-pastor').click(function() {
+                var id = $(this).data('id');
+                var name = $(this).data('name');
+                Swal.fire({
+                    title: 'Remove ' + name + '?',
+                    text: 'This will remove them from the pastors list. They will remain as a member.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Yes, remove'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $('#removePastorId').val(id);
+                        $('#removePastorForm').submit();
+                    }
+                });
             });
 
             $('.pastorsusers .close').click(function() {

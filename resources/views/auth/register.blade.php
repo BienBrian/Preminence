@@ -72,7 +72,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-sm-6 mb-3">
+                            <div class="col-sm-12 mb-3">
                                 <label for="phone">{{ __('Phone') }}</label>
 
                                 <div class="input-group">
@@ -85,23 +85,6 @@
                                         autocomplete="phone">
 
                                     @error('phone')
-                                        <span class="invalid-feedback" role="alert">
-                                            <strong>{{ $message }}</strong>
-                                        </span>
-                                    @enderror
-                                </div>
-                            </div>
-
-                            <div class="col-sm-6 mb-3">
-                                <label for="referrer">{{ __('Referrer Username') }}</label>
-
-                                <div>
-                                    <input id="referrer" type="text"
-                                        class="form-control @error('referrer') is-invalid @enderror" name="referrer"
-                                        value="{{ request('referrer') != '' ? request('referrer') : old('referrer') }}"
-                                        placeholder='Referrer Username' required autocomplete="referrer">
-
-                                    @error('referrer')
                                         <span class="invalid-feedback" role="alert">
                                             <strong>{{ $message }}</strong>
                                         </span>

@@ -63,4 +63,20 @@ class PastorsController extends DashboardController
 
         return back()->with("success", "Title updated successfully!");
     }
+
+    public function removePastor(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|integer|exists:pastors,id',
+        ]);
+
+        $pastor = \DB::table("pastors")->where("id", $request->id)->first();
+        if (!$pastor) {
+            return back()->with("error", "Pastor not found.");
+        }
+
+        \DB::table("pastors")->where("id", $request->id)->delete();
+
+        return back()->with("success", "Pastor removed successfully. The user remains a member.");
+    }
 }

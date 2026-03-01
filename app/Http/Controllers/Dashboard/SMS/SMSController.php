@@ -89,54 +89,52 @@ class SMSController extends DashboardController
     public function getSmsSummary(Request $request){
         $period = $request->period ?? 'daily';
         $category = $request->category ?? 'all';
-
-        // Build the pre-grouped inner query — this becomes a clean subquery
-        // so DataTables' count wrapper never encounters non-grouped raw columns
         $categoryFilter = ($category !== 'all') ? $category : null;
 
-        if ($period == 'weekly') {
-            $innerSql = "SELECT
-                YEARWEEK(sms.sent, 1) AS period_key,
-                MIN(DATE(sms.sent)) AS period_start,
-                MAX(DATE(sms.sent)) AS period_end,
-                COUNT(*) AS total_messages,
-                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
-            FROM sms
-            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
-                . ($categoryFilter ? " WHERE sms.category = ?" : "")
-                . " GROUP BY YEARWEEK(sms.sent, 1)
-            ORDER BY YEARWEEK(sms.sent, 1) DESC";
-            $bindings = $categoryFilter ? [$categoryFilter] : [];
-        } elseif ($period == 'monthly') {
-            $innerSql = "SELECT
-                DATE_FORMAT(sms.sent, '%Y-%m') AS period_key,
-                DATE_FORMAT(sms.sent, '%M %Y') AS period_label,
-                COUNT(*) AS total_messages,
-                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
-            FROM sms
-            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
-                . ($categoryFilter ? " WHERE sms.category = ?" : "")
-                . " GROUP BY DATE_FORMAT(sms.sent, '%Y-%m')
-            ORDER BY DATE_FORMAT(sms.sent, '%Y-%m') DESC";
-            $bindings = $categoryFilter ? [$categoryFilter] : [];
-        } else {
-            // daily — all selected columns are derived from DATE(sent) so fully grouped
-            $innerSql = "SELECT
-                DATE(sms.sent) AS period_key,
-                DATE(sms.sent) AS date,
-                COUNT(*) AS total_messages,
-                COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
-            FROM sms
-            LEFT JOIN (SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id) AS rc ON rc.sms_id = sms.id"
-                . ($categoryFilter ? " WHERE sms.category = ?" : "")
-                . " GROUP BY DATE(sms.sent)
-            ORDER BY DATE(sms.sent) DESC";
-            $bindings = $categoryFilter ? [$categoryFilter] : [];
+        // Pre-aggregate recipient counts per SMS
+        $rcSql = "(SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id)";
+
+        // Build query using Query Builder to avoid raw SQL GROUP BY issues with strict mode
+        $baseQuery = \DB::table('sms')
+            ->leftJoin(\DB::raw("{$rcSql} AS rc"), 'rc.sms_id', '=', 'sms.id');
+
+        if ($categoryFilter) {
+            $baseQuery->where('sms.category', $categoryFilter);
         }
 
-        $query = \DB::table(\DB::raw("({$innerSql}) AS grouped_sms"))->setBindings($bindings);
+        if ($period == 'weekly') {
+            $baseQuery->select(
+                \DB::raw('YEARWEEK(sms.sent, 1) AS period_key'),
+                \DB::raw('MIN(DATE(sms.sent)) AS period_start'),
+                \DB::raw('MAX(DATE(sms.sent)) AS period_end'),
+                \DB::raw('COUNT(*) AS total_messages'),
+                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
+            )->groupBy(\DB::raw('YEARWEEK(sms.sent, 1)'))
+             ->orderBy(\DB::raw('YEARWEEK(sms.sent, 1)'), 'DESC');
+        } elseif ($period == 'monthly') {
+            $baseQuery->select(
+                \DB::raw("DATE_FORMAT(sms.sent, '%Y-%m') AS period_key"),
+                \DB::raw("DATE_FORMAT(sms.sent, '%M %Y') AS period_label"),
+                \DB::raw('COUNT(*) AS total_messages'),
+                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
+            )->groupBy(\DB::raw("DATE_FORMAT(sms.sent, '%Y-%m')"))
+             ->orderBy(\DB::raw("DATE_FORMAT(sms.sent, '%Y-%m')"), 'DESC');
+        } else {
+            $baseQuery->select(
+                \DB::raw('DATE(sms.sent) AS period_key'),
+                \DB::raw('DATE(sms.sent) AS date'),
+                \DB::raw('COUNT(*) AS total_messages'),
+                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
+            )->groupBy(\DB::raw('DATE(sms.sent)'))
+             ->orderBy(\DB::raw('DATE(sms.sent)'), 'DESC');
+        }
 
-        return DataTables::of($query)
+        // Wrap in a derived table so DataTables' count query works cleanly
+        $wrappedQuery = \DB::table(\DB::raw("({$baseQuery->toSql()}) AS grouped_sms"))
+            ->mergeBindings($baseQuery);
+
+        return DataTables::of($wrappedQuery)
+            ->skipTotalRecords()
             ->addColumn('period', function ($row) use ($period) {
                 if ($period == 'weekly') {
                     return Carbon::parse($row->period_start)->format('d M') . ' - ' . Carbon::parse($row->period_end)->format('d M, Y');
@@ -452,10 +450,26 @@ class SMSController extends DashboardController
 
         $recipientCount = \DB::table("sms_recipients")->where("sms_id", $request->id)->count();
 
+        // Get registered recipients
         $members = \DB::table("sms_recipients")->where("sms_id", $request->id)
+            ->where("sms_recipients.recipients", ">", 0)
             ->select("users.id", "users.firstname", "users.lastname", "users.phone")
             ->join("users", "users.id", "=", "sms_recipients.recipients")
             ->orderBy("users.firstname")->get();
+
+        // Get phone-only recipients (not linked to a user)
+        $phoneOnlyRecipients = \DB::table("sms_recipients")->where("sms_id", $request->id)
+            ->where(function ($q) {
+                $q->where("recipients", 0)->orWhereNull("recipients");
+            })
+            ->whereNotNull("phone")
+            ->select("phone")
+            ->get()
+            ->map(function ($r) {
+                return (object) ['id' => 0, 'firstname' => 'Non-member', 'lastname' => '', 'phone' => $r->phone];
+            });
+
+        $allMembers = $members->merge($phoneOnlyRecipients);
 
         return response()->json([
             'id' => $sms->id,
@@ -465,7 +479,7 @@ class SMSController extends DashboardController
             'category' => $sms->category ?? 'manual',
             'group_name' => $sms->group_name,
             'recipient_count' => $recipientCount,
-            'members' => $members,
+            'members' => $allMembers,
         ]);
     }
 

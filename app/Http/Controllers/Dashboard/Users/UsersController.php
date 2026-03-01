@@ -284,6 +284,55 @@ class UsersController extends DashboardController
         }
     }
 
+    public function checkInvitePhone(Request $request)
+    {
+        $phoneCode = optional(\DB::table('settings')->first())->phone_code ?? '254';
+        $phone = preg_replace('/[^0-9]/', '', $request->phone ?? '');
+        if (strlen($phone) <= 10) {
+            $phone = $phoneCode . ltrim($phone, '0');
+        }
+
+        $result = ['status' => 'ok'];
+
+        // Check if user already exists in the system
+        $existingUser = User::where('phone', $phone)->first();
+        if ($existingUser) {
+            $name = trim($existingUser->firstname . ' ' . $existingUser->lastname);
+            $verified = (bool) $existingUser->phone_verified_at;
+            $result = [
+                'status' => 'user_exists',
+                'user_name' => $name ?: 'User #' . $existingUser->id,
+                'user_id' => $existingUser->id,
+                'profile_url' => url('dashboard/users/view/' . $existingUser->id),
+                'verified' => $verified,
+                'message' => $verified
+                    ? "This phone belongs to {$name} who is already verified."
+                    : "This phone belongs to {$name} who has not yet verified.",
+            ];
+            return response()->json($result);
+        }
+
+        // Check for previous invitations
+        $previousInvite = Invitation::where('phone', $phone)
+            ->orderBy('created_at', 'DESC')
+            ->first();
+        if ($previousInvite) {
+            $status = $previousInvite->status;
+            if (in_array($status, ['pending', 'started']) && $previousInvite->expires_at < now()) {
+                $status = 'expired';
+            }
+            $result = [
+                'status' => 'previously_invited',
+                'invite_status' => $status,
+                'invite_date' => $previousInvite->created_at->format('d M, Y'),
+                'invite_id' => $previousInvite->id,
+                'message' => "This number was already invited on {$previousInvite->created_at->format('d M, Y')} (Status: {$status}).",
+            ];
+        }
+
+        return response()->json($result);
+    }
+
     public function inviteUser(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -309,14 +358,34 @@ class UsersController extends DashboardController
             }
         }
 
+        // Check if user is already verified — block re-invitation
+        if ($request->method === 'sms' && $phone) {
+            $existingUser = User::where('phone', $phone)->first();
+            if ($existingUser && $existingUser->phone_verified_at) {
+                return response()->json([
+                    'error' => 'This user (' . trim($existingUser->firstname . ' ' . $existingUser->lastname) . ') is already verified. No invitation needed.',
+                    'profile_url' => url('dashboard/users/view/' . $existingUser->id),
+                ], 400);
+            }
+        }
+
         // === Rate limiting: 60 seconds between SMS invitations to same number ===
         if ($request->method === 'sms' && $phone) {
             $recentSms = DB::table('sms')
                 ->where('category', 'invitation')
                 ->where('sent', '>=', Carbon::now()->subSeconds(60))
                 ->join('sms_recipients', 'sms_recipients.sms_id', '=', 'sms.id')
-                ->join('users', 'users.id', '=', 'sms_recipients.recipients')
-                ->where('users.phone', $phone)
+                ->where(function ($q) use ($phone) {
+                    $q->where('sms_recipients.phone', $phone)
+                      ->orWhere(function ($q2) use ($phone) {
+                          $q2->where('sms_recipients.recipients', '>', 0)
+                             ->whereExists(function ($q3) use ($phone) {
+                                 $q3->select(DB::raw(1))->from('users')
+                                    ->whereColumn('users.id', 'sms_recipients.recipients')
+                                    ->where('users.phone', $phone);
+                             });
+                      });
+                })
                 ->exists();
             if ($recentSms) {
                 return response()->json(['error' => 'An SMS was recently sent to this number. Please wait 60 seconds before resending.'], 429);
@@ -362,15 +431,14 @@ class UsersController extends DashboardController
                 'sent' => Carbon::now(),
             ]);
 
-            // Fix 0-recipients bug: log recipient if user already exists with this phone
+            // Always log recipient — use user_id if exists, otherwise store phone number
             $existingUser = DB::table('users')->where('phone', $phone)->first();
-            if ($existingUser) {
-                DB::table('sms_recipients')->insert([
-                    'recipients' => $existingUser->id,
-                    'sms_id' => $mid,
-                    'sent' => Carbon::now(),
-                ]);
-            }
+            DB::table('sms_recipients')->insert([
+                'recipients' => $existingUser ? $existingUser->id : 0,
+                'phone' => $phone,
+                'sms_id' => $mid,
+                'sent' => Carbon::now(),
+            ]);
 
             return response()->json(['success' => 'Invitation SMS sent to ' . $phone]);
         } else {
@@ -405,7 +473,16 @@ class UsersController extends DashboardController
 
     public function invitations()
     {
-        return view('dashboard.users.invitations');
+        $unverifiedPhone = User::whereNull('archived_at')
+            ->whereNull('phone_verified_at')
+            ->whereNotNull('phone')->where('phone', '<>', '')
+            ->count();
+        $unverifiedEmail = User::whereNull('archived_at')
+            ->whereNull('email_verified_at')
+            ->whereNotNull('email')->where('email', '<>', '')
+            ->count();
+
+        return view('dashboard.users.invitations', compact('unverifiedPhone', 'unverifiedEmail'));
     }
 
     public function invitationsDataTable()

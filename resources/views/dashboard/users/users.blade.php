@@ -448,7 +448,7 @@
 
     <!-- ===== INVITE USER MODAL ===== -->
     <div class="modal fade" id="inviteModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class='fas fa-paper-plane'></i> Invite User</h5>
@@ -470,13 +470,14 @@
                                 <div class="input-group-prepend">
                                     <span class="input-group-text">+{{ $site_settings->phone_code ?? '254' }}</span>
                                 </div>
-                                <input type="text" name="phone" class="form-control" placeholder="e.g. 712345678">
+                                <input type="text" name="phone" class="form-control" placeholder="e.g. 712345678" id="invite-phone-input">
                             </div>
                         </div>
                         <div class="form-group d-none" id="invite-email-group">
                             <label>Email Address</label>
                             <input type="email" name="email" class="form-control" placeholder="example@email.com">
                         </div>
+                        <div id="invite-phone-check" class="d-none mb-3"></div>
                         <div class='alert invite-feedback border d-none'></div>
                     </form>
                 </div>
@@ -679,6 +680,7 @@ $(document).ready(function () {
         $('#invite-form')[0].reset();
         $('#invite-method').val('sms').trigger('change');
         $('#inviteModal .invite-feedback').addClass('d-none').removeClass('alert-danger alert-success');
+        $('#invite-phone-check').addClass('d-none').html('');
         $('#inviteModal').modal('show');
     });
 
@@ -701,7 +703,49 @@ $(document).ready(function () {
             $('#invite-phone-group').addClass('d-none');
             $('#invite-email-group').removeClass('d-none');
         }
+        $('#invite-phone-check').addClass('d-none').html('');
     });
+
+    // ===== Phone Number Check (on blur) =====
+    var phoneCheckTimer = null;
+    $('#invite-phone-input').on('blur keyup', function (e) {
+        var phone = $(this).val().replace(/[^0-9]/g, '');
+        if (phone.length < 9) {
+            $('#invite-phone-check').addClass('d-none').html('');
+            return;
+        }
+        if (e.type === 'keyup') {
+            clearTimeout(phoneCheckTimer);
+            phoneCheckTimer = setTimeout(function () { doPhoneCheck(phone); }, 800);
+        } else {
+            doPhoneCheck(phone);
+        }
+    });
+
+    function doPhoneCheck(phone) {
+        $.ajax({
+            url: '{{ url("dashboard/users/check-invite-phone") }}',
+            type: 'POST',
+            data: { _token: '{{ csrf_token() }}', phone: phone }
+        }).done(function (data) {
+            var $box = $('#invite-phone-check');
+            if (data.status === 'user_exists') {
+                var html = '<div class="alert alert-' + (data.verified ? 'success' : 'warning') + ' mb-0 py-2 px-3">' +
+                    '<i class="fas fa-' + (data.verified ? 'check-circle' : 'exclamation-triangle') + ' mr-1"></i> ' +
+                    data.message + '<br>' +
+                    '<a href="' + data.profile_url + '" class="btn btn-sm btn-outline-primary mt-1" target="_blank">' +
+                    '<i class="fas fa-user mr-1"></i> View Profile</a></div>';
+                $box.html(html).removeClass('d-none');
+            } else if (data.status === 'previously_invited') {
+                var html = '<div class="alert alert-info mb-0 py-2 px-3">' +
+                    '<i class="fas fa-info-circle mr-1"></i> ' + data.message + '<br>' +
+                    '<small class="text-muted">You can still send a new invitation.</small></div>';
+                $box.html(html).removeClass('d-none');
+            } else {
+                $box.addClass('d-none').html('');
+            }
+        });
+    }
 
     // ===== Save User =====
     $('.btnSaveUser').click(function () {
@@ -764,6 +808,7 @@ $(document).ready(function () {
         }).done(function (data) {
             $('#inviteModal .invite-feedback').addClass('alert-success')
                 .html("<i class='fas fa-check-circle'></i> " + data.success);
+            $('#invite-phone-check').addClass('d-none').html('');
             setTimeout(() => { $('#inviteModal .invite-feedback').addClass('d-none'); }, 3000);
             btn.removeAttr('disabled');
         }).fail(function (response) {
@@ -775,10 +820,16 @@ $(document).ready(function () {
                         $('#inviteModal .invite-feedback').append("<i class='fas fa-exclamation-circle'></i> " + msg + "<br>");
                     });
                 });
+            } else if (data && data.error) {
+                var html = "<i class='fas fa-exclamation-circle'></i> " + data.error;
+                if (data.profile_url) {
+                    html += '<br><a href="' + data.profile_url + '" class="btn btn-sm btn-outline-primary mt-1" target="_blank"><i class="fas fa-user mr-1"></i> View Profile</a>';
+                }
+                $('#inviteModal .invite-feedback').html(html);
             } else {
                 $('#inviteModal .invite-feedback').html("<i class='fas fa-exclamation-circle'></i> Something went wrong!");
             }
-            setTimeout(() => { $('#inviteModal .invite-feedback').addClass('d-none'); }, 5000);
+            setTimeout(() => { $('#inviteModal .invite-feedback').addClass('d-none'); }, 8000);
             btn.removeAttr('disabled');
         });
     });

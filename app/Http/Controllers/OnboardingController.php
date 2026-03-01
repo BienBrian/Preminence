@@ -41,7 +41,7 @@ class OnboardingController extends Controller
         return str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
-    private function sendSmsOtp(string $phone, string $otp, string $churchName): void
+    private function sendSmsOtp(string $phone, string $otp, string $churchName, ?int $userId = null): void
     {
         $message = "Your {$churchName} verification code is: {$otp}. Valid for 15 minutes.";
         $curl = curl_init();
@@ -65,6 +65,20 @@ class OnboardingController extends Controller
         ]);
         curl_exec($curl);
         curl_close($curl);
+
+        // Log the OTP SMS to sms + sms_recipients tables
+        $mid = DB::table('sms')->insertGetId([
+            'people_id' => 0,
+            'message'   => $message,
+            'category'  => 'verification',
+            'sent'      => Carbon::now(),
+        ]);
+        DB::table('sms_recipients')->insert([
+            'recipients' => $userId ?? 0,
+            'phone'      => $phone,
+            'sms_id'     => $mid,
+            'sent'       => Carbon::now(),
+        ]);
     }
 
     private function sendEmailOtp(string $email, string $otp, string $churchName): void
@@ -207,7 +221,7 @@ class OnboardingController extends Controller
 
         // Send OTPs
         $churchName = $this->getSiteSettings()->name ?? 'Church App';
-        $this->sendSmsOtp($phone, $phoneOtp, $churchName);
+        $this->sendSmsOtp($phone, $phoneOtp, $churchName, $user->id);
         if ($emailOtp && $request->filled('email')) {
             $this->sendEmailOtp($request->email, $emailOtp, $churchName);
         }
@@ -259,7 +273,7 @@ class OnboardingController extends Controller
             $invitation->otp_expires_at = Carbon::now()->addMinutes(15);
             $invitation->save();
 
-            $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName);
+            $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName, $user->id);
             if ($emailOtp && $user->email) {
                 $this->sendEmailOtp($user->email, $emailOtp, $churchName);
             }
@@ -392,7 +406,7 @@ class OnboardingController extends Controller
             'otp_expires_at' => Carbon::now()->addMinutes(15),
         ]);
 
-        $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName);
+        $this->sendSmsOtp($invitation->phone, $phoneOtp, $churchName, $user->id);
         if ($emailOtp && $user->email) {
             $this->sendEmailOtp($user->email, $emailOtp, $churchName);
         }
