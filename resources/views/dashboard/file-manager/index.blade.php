@@ -25,11 +25,13 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title"><i class="fas fa-sitemap"></i> Folders</h3>
+                            @can('Manage File Manager')
                             <div class="card-tools">
                                 <button class="btn btn-primary btn-sm" id="btn-new-folder" data-parent="">
                                     <i class="fas fa-plus"></i> New
                                 </button>
                             </div>
+                            @endcan
                         </div>
                         <div class="card-body p-0">
                             <div class="list-group list-group-flush" id="folder-tree">
@@ -55,13 +57,16 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title" id="files-panel-title"><i class="fas fa-photo-video"></i> Select a folder</h3>
+                            @can('Manage File Manager')
                             <div class="card-tools" id="file-actions" style="display:none;">
                                 <button class="btn btn-info btn-sm mr-1" id="btn-upload-files"><i class="fas fa-upload"></i> Upload</button>
                                 <button class="btn btn-warning btn-sm mr-1" id="btn-edit-folder"><i class="fas fa-edit"></i> Edit Folder</button>
                                 <button class="btn btn-danger btn-sm" id="btn-delete-folder"><i class="fas fa-trash"></i> Delete Folder</button>
                             </div>
+                            @endcan
                         </div>
                         <div class="card-body">
+                            @can('Manage File Manager')
                             <!-- Upload area (hidden until triggered) -->
                             <div id="upload-area" style="display:none;" class="mb-3">
                                 <form id="upload-form" enctype="multipart/form-data">
@@ -76,6 +81,7 @@
                                     </div>
                                 </form>
                             </div>
+                            @endcan
 
                             <!-- Files grid -->
                             <div id="files-grid" class="row">
@@ -149,6 +155,7 @@ $(document).ready(function() {
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }});
 
     var currentFolderId = null;
+    var canManage = {{ auth()->user()->can('Manage File Manager') ? 'true' : 'false' }};
 
     // Select folder
     $(document).on('click', '.folder-item', function(e) {
@@ -171,6 +178,7 @@ $(document).ready(function() {
                 html = '<div class="col-12 text-center text-muted py-4"><i class="fas fa-inbox fa-3x mb-2 d-block"></i>No files in this folder. Click "Upload" to add files.</div>';
             } else {
                 files.forEach(function(file) {
+                    var deleteBtn = canManage ? '<button class="btn btn-outline-danger btn-xs btn-delete-file" data-id="' + file.id + '"><i class="fas fa-trash"></i></button>' : '';
                     if (file.is_image) {
                         html += '<div class="col-6 col-sm-4 col-md-3 mb-3">' +
                             '<div class="card h-100 shadow-sm file-card" data-id="' + file.id + '">' +
@@ -181,7 +189,7 @@ $(document).ready(function() {
                             '</div>' +
                             '<div class="card-footer p-1 text-center">' +
                             '<a href="' + file.url + '" target="_blank" class="btn btn-outline-info btn-xs mr-1"><i class="fas fa-eye"></i></a>' +
-                            '<button class="btn btn-outline-danger btn-xs btn-delete-file" data-id="' + file.id + '"><i class="fas fa-trash"></i></button>' +
+                            deleteBtn +
                             '</div></div></div>';
                     } else {
                         var icon = 'fa-file';
@@ -200,7 +208,7 @@ $(document).ready(function() {
                             '</div>' +
                             '<div class="card-footer p-1 text-center">' +
                             '<a href="' + file.url + '" target="_blank" class="btn btn-outline-info btn-xs mr-1"><i class="fas fa-download"></i></a>' +
-                            '<button class="btn btn-outline-danger btn-xs btn-delete-file" data-id="' + file.id + '"><i class="fas fa-trash"></i></button>' +
+                            deleteBtn +
                             '</div></div></div>';
                     }
                 });

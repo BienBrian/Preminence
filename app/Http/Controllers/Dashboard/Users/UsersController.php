@@ -200,6 +200,7 @@ class UsersController extends DashboardController
         $user->email = $request->email;
         $user->phone = $request->phone;
         $user->status = $request->status;
+        try {
         if ($user->save()) {
             // Auto-assign "Member" role for new users
             if ($request->id == 0) {
@@ -281,6 +282,17 @@ class UsersController extends DashboardController
             return response()->json(['success' => 'User saved successfully!']);
         } else {
             return response()->json(['error' => 'Unable to save user'], 401);
+        }
+        } catch (\Illuminate\Database\QueryException $e) {
+            $msg = 'Unable to save user. Please check the data and try again.';
+            if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                if (str_contains($e->getMessage(), 'phone')) {
+                    $msg = 'This phone number is already assigned to another user.';
+                } elseif (str_contains($e->getMessage(), 'email')) {
+                    $msg = 'This email address is already assigned to another user.';
+                }
+            }
+            return response()->json(['error' => $msg], 422);
         }
     }
 
@@ -594,7 +606,13 @@ class UsersController extends DashboardController
         }
 
         $user->phone = $phone;
-        $user->save();
+        try {
+            $user->save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()->withInput()->withErrors([
+                'error' => 'Unable to save user profile. Please check the data and try again.',
+            ]);
+        }
 
         $role = Role::find($request->role);
         if ($role) {

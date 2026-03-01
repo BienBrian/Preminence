@@ -10,6 +10,7 @@ class ScheduleController extends DashboardController
 {
     public function __construct(){
         parent::__construct();
+        $this->middleware(['permission:View Communication']);
     }
 
     public function schedules(){

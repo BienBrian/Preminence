@@ -177,21 +177,42 @@ class OnboardingController extends Controller
 
         $phone = $this->normalizePhone($request->phone, $phoneCode);
 
+        // Check email uniqueness (exclude current phone's user if they exist)
+        if ($request->filled('email')) {
+            $existingPhone = User::where('phone', $phone)->first();
+            $emailConflict = User::where('email', $request->email)
+                ->where('id', '!=', optional($existingPhone)->id ?? 0)
+                ->first();
+            if ($emailConflict) {
+                return redirect()->route('onboarding', $token)
+                    ->withErrors(['email' => 'This email address is already registered to another account.'])
+                    ->withInput()
+                    ->with('force_step', 1);
+            }
+        }
+
         // Check if user with this phone already exists
         $user = User::where('phone', $phone)->first();
         if (!$user) {
-            $user = new User();
-            $user->firstname = '';
-            $user->lastname  = '';
-            $user->phone     = $phone;
-            $user->status    = 1;
-            $user->password  = Hash::make($request->password);
-            $user->must_change_password = false;
-            $user->save();
+            try {
+                $user = new User();
+                $user->firstname = '';
+                $user->lastname  = '';
+                $user->phone     = $phone;
+                $user->status    = 1;
+                $user->password  = Hash::make($request->password);
+                $user->must_change_password = false;
+                $user->save();
 
-            $role = Role::where('name', 'Member')->first();
-            if (!$role) $role = Role::where('name', 'User')->first();
-            if ($role) $user->assignRole($role->name);
+                $role = Role::where('name', 'Member')->first();
+                if (!$role) $role = Role::where('name', 'User')->first();
+                if ($role) $user->assignRole($role->name);
+            } catch (\Illuminate\Database\QueryException $e) {
+                return redirect()->route('onboarding', $token)
+                    ->withErrors(['phone' => 'Unable to create account. This phone number may already be in use.'])
+                    ->withInput()
+                    ->with('force_step', 1);
+            }
         } else {
             $user->password = Hash::make($request->password);
             $user->must_change_password = false;

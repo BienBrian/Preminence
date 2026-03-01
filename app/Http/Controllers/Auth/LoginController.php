@@ -10,6 +10,7 @@ use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
@@ -53,24 +54,36 @@ class LoginController extends Controller
     public function findUsername()
     {
         $login = request()->input('email');
-        $fieldType = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
-        request()->merge([$fieldType => $login]);
-        return $fieldType;
+
+        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
+            return 'email';
+        }
+
+        // Non-email input: treat as phone number and normalize
+        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
+        $phone = preg_replace('/[^0-9]/', '', $login ?? '');
+        if ($phone && strlen($phone) <= 10) {
+            $phone = $phoneCode . ltrim($phone, '0');
+        }
+        request()->merge(['phone' => $phone]);
+        return 'phone';
     }
     protected function credentials(Request $request)
     {
         return array_merge($request->only($this->username(), 'password'), ['status' => 1]);
+    }
 
+    protected function sendFailedLoginResponse(Request $request)
+    {
+        // Always show the error on the 'email' field (the form input name)
+        throw ValidationException::withMessages([
+            'email' => [trans('auth.failed')],
+        ]);
     }
 
     public function authenticated(Request $request, $user)
     {
-        /*
-        $ActivityLog = new ActivityLog;
-        $ActivityLog->activity = "Login";
-        $ActivityLog->user_id = $user->id;
-        $ActivityLog->ip_address = $request->getClientIp();
-        $ActivityLog->save();*/
+        //
     }
     public function username()
     {

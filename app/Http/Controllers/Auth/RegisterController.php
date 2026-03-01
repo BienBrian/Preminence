@@ -36,12 +36,29 @@ class RegisterController extends Controller
             && $settings->recaptcha_secret_key;
     }
 
+    private function normalizePhone(string $raw): string
+    {
+        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
+        $phone = preg_replace('/[^0-9]/', '', $raw);
+        if (strlen($phone) <= 10) {
+            $phone = $phoneCode . ltrim($phone, '0');
+        }
+        return $phone;
+    }
+
     protected function validator(array $data)
     {
+        // Normalize phone before validation so the unique check matches what gets stored
+        $normalizedPhone = isset($data['phone']) ? $this->normalizePhone($data['phone']) : '';
+
         $rules = [
             'firstname' => ['required', 'string', 'max:255'],
             'lastname'  => ['required', 'string', 'max:255'],
-            'phone'     => ['required', 'regex:/^\d{9,15}$/', 'unique:users,phone'],
+            'phone'     => ['required', 'regex:/^\d{9,15}$/', function ($attribute, $value, $fail) use ($normalizedPhone) {
+                if (User::where('phone', $normalizedPhone)->exists()) {
+                    $fail('This phone number is already registered.');
+                }
+            }],
             'email'     => ['nullable', 'string', 'email', 'max:255', 'unique:users,email'],
             'password'  => ['required', 'string', 'min:8', 'confirmed'],
             'terms_and_conditions' => ['accepted'],
@@ -59,11 +76,7 @@ class RegisterController extends Controller
 
     protected function create(array $data)
     {
-        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
-        $phone = preg_replace('/[^0-9]/', '', $data['phone']);
-        if (strlen($phone) <= 10) {
-            $phone = $phoneCode . ltrim($phone, '0');
-        }
+        $phone = $this->normalizePhone($data['phone']);
 
         $role = Role::where('name', 'Member')->first();
         if ($role == null) {
@@ -73,15 +86,22 @@ class RegisterController extends Controller
             $role = Role::create(['name' => 'User']);
         }
 
-        $user = User::create([
-            'firstname' => $data['firstname'],
-            'lastname'  => $data['lastname'],
-            'email'     => $data['email'],
-            'phone'     => $phone,
-            'password'  => Hash::make($data['password']),
-        ]);
-        $user->status = 1;
-        $user->save();
+        try {
+            $user = User::create([
+                'firstname' => $data['firstname'],
+                'lastname'  => $data['lastname'],
+                'email'     => $data['email'],
+                'phone'     => $phone,
+                'password'  => Hash::make($data['password']),
+                'status'    => 1,
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Race condition: another user registered with same phone/email between validation and insert
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'phone' => 'Registration failed. This phone number or email may already be in use. Please try again.',
+            ]);
+        }
+
         $user->assignRole($role);
 
         return $user;

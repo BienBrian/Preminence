@@ -9,6 +9,12 @@ use Illuminate\Http\Request;
 
 class TestimonialController extends DashboardController
 {
+    public function __construct()
+    {
+        parent::__construct();
+        $this->middleware(['permission:View Spiritual']);
+    }
+
     public function index()
     {
             $testimonials = Testimonial::select('testimonials.id', 'testimonials.testimonial', 'testimonials.updated_at',

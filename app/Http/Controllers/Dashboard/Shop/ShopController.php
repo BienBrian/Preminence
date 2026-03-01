@@ -10,6 +10,7 @@ class ShopController extends DashboardController
 {
     public function __construct(){
         parent::__construct();
+        $this->middleware(['permission:View Shop']);
     }
     public function index()
     {

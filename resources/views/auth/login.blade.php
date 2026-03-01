@@ -26,14 +26,19 @@
     
                                     @csrf
                                     <div class="mb-3 text-start">
-                                        <label for="email">{{ __('Username/Email Address') }}</label>
+                                        <label for="email">{{ __('Phone / Email Address') }}</label>
                                         <div>
                                             <input id="email" type="text"
-                                                class="form-control @error('email') is-invalid @enderror" name="email"
-                                                value="{{ old('email') }}" placeholder='Username/Email Address' required
+                                                class="form-control @error('email') is-invalid @enderror @error('phone') is-invalid @enderror" name="email"
+                                                value="{{ old('email') }}" placeholder='Phone number or Email' required
                                                 autocomplete="email" autofocus>
     
                                             @error('email')
+                                                <span class="invalid-feedback" role="alert">
+                                                    <strong>{{ $message }}</strong>
+                                                </span>
+                                            @enderror
+                                            @error('phone')
                                                 <span class="invalid-feedback" role="alert">
                                                     <strong>{{ $message }}</strong>
                                                 </span>

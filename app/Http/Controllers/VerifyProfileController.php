@@ -40,23 +40,32 @@ class VerifyProfileController extends Controller
             return redirect()->back()->with('error', 'This verification link has expired.');
         }
 
+        // Normalize phone before validation
+        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
+        $rawPhone = preg_replace('/[^0-9]/', '', $request->phone ?? '');
+        if ($rawPhone && strlen($rawPhone) <= 10) {
+            $rawPhone = $phoneCode . ltrim($rawPhone, '0');
+        }
+
         $request->validate([
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string|max:255',
             'phone' => 'required|string',
-            'email' => 'nullable|email|max:255',
+            'email' => 'nullable|email|max:255|unique:users,email,' . $user->id,
         ]);
+
+        // Check phone uniqueness against normalized value
+        $phoneConflict = User::where('phone', $rawPhone)->where('id', '!=', $user->id)->first();
+        if ($phoneConflict) {
+            return redirect()->back()->withInput()->withErrors([
+                'phone' => 'This phone number is already registered to another account.',
+            ]);
+        }
 
         // Update user basic info
         $user->firstname = $request->firstname;
         $user->lastname = $request->lastname;
-
-        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
-        $phone = preg_replace('/[^0-9]/', '', $request->phone);
-        if (strlen($phone) <= 10) {
-            $phone = $phoneCode . ltrim($phone, '0');
-        }
-        $user->phone = $phone;
+        $user->phone = $rawPhone;
 
         if ($request->filled('email')) {
             $user->email = $request->email;
@@ -67,7 +76,14 @@ class VerifyProfileController extends Controller
         $user->phone_verified_at = now();
         $user->verification_token = null;
         $user->verification_token_expires_at = null;
-        $user->save();
+
+        try {
+            $user->save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'error' => 'Unable to save your profile. Please check your information and try again.',
+            ]);
+        }
 
         // Update contacts
         $contactData = [];

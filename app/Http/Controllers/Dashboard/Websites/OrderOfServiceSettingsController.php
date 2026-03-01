@@ -11,6 +11,7 @@ class OrderOfServiceSettingsController extends DashboardController
     public function __construct()
     {
         parent::__construct();
+        $this->middleware(['permission:View Website Settings']);
     }
 
     public function orderofservice(){

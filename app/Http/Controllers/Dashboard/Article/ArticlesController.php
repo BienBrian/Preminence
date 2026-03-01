@@ -15,6 +15,7 @@ class ArticlesController extends DashboardController
     private $user;
     public function __construct(){
         parent::__construct();
+        $this->middleware(['permission:View Articles']);
     }
 
     public function index()

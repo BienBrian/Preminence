@@ -16,6 +16,10 @@ class FileManagerController extends DashboardController
     public function __construct()
     {
         parent::__construct();
+        $this->middleware(['permission:View File Manager']);
+        $this->middleware(['permission:Manage File Manager'])->only([
+            'createFolder', 'updateFolder', 'deleteFolder', 'uploadFiles', 'deleteFile',
+        ]);
     }
 
     public function index()

@@ -394,6 +394,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         </li>
                         @endcan
 
+                        @can('View File Manager')
                         <li class="nav-item">
                             <a href="{{ url('dashboard/file-manager') }}"
                                 class="nav-link {{ Request::is('dashboard/file-manager*') ? 'active' : '' }}">
@@ -401,6 +402,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                                 <p>File Manager</p>
                             </a>
                         </li>
+                        @endcan
 
                     </ul>
                 </nav>
