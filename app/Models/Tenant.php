@@ -42,6 +42,14 @@ class Tenant extends Model
         return $this->hasMany(Subscription::class);
     }
 
+    /**
+     * Get the most recent subscription (for eager loading compatibility)
+     */
+    public function subscription(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Subscription::class)->latest();
+    }
+
     public function activeSubscription(): ?Subscription
     {
         return $this->subscriptions()

@@ -149,6 +149,9 @@ Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.', 'middleware' => [
     Route::get('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'show'])->name('tenants.show');
     Route::get('tenants/{id}/edit', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'edit'])->name('tenants.edit');
     Route::put('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'update'])->name('tenants.update');
+    Route::post('tenants/{id}/suspend', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'suspend'])->name('tenants.suspend');
+    Route::post('tenants/{id}/activate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'activate'])->name('tenants.activate');
+    Route::post('tenants/{id}/impersonate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'impersonate'])->name('tenants.impersonate');
     
     // Plans Management
     Route::get('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'index'])->name('plans.index');
@@ -175,6 +178,21 @@ Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.', 'middleware' => [
     Route::get('dns/{tenant}/propagation', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'propagationStatus'])->name('dns.propagation');
 });
 
+// Stop impersonating and return to superadmin panel
+Route::post('stop-impersonating', function () {
+    if (session()->has('impersonate_return_id')) {
+        $superadminId = session('impersonate_return_id');
+        session()->forget('impersonate_return_id');
+        
+        auth()->logout();
+        auth('superadmin')->loginUsingId($superadminId);
+        
+        return redirect()->route('superadmin.dashboard')
+            ->with('success', 'Returned to SuperAdmin panel.');
+    }
+    return redirect()->route('home');
+})->name('stop-impersonating');
+
 Auth::routes(/*['verify' => true]*/);
 
 Route::get('home', function () {
@@ -186,7 +204,7 @@ Route::middleware(['auth', 'throttle:10,1'])->group(function () {
     Route::post('password/force-change', [\App\Http\Controllers\Auth\ForcePasswordChangeController::class, 'update']);
 });
 
-Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_change']], function () {
+Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'tenant.active', 'force_password_change']], function () {
     //home
     Route::get('home', [HomeController::class, 'index'])->name('home');
     Route::get('/view/{years}', [HomeController::class, 'years']);
@@ -645,6 +663,17 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('billing/upgrade', [BillingController::class, 'upgrade'])->name('billing.upgrade');
     Route::get('billing/module-locked', [BillingController::class, 'moduleLocked'])->name('billing.module_locked');
 });
+
+// ── Tenant Status Pages (outside dashboard group for suspended/cancelled tenants) ──
+Route::get('account/suspended', function () {
+    $tenant = app()->bound('tenant') ? app('tenant') : null;
+    return view('errors.tenant_suspended', compact('tenant'));
+})->name('tenant.suspended');
+
+Route::get('account/cancelled', function () {
+    $tenant = app()->bound('tenant') ? app('tenant') : null;
+    return view('errors.tenant_cancelled', compact('tenant'));
+})->name('tenant.cancelled');
 
 // ── Phase 3: Tenant File Storage ──────────────────────────────────────────────
 // Serve files from the current tenant's storage directory.

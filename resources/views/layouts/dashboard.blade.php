@@ -71,6 +71,24 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
 <body class="hold-transition sidebar-mini layout-fixed {{ $activeModule ? 'secondary-open sidebar-collapse' : '' }}" data-active-module="{{ $activeModule }}">
     <div class="wrapper">
 
+        {{-- Impersonation Banner --}}
+        @if(session()->has('impersonate_return_id'))
+        <div class="alert alert-warning alert-dismissible fade show m-0 rounded-0" role="alert" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white;">
+            <div class="container-fluid d-flex align-items-center justify-content-between">
+                <div>
+                    <i class="fas fa-user-secret mr-2"></i>
+                    <strong>Impersonation Mode:</strong> You are logged in as <strong>{{ auth()->user()->firstname }} {{ auth()->user()->lastname }}</strong>
+                </div>
+                <form action="{{ route('stop-impersonating') }}" method="POST" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-light btn-sm">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Return to SuperAdmin
+                    </button>
+                </form>
+            </div>
+        </div>
+        @endif
+
         <!-- Preloader -->
         <div class="preloader flex-column justify-content-center align-items-center">
             <img class="animation__shake"

@@ -127,4 +127,58 @@ class TenantController extends Controller
             ->route('superadmin.tenants.index')
             ->with('success', "Tenant '{$tenant->name}' updated successfully.");
     }
+
+    /**
+     * Quick action to suspend a tenant.
+     */
+    public function suspend($id)
+    {
+        $tenant = Tenant::findOrFail($id);
+        $tenant->update(['status' => 'suspended']);
+
+        return redirect()
+            ->route('superadmin.tenants.show', $tenant->id)
+            ->with('success', "Tenant '{$tenant->name}' has been suspended.");
+    }
+
+    /**
+     * Quick action to activate a tenant.
+     */
+    public function activate($id)
+    {
+        $tenant = Tenant::findOrFail($id);
+        $tenant->update(['status' => 'active']);
+
+        return redirect()
+            ->route('superadmin.tenants.show', $tenant->id)
+            ->with('success', "Tenant '{$tenant->name}' has been activated.");
+    }
+
+    /**
+     * Impersonate as tenant admin (login to tenant dashboard).
+     */
+    public function impersonate($id)
+    {
+        $tenant = Tenant::findOrFail($id);
+        
+        // Get the first admin user of this tenant
+        $adminUser = \App\Models\User::where('tenant_id', $tenant->id)
+            ->role('admin')
+            ->first();
+        
+        if (!$adminUser) {
+            return redirect()
+                ->route('superadmin.tenants.show', $tenant->id)
+                ->with('error', "No admin user found for tenant '{$tenant->name}'.");
+        }
+
+        // Store superadmin ID for return
+        session(['impersonate_return_id' => auth('superadmin')->id()]);
+        
+        // Login as tenant admin
+        auth()->login($adminUser);
+        
+        return redirect()->route('home')
+            ->with('success', "You are now impersonating as {$adminUser->firstname} {$adminUser->lastname} from {$tenant->name}.");
+    }
 }

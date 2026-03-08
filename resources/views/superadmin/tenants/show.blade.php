@@ -49,10 +49,33 @@
                     </tr>
                 </table>
                 
-                <div class="d-grid">
+                <div class="d-grid gap-2">
                     <a href="{{ route('superadmin.tenants.edit', $tenant->id) }}" class="btn btn-warning">
                         <i class="bi bi-pencil"></i> Edit Tenant
                     </a>
+                    
+                    @if($tenant->status !== 'suspended')
+                        <form action="{{ route('superadmin.tenants.suspend', $tenant->id) }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Are you sure you want to suspend this tenant?')">
+                                <i class="bi bi-pause-circle"></i> Suspend Tenant
+                            </button>
+                        </form>
+                    @else
+                        <form action="{{ route('superadmin.tenants.activate', $tenant->id) }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-play-circle"></i> Activate Tenant
+                            </button>
+                        </form>
+                    @endif
+                    
+                    <form action="{{ route('superadmin.tenants.impersonate', $tenant->id) }}" method="POST" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-info w-100" {{ $tenant->status !== 'active' && $tenant->status !== 'trial' ? 'disabled' : '' }}>
+                            <i class="bi bi-person-badge"></i> Login as Admin
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
