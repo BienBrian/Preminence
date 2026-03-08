@@ -67,6 +67,11 @@ class SMSController extends DashboardController
             ->leftJoin("sms_recipients", "sms_recipients.sms_id", "=", "sms.id")
             ->groupBy("sms.id", "sms.message", "sms.category", "sms.sent")
             ->orderBy("sms.id", "DESC");
+        
+        // Handle page length parameter
+        if ($request->has('length') && in_array($request->length, [10, 25, 50, 100])) {
+            // DataTables handles this automatically, but we validate here
+        }
 
         return DataTables::of($query)
             ->filter(function ($q) use ($request) {
@@ -100,8 +105,13 @@ class SMSController extends DashboardController
                 return $categoryBadge . \Str::limit(strip_tags($row->message), 80, '...');
             })
             ->addColumn('action', function ($row) {
+                $resendBtn = '';
+                if (auth()->user()->hasPermissionTo('Resend SMS')) {
+                    $resendBtn = '<button class="btn btn-warning btn-sm btn-resend-sms ml-1" data-id="' . $row->id . '" title="Resend"><i class="fas fa-redo"></i></button>';
+                }
                 return '<div class="text-end text-right">' .
                     '<button class="btn btn-info btn-sm btn-view-sms" data-id="' . $row->id . '"><i class="fas fa-eye"></i></button>' .
+                    $resendBtn .
                     '</div>';
             })
             ->addIndexColumn()->escapeColumns([])->make();
@@ -111,66 +121,121 @@ class SMSController extends DashboardController
         $period = $request->period ?? 'daily';
         $category = $request->category ?? 'all';
         $categoryFilter = ($category !== 'all') ? $category : null;
+        $tid = config('app.tenant_id');
 
-        // Pre-aggregate recipient counts per SMS
-        $rcSql = "(SELECT sms_id, COUNT(*) AS recipient_count FROM sms_recipients GROUP BY sms_id)";
-
-        // Build query using Query Builder to avoid raw SQL GROUP BY issues with strict mode
-        $baseQuery = \DB::table('sms')
-            ->leftJoin(\DB::raw("{$rcSql} AS rc"), 'rc.sms_id', '=', 'sms.id');
-
-        if ($categoryFilter) {
-            $baseQuery->where('sms.category', $categoryFilter);
-        }
-
+        // Use derived table approach with MIN() to handle GROUP BY strict mode
+        $categoryWhere = $categoryFilter ? "AND s.category = '" . addslashes($categoryFilter) . "'" : '';
+        
         if ($period == 'weekly') {
-            $baseQuery->select(
-                \DB::raw('YEARWEEK(sms.sent, 1) AS period_key'),
-                \DB::raw('MIN(DATE(sms.sent)) AS period_start'),
-                \DB::raw('MAX(DATE(sms.sent)) AS period_end'),
-                \DB::raw('COUNT(*) AS total_messages'),
-                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
-            )->groupBy(\DB::raw('YEARWEEK(sms.sent, 1)'))
-             ->orderBy(\DB::raw('YEARWEEK(sms.sent, 1)'), 'DESC');
+            $sql = "
+                SELECT 
+                    period_key,
+                    period_start,
+                    period_end,
+                    total_messages,
+                    total_recipients
+                FROM (
+                    SELECT 
+                        YEARWEEK(s.sent, 1) AS period_key,
+                        MIN(DATE(s.sent)) AS period_start,
+                        MAX(DATE(s.sent)) AS period_end,
+                        COUNT(*) AS total_messages,
+                        COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+                    FROM sms s
+                    LEFT JOIN (
+                        SELECT sms_id, COUNT(*) AS recipient_count 
+                        FROM sms_recipients 
+                        WHERE tenant_id = ? 
+                        GROUP BY sms_id
+                    ) rc ON rc.sms_id = s.id
+                    WHERE s.tenant_id = ? {$categoryWhere}
+                    GROUP BY YEARWEEK(s.sent, 1)
+                ) AS grouped_data
+                ORDER BY period_start DESC
+            ";
+            $bindings = [$tid, $tid];
         } elseif ($period == 'monthly') {
-            $baseQuery->select(
-                \DB::raw("DATE_FORMAT(sms.sent, '%Y-%m') AS period_key"),
-                \DB::raw("DATE_FORMAT(sms.sent, '%M %Y') AS period_label"),
-                \DB::raw('COUNT(*) AS total_messages'),
-                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
-            )->groupBy(\DB::raw("DATE_FORMAT(sms.sent, '%Y-%m')"))
-             ->orderBy(\DB::raw("DATE_FORMAT(sms.sent, '%Y-%m')"), 'DESC');
+            $sql = "
+                SELECT 
+                    period_key,
+                    period_label,
+                    total_messages,
+                    total_recipients
+                FROM (
+                    SELECT 
+                        DATE_FORMAT(s.sent, '%Y-%m') AS period_key,
+                        MIN(DATE_FORMAT(s.sent, '%M %Y')) AS period_label,
+                        COUNT(*) AS total_messages,
+                        COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+                    FROM sms s
+                    LEFT JOIN (
+                        SELECT sms_id, COUNT(*) AS recipient_count 
+                        FROM sms_recipients 
+                        WHERE tenant_id = ? 
+                        GROUP BY sms_id
+                    ) rc ON rc.sms_id = s.id
+                    WHERE s.tenant_id = ? {$categoryWhere}
+                    GROUP BY DATE_FORMAT(s.sent, '%Y-%m')
+                ) AS grouped_data
+                ORDER BY period_key DESC
+            ";
+            $bindings = [$tid, $tid];
         } else {
-            $baseQuery->select(
-                \DB::raw('DATE(sms.sent) AS period_key'),
-                \DB::raw('DATE(sms.sent) AS date'),
-                \DB::raw('COUNT(*) AS total_messages'),
-                \DB::raw('COALESCE(SUM(rc.recipient_count), 0) AS total_recipients')
-            )->groupBy(\DB::raw('DATE(sms.sent)'))
-             ->orderBy(\DB::raw('DATE(sms.sent)'), 'DESC');
+            // Daily view - use MIN() to satisfy strict mode
+            $sql = "
+                SELECT 
+                    period_key,
+                    period_date AS date,
+                    total_messages,
+                    total_recipients
+                FROM (
+                    SELECT 
+                        DATE(s.sent) AS period_key,
+                        MIN(DATE(s.sent)) AS period_date,
+                        COUNT(*) AS total_messages,
+                        COALESCE(SUM(rc.recipient_count), 0) AS total_recipients
+                    FROM sms s
+                    LEFT JOIN (
+                        SELECT sms_id, COUNT(*) AS recipient_count 
+                        FROM sms_recipients 
+                        WHERE tenant_id = ? 
+                        GROUP BY sms_id
+                    ) rc ON rc.sms_id = s.id
+                    WHERE s.tenant_id = ? {$categoryWhere}
+                    GROUP BY DATE(s.sent)
+                ) AS grouped_data
+                ORDER BY period_date DESC
+            ";
+            $bindings = [$tid, $tid];
         }
 
-        // Wrap in a derived table so DataTables' count query works cleanly
-        $wrappedQuery = \DB::table(\DB::raw("({$baseQuery->toSql()}) AS grouped_sms"))
-            ->mergeBindings($baseQuery);
+        $results = collect(\DB::select($sql, $bindings));
 
-        return DataTables::of($wrappedQuery)
+        // Transform results to include the required columns directly
+        $transformed = $results->map(function ($row) use ($period) {
+            // Format period based on period type
+            if ($period == 'weekly') {
+                $periodValue = Carbon::parse($row->period_start)->format('d M') . ' - ' . Carbon::parse($row->period_end)->format('d M, Y');
+            } elseif ($period == 'monthly') {
+                $periodValue = $row->period_label;
+            } else {
+                $periodValue = Carbon::parse($row->date)->format('l, d M Y');
+            }
+            
+            return [
+                'period_key' => $row->period_key,
+                'period' => $periodValue,
+                'messages' => '<span class="badge badge-primary">' . number_format($row->total_messages) . '</span>',
+                'recipients' => '<span class="badge badge-info">' . number_format($row->total_recipients) . '</span>',
+                'total_messages' => $row->total_messages,
+                'total_recipients' => $row->total_recipients,
+            ];
+        });
+
+        return DataTables::of($transformed)
             ->skipTotalRecords()
-            ->addColumn('period', function ($row) use ($period) {
-                if ($period == 'weekly') {
-                    return Carbon::parse($row->period_start)->format('d M') . ' - ' . Carbon::parse($row->period_end)->format('d M, Y');
-                } elseif ($period == 'monthly') {
-                    return $row->period_label;
-                }
-                return Carbon::parse($row->date)->format('l, d M Y');
-            })
-            ->addColumn('messages', function ($row) {
-                return '<span class="badge badge-primary">' . number_format($row->total_messages) . '</span>';
-            })
-            ->addColumn('recipients', function ($row) {
-                return '<span class="badge badge-info">' . number_format($row->total_recipients) . '</span>';
-            })
-            ->addIndexColumn()->escapeColumns([])->make();
+            ->escapeColumns([])
+            ->make();
     }
 
     public function getScheduledDataTable(Request $request){
@@ -699,5 +764,380 @@ class SMSController extends DashboardController
         }
         
         return $result;
+    }
+
+    /**
+     * Resend an SMS message to the same recipients.
+     * Requires 'Resend SMS' permission.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function resendSms(Request $request)
+    {
+        try {
+            // Check permission
+            if (!auth()->user()->hasPermissionTo('Resend SMS')) {
+                return response()->json(['error' => 'You do not have permission to resend SMS messages.'], 403);
+            }
+
+            $request->validate([
+                'sms_id' => 'required|integer|exists:sms,id',
+                'message' => 'required|string|min:1|max:1600',
+            ]);
+
+            $tid = config('app.tenant_id');
+            $userId = auth()->id();
+
+        // Get original SMS details
+        $originalSms = \DB::table('sms')
+            ->where('id', $request->sms_id)
+            ->where('tenant_id', $tid)
+            ->first();
+
+        if (!$originalSms) {
+            return response()->json(['error' => 'Original SMS not found.'], 404);
+        }
+
+        // Get recipients from original SMS
+        $recipients = \DB::table('sms_recipients')
+            ->where('sms_id', $request->sms_id)
+            ->where('tenant_id', $tid)
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return response()->json(['error' => 'No recipients found for this SMS.'], 404);
+        }
+
+        $sent = 0;
+        $failed = 0;
+        $message = $request->message;
+
+        // Create new SMS record
+        $newSmsId = \DB::table('sms')->insertGetId([
+            'tenant_id' => $tid,
+            'people_id' => $originalSms->people_id,
+            'message' => $message,
+            'category' => $originalSms->category ?? 'resend',
+            'sent' => Carbon::now(),
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        // Send to each recipient
+        foreach ($recipients as $recipient) {
+            $phone = null;
+            $recipientUserId = $recipient->recipients;
+
+            // If recipient is a user, get their phone
+            if ($recipientUserId > 0) {
+                $user = \DB::table('users')
+                    ->where('id', $recipientUserId)
+                    ->where('tenant_id', $tid)
+                    ->first();
+                
+                if ($user && $user->phone) {
+                    $phone = $user->phone;
+                    if (substr($phone, 0, 1) === '0') {
+                        $phone = '254' . substr($phone, 1);
+                    }
+                }
+            } elseif (!empty($recipient->phone)) {
+                // Use stored phone number for non-user recipients
+                $phone = $recipient->phone;
+            }
+
+            if ($phone) {
+                $result = $this->send($phone, $message);
+                
+                if ($result !== false) {
+                    $sent++;
+                    \DB::table('sms_recipients')->insert([
+                        'tenant_id' => $tid,
+                        'recipients' => $recipientUserId,
+                        'sms_id' => $newSmsId,
+                        'phone' => $phone,
+                        'sent' => Carbon::now(),
+                        'created_at' => Carbon::now(),
+                        'updated_at' => Carbon::now(),
+                    ]);
+                } else {
+                    $failed++;
+                }
+            } else {
+                $failed++;
+            }
+        }
+
+        // Log the resend action
+        \Log::info("SMS resent", [
+            'tenant_id' => $tid,
+            'user_id' => $userId,
+            'original_sms_id' => $request->sms_id,
+            'new_sms_id' => $newSmsId,
+            'sent' => $sent,
+            'failed' => $failed,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "SMS resent successfully! Sent to {$sent} recipients" . ($failed > 0 ? " ({$failed} failed)" : ''),
+            'new_sms_id' => $newSmsId,
+            'sent_count' => $sent,
+            'failed_count' => $failed,
+        ]);
+        } catch (\Exception $e) {
+            \Log::error("SMS resend failed", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to resend SMS: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get SMS details for the resend modal.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSmsForResend(Request $request, $id)
+    {
+        $tid = config('app.tenant_id');
+        
+        $sms = \DB::table('sms')
+            ->where('id', $id)
+            ->where('tenant_id', $tid)
+            ->select('id', 'message', 'category', 'sent')
+            ->first();
+
+        if (!$sms) {
+            return response()->json(['error' => 'SMS not found.'], 404);
+        }
+
+        // Get recipient count
+        $recipientCount = \DB::table('sms_recipients')
+            ->where('sms_id', $id)
+            ->where('tenant_id', $tid)
+            ->count();
+
+        return response()->json([
+            'id' => $sms->id,
+            'message' => $sms->message,
+            'category' => $sms->category ?? 'manual',
+            'sent' => Carbon::parse($sms->sent)->format('d M, Y h:i A'),
+            'recipient_count' => $recipientCount,
+        ]);
+    }
+
+    /**
+     * Bulk resend multiple SMS messages.
+     * Requires 'Resend SMS' permission.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkResend(Request $request)
+    {
+        try {
+            // Check permission
+            if (!auth()->user()->hasPermissionTo('Resend SMS')) {
+                return response()->json(['error' => 'You do not have permission to resend SMS messages.'], 403);
+            }
+
+            $request->validate([
+                'sms_ids' => 'required|array|min:1|max:50',
+                'sms_ids.*' => 'integer|exists:sms,id',
+            ]);
+
+            $tid = config('app.tenant_id');
+            $userId = auth()->id();
+            $smsIds = $request->sms_ids;
+
+            $results = [
+                'processed' => 0,
+                'sent' => 0,
+                'failed' => 0,
+                'details' => [],
+            ];
+
+            foreach ($smsIds as $smsId) {
+                // Get original SMS details
+                $originalSms = \DB::table('sms')
+                    ->where('id', $smsId)
+                    ->where('tenant_id', $tid)
+                    ->first();
+
+                if (!$originalSms) {
+                    $results['details'][] = [
+                        'sms_id' => $smsId,
+                        'status' => 'error',
+                        'message' => 'SMS not found',
+                    ];
+                    $results['failed']++;
+                    continue;
+                }
+
+                // Get recipients from original SMS
+                $recipients = \DB::table('sms_recipients')
+                    ->where('sms_id', $smsId)
+                    ->where('tenant_id', $tid)
+                    ->get();
+
+                if ($recipients->isEmpty()) {
+                    $results['details'][] = [
+                        'sms_id' => $smsId,
+                        'status' => 'error',
+                        'message' => 'No recipients found',
+                    ];
+                    $results['failed']++;
+                    continue;
+                }
+
+                $message = $originalSms->message;
+                $smsSent = 0;
+                $smsFailed = 0;
+
+                // Create new SMS record
+                $newSmsId = \DB::table('sms')->insertGetId([
+                    'tenant_id' => $tid,
+                    'people_id' => $originalSms->people_id,
+                    'message' => $message,
+                    'category' => $originalSms->category ?? 'resend',
+                    'sent' => Carbon::now(),
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
+                ]);
+
+                // Send to each recipient
+                foreach ($recipients as $recipient) {
+                    $phone = null;
+                    $recipientUserId = $recipient->recipients;
+
+                    // If recipient is a user, get their phone
+                    if ($recipientUserId > 0) {
+                        $user = \DB::table('users')
+                            ->where('id', $recipientUserId)
+                            ->where('tenant_id', $tid)
+                            ->first();
+                        
+                        if ($user && $user->phone) {
+                            $phone = $user->phone;
+                            if (substr($phone, 0, 1) === '0') {
+                                $phone = '254' . substr($phone, 1);
+                            }
+                        }
+                    } elseif (!empty($recipient->phone)) {
+                        // Use stored phone number for non-user recipients
+                        $phone = $recipient->phone;
+                    }
+
+                    if ($phone) {
+                        $result = $this->send($phone, $message);
+                        
+                        if ($result !== false) {
+                            $smsSent++;
+                            \DB::table('sms_recipients')->insert([
+                                'tenant_id' => $tid,
+                                'recipients' => $recipientUserId,
+                                'sms_id' => $newSmsId,
+                                'phone' => $phone,
+                                'sent' => Carbon::now(),
+                                'created_at' => Carbon::now(),
+                                'updated_at' => Carbon::now(),
+                            ]);
+                        } else {
+                            $smsFailed++;
+                        }
+                    } else {
+                        $smsFailed++;
+                    }
+                }
+
+                $results['processed']++;
+                $results['sent'] += $smsSent;
+                $results['failed'] += $smsFailed;
+                $results['details'][] = [
+                    'sms_id' => $smsId,
+                    'new_sms_id' => $newSmsId,
+                    'status' => 'success',
+                    'sent' => $smsSent,
+                    'failed' => $smsFailed,
+                ];
+            }
+
+            // Log the bulk resend action
+            \Log::info("Bulk SMS resent", [
+                'tenant_id' => $tid,
+                'user_id' => $userId,
+                'sms_count' => count($smsIds),
+                'total_sent' => $results['sent'],
+                'total_failed' => $results['failed'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Bulk resend completed! {$results['processed']} SMS processed, {$results['sent']} messages sent" . ($results['failed'] > 0 ? " ({$results['failed']} failed)" : ''),
+                'results' => $results,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Bulk SMS resend failed", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to bulk resend SMS: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Bulk delete/archive multiple SMS messages.
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkDelete(Request $request)
+    {
+        try {
+            $request->validate([
+                'sms_ids' => 'required|array|min:1|max:100',
+                'sms_ids.*' => 'integer|exists:sms,id',
+            ]);
+
+            $tid = config('app.tenant_id');
+            $smsIds = $request->sms_ids;
+
+            // Delete SMS recipients first (foreign key constraint)
+            $deletedRecipients = \DB::table('sms_recipients')
+                ->where('tenant_id', $tid)
+                ->whereIn('sms_id', $smsIds)
+                ->delete();
+
+            // Delete SMS records
+            $deletedSms = \DB::table('sms')
+                ->where('tenant_id', $tid)
+                ->whereIn('id', $smsIds)
+                ->delete();
+
+            \Log::info("Bulk SMS deleted", [
+                'tenant_id' => $tid,
+                'user_id' => auth()->id(),
+                'sms_count' => $deletedSms,
+                'recipient_count' => $deletedRecipients,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$deletedSms} SMS message(s) deleted successfully",
+                'deleted_count' => $deletedSms,
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Bulk SMS delete failed", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => 'Failed to delete SMS: ' . $e->getMessage()], 500);
+        }
     }
 }

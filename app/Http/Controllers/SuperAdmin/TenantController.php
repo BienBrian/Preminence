@@ -129,12 +129,62 @@ class TenantController extends Controller
     }
 
     /**
-     * Quick action to suspend a tenant.
+     * Show form to suspend a tenant with details.
      */
-    public function suspend($id)
+    public function showSuspendForm($id)
     {
         $tenant = Tenant::findOrFail($id);
-        $tenant->update(['status' => 'suspended']);
+        return view('superadmin.tenants.suspend', compact('tenant'));
+    }
+
+    /**
+     * Suspend a tenant with details.
+     */
+    public function suspend(Request $request, $id)
+    {
+        $tenant = Tenant::findOrFail($id);
+        
+        $validated = $request->validate([
+            'suspension_type' => 'required|in:financial,terms_violation,admin_action,other',
+            'suspension_reason' => 'required|string|max:1000',
+            'suspension_amount_due' => 'nullable|numeric|min:0',
+            'suspension_currency' => 'nullable|string|size:3',
+            'suspension_ends_at' => 'nullable|date',
+        ]);
+
+        $updateData = [
+            'status' => 'suspended',
+            'suspension_type' => $validated['suspension_type'],
+            'suspension_reason' => $validated['suspension_reason'],
+            'suspended_by' => auth('superadmin')->id(),
+        ];
+
+        // Add financial details if applicable
+        if ($validated['suspension_type'] === 'financial') {
+            $updateData['suspension_amount_due'] = $validated['suspension_amount_due'] ?? 0;
+            $updateData['suspension_currency'] = $validated['suspension_currency'] ?? 'KES';
+        }
+
+        // Add suspension end date if provided
+        if (!empty($validated['suspension_ends_at'])) {
+            $updateData['suspension_ends_at'] = $validated['suspension_ends_at'];
+        }
+
+        $tenant->update($updateData);
+
+        // Log the suspension
+        \App\Models\PlatformAuditLog::record(
+            'tenant.suspended',
+            [
+                'tenant_id' => $tenant->id,
+                'tenant_name' => $tenant->name,
+                'suspension_type' => $validated['suspension_type'],
+                'suspension_reason' => $validated['suspension_reason'],
+                'amount_due' => $updateData['suspension_amount_due'] ?? null,
+            ],
+            $tenant->id,
+            auth('superadmin')->id()
+        );
 
         return redirect()
             ->route('superadmin.tenants.show', $tenant->id)
@@ -146,12 +196,56 @@ class TenantController extends Controller
      */
     public function activate($id)
     {
-        $tenant = Tenant::findOrFail($id);
-        $tenant->update(['status' => 'active']);
+        try {
+            $tenant = Tenant::findOrFail($id);
+            
+            // Store previous state for audit log
+            $previousState = [
+                'status' => $tenant->status,
+                'suspension_type' => $tenant->suspension_type,
+                'suspension_reason' => $tenant->suspension_reason,
+            ];
+            
+            // Clear suspension details when activating
+            // Keep suspension_details as history (contains JSON of previous suspension)
+            $tenant->update([
+                'status' => 'active',
+                'suspension_type' => null,
+                'suspension_reason' => null,
+                'suspension_amount_due' => null,
+                'suspension_currency' => null,
+                'suspension_ends_at' => null,
+                'suspended_by' => null,
+            ]);
 
-        return redirect()
-            ->route('superadmin.tenants.show', $tenant->id)
-            ->with('success', "Tenant '{$tenant->name}' has been activated.");
+            // Log the activation
+            \App\Models\PlatformAuditLog::record(
+                'tenant.activated',
+                [
+                    'tenant_id' => $tenant->id,
+                    'tenant_name' => $tenant->name,
+                    'previous_state' => $previousState,
+                    'activated_by' => auth('superadmin')->id(),
+                ],
+                $tenant->id,
+                auth('superadmin')->id()
+            );
+
+            return redirect()
+                ->route('superadmin.tenants.show', $tenant->id)
+                ->with('success', "Tenant '{$tenant->name}' has been activated.");
+                
+        } catch (\Exception $e) {
+            \Log::error('Failed to activate tenant', [
+                'tenant_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return redirect()
+                ->route('superadmin.tenants.show', $id)
+                ->with('error', 'Failed to activate tenant: ' . $e->getMessage());
+        }
     }
 
     /**

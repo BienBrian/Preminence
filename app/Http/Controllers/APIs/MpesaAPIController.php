@@ -10,6 +10,7 @@ use App\Models\MpesaPhone;
 use App\Models\MpesaTransaction;
 use App\Models\Tenant;
 use App\Services\IntegrationService;
+use App\Services\MpesaContactSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -313,8 +314,33 @@ class MpesaAPIController extends Controller
                 ]);
             }
         }
-        // Responding to the confirmation request
 
+        // ── Contact Sync: Ensure phone hash is recorded for future transactions ─
+        // This ensures no hash is skipped and enables automatic SMS delivery
+        try {
+            $syncService = app(MpesaContactSyncService::class);
+            $syncResult = $syncService->processTransactionPhone(
+                $content->MSISDN,
+                $content->FirstName,
+                $content->TransID,
+                doubleval($content->TransAmount)
+            );
+            
+            Log::info("M-Pesa contact sync completed", [
+                'trans_id' => $content->TransID,
+                'status' => $syncResult['status'],
+                'contact_found' => $syncResult['contact_found'],
+                'mpesa_phone_created' => $syncResult['mpesa_phone_created'],
+            ]);
+        } catch (\Exception $e) {
+            // Don't fail the transaction if sync fails - log and continue
+            Log::error("M-Pesa contact sync failed", [
+                'trans_id' => $content->TransID,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Responding to the confirmation request
         $response = new Response();
         $response->headers->set("Content-Type","text/xml; charset=utf-8");
         $response->setContent(json_encode(["C2BPaymentConfirmationResult"=>"Success"]));

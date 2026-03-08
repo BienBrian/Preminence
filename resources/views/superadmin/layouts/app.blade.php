@@ -138,14 +138,14 @@
     @auth('superadmin')
     <!-- Sidebar -->
     <nav class="superadmin-sidebar">
-        <a href="{{ route('superadmin.dashboard') }}" class="brand-logo">
+        <a href="{{ url('/dashboard') }}" class="brand-logo">
             <i class="bi bi-shield-check"></i> PISTI
         </a>
         <hr class="text-white-50 my-0">
         <ul class="nav flex-column">
             <li class="nav-item">
                 <a class="nav-link {{ request()->routeIs('superadmin.dashboard') ? 'active' : '' }}" 
-                   href="{{ route('superadmin.dashboard') }}">
+                   href="{{ url('/dashboard') }}">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>

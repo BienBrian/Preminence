@@ -125,58 +125,89 @@ Route::group(['prefix' => 'dashboard/spiritual/discipleship', 'middleware' => ['
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUPERADMIN ROUTES (Platform Administration)
 // ═══════════════════════════════════════════════════════════════════════════════
+// Access ONLY via subdomain: superadmin.happychurchruiru.org/*
+// Path-based access (/superadmin/*) has been removed for security
 
-// SuperAdmin Guest Routes
-Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.'], function () {
-    // Login routes
+// Helper to register superadmin routes with both path and subdomain support
+$registerSuperAdminRoutes = function () {
+    // Login routes (guest only)
     Route::get('login', [SuperAdminLoginController::class, 'showLoginForm'])->name('login');
     Route::post('login', [SuperAdminLoginController::class, 'login']);
-});
+    
+    // Root redirect - based on auth status
+    Route::get('/', function () {
+        if (auth('superadmin')->check()) {
+            return redirect('/dashboard');
+        }
+        return redirect('/login');
+    });
+    
+    // Authenticated routes
+    Route::middleware(['auth:superadmin'])->group(function () {
+        // Dashboard (main page)
+        Route::get('dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
+        
+        // Redirect /dashboard/home to /dashboard
+        Route::get('dashboard/home', function () {
+            return redirect('/dashboard');
+        });
+        
+        // Also redirect authenticated root to dashboard
+        Route::get('/', function () {
+            return redirect('/dashboard');
+        });
+        
+        // Logout
+        Route::post('logout', [SuperAdminLoginController::class, 'logout'])->name('logout');
+        
+        // Tenant Management
+        Route::get('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'index'])->name('tenants.index');
+        Route::get('tenants/create', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'create'])->name('tenants.create');
+        Route::post('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'store'])->name('tenants.store');
+        Route::get('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'show'])->name('tenants.show');
+        Route::get('tenants/{id}/edit', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'edit'])->name('tenants.edit');
+        Route::put('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'update'])->name('tenants.update');
+        Route::get('tenants/{id}/suspend', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'showSuspendForm'])->name('tenants.suspend.form');
+        Route::post('tenants/{id}/suspend', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'suspend'])->name('tenants.suspend');
+        Route::post('tenants/{id}/activate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'activate'])->name('tenants.activate');
+        Route::post('tenants/{id}/impersonate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'impersonate'])->name('tenants.impersonate');
+        
+        // Plans Management
+        Route::get('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'index'])->name('plans.index');
+        Route::get('plans/create', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'create'])->name('plans.create');
+        Route::post('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'store'])->name('plans.store');
+        Route::get('plans/{id}/edit', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'edit'])->name('plans.edit');
+        Route::put('plans/{id}', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'update'])->name('plans.update');
+        
+        // SuperAdmins Management
+        Route::get('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'index'])->name('admins.index');
+        Route::get('admins/create', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'create'])->name('admins.create');
+        Route::post('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'store'])->name('admins.store');
+        Route::get('admins/{id}/edit', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'edit'])->name('admins.edit');
+        Route::put('admins/{id}', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'update'])->name('admins.update');
+        
+        // DNS Management
+        Route::get('dns', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'index'])->name('dns.index');
+        Route::get('dns/{tenant}/subdomain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editSubdomain'])->name('dns.subdomain.edit');
+        Route::put('dns/{tenant}/subdomain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateSubdomain'])->name('dns.subdomain.update');
+        Route::get('dns/{tenant}/custom-domain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editCustomDomain'])->name('dns.custom_domain.edit');
+        Route::put('dns/{tenant}/custom-domain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateCustomDomain'])->name('dns.custom_domain.update');
+        Route::post('dns/{tenant}/verify', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'verifyDns'])->name('dns.verify');
+        Route::post('dns/{tenant}/provision-ssl', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'provisionSsl'])->name('dns.provision-ssl');
+        Route::get('dns/{tenant}/propagation', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'propagationStatus'])->name('dns.propagation');
+    });
+};
 
-// SuperAdmin Authenticated Routes
-Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.', 'middleware' => ['auth:superadmin']], function () {
-    // Dashboard
-    Route::get('/', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
-    Route::get('dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
-    
-    // Logout
-    Route::post('logout', [SuperAdminLoginController::class, 'logout'])->name('logout');
-    
-    // Tenant Management
-    Route::get('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'index'])->name('tenants.index');
-    Route::get('tenants/create', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'create'])->name('tenants.create');
-    Route::post('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'store'])->name('tenants.store');
-    Route::get('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'show'])->name('tenants.show');
-    Route::get('tenants/{id}/edit', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'edit'])->name('tenants.edit');
-    Route::put('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'update'])->name('tenants.update');
-    Route::post('tenants/{id}/suspend', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'suspend'])->name('tenants.suspend');
-    Route::post('tenants/{id}/activate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'activate'])->name('tenants.activate');
-    Route::post('tenants/{id}/impersonate', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'impersonate'])->name('tenants.impersonate');
-    
-    // Plans Management
-    Route::get('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'index'])->name('plans.index');
-    Route::get('plans/create', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'create'])->name('plans.create');
-    Route::post('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'store'])->name('plans.store');
-    Route::get('plans/{id}/edit', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'edit'])->name('plans.edit');
-    Route::put('plans/{id}', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'update'])->name('plans.update');
-    
-    // SuperAdmins Management
-    Route::get('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'index'])->name('admins.index');
-    Route::get('admins/create', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'create'])->name('admins.create');
-    Route::post('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'store'])->name('admins.store');
-    Route::get('admins/{id}/edit', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'edit'])->name('admins.edit');
-    Route::put('admins/{id}', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'update'])->name('admins.update');
-    
-    // DNS Management
-    Route::get('dns', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'index'])->name('dns.index');
-    Route::get('dns/{tenant}/subdomain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editSubdomain'])->name('dns.subdomain.edit');
-    Route::put('dns/{tenant}/subdomain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateSubdomain'])->name('dns.subdomain.update');
-    Route::get('dns/{tenant}/custom-domain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editCustomDomain'])->name('dns.custom_domain.edit');
-    Route::put('dns/{tenant}/custom-domain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateCustomDomain'])->name('dns.custom_domain.update');
-    Route::post('dns/{tenant}/verify', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'verifyDns'])->name('dns.verify');
-    Route::post('dns/{tenant}/provision-ssl', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'provisionSsl'])->name('dns.provision-ssl');
-    Route::get('dns/{tenant}/propagation', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'propagationStatus'])->name('dns.propagation');
-});
+// Subdomain-based routes: superadmin.happychurchruiru.org/*
+// These routes are registered at root path for the superadmin subdomain
+// Access is ONLY available via the subdomain, not via path-based URLs
+$baseDomain = parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'happychurchruiru.org';
+
+// Primary superadmin subdomain route
+Route::group([
+    'domain' => 'superadmin.' . $baseDomain,
+    'as' => 'superadmin.',
+], $registerSuperAdminRoutes);
 
 // Stop impersonating and return to superadmin panel
 Route::post('stop-impersonating', function () {
@@ -507,6 +538,20 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'tenant.active',
     Route::get('communication/sms/view/{id}', [SMSController::class, 'readsms']);
     Route::get('communication/sms/json/{id}', [SMSController::class, 'readsmsJson']);
     Route::post('communication/sms/remove/{id}', [SMSController::class, 'removesms']);
+    
+    // SMS Resend functionality (requires Resend SMS permission)
+    Route::get('communication/sms/{id}/resend-data', [SMSController::class, 'getSmsForResend'])
+        ->middleware('permission:Resend SMS');
+    Route::post('communication/sms/resend', [SMSController::class, 'resendSms'])
+        ->middleware(['permission:Resend SMS', 'throttle:5,1'])
+        ->name('communication.sms.resend');
+    
+    // Bulk SMS Actions
+    Route::post('communication/sms/bulk-resend', [SMSController::class, 'bulkResend'])
+        ->middleware(['permission:Resend SMS', 'throttle:5,1'])
+        ->name('communication.sms.bulk-resend');
+    Route::post('communication/sms/bulk-delete', [SMSController::class, 'bulkDelete'])
+        ->name('communication.sms.bulk-delete');
 
     // Legacy scheduling redirects
     Route::get("communication/schedule/sms", function () { return redirect()->to('dashboard/communication/sms'); });
@@ -669,6 +714,15 @@ Route::get('account/suspended', function () {
     $tenant = app()->bound('tenant') ? app('tenant') : null;
     return view('errors.tenant_suspended', compact('tenant'));
 })->name('tenant.suspended');
+
+Route::post('account/suspended/payment', [\App\Http\Controllers\Tenant\SuspensionController::class, 'processPayment'])
+    ->name('tenant.suspended.payment');
+
+Route::post('account/suspended/contact', [\App\Http\Controllers\Tenant\SuspensionController::class, 'submitContact'])
+    ->name('tenant.suspended.contact');
+
+Route::get('account/suspended/payment-methods', [\App\Http\Controllers\Tenant\SuspensionController::class, 'getPaymentMethods'])
+    ->name('tenant.suspended.payment-methods');
 
 Route::get('account/cancelled', function () {
     $tenant = app()->bound('tenant') ? app('tenant') : null;

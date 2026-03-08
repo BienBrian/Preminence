@@ -9,10 +9,11 @@ class TrustProxies extends Middleware
 {
     /**
      * The trusted proxies for this application.
+     * Trust all proxies for shared hosting environment.
      *
      * @var array<int, string>|string|null
      */
-    protected $proxies = null;
+    protected $proxies = '*';
 
     /**
      * The headers that should be used to detect proxies.

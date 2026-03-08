@@ -21,6 +21,13 @@ class Tenant extends Model
         'setup_complete',
         'grace_period_days',
         'settings',
+        'suspension_type',
+        'suspension_reason',
+        'suspension_details',
+        'suspension_amount_due',
+        'suspension_currency',
+        'suspension_ends_at',
+        'suspended_by',
     ];
 
     protected $casts = [
@@ -28,6 +35,9 @@ class Tenant extends Model
         'subscription_ends_at'  => 'datetime',
         'setup_complete'        => 'boolean',
         'settings'              => 'array',
+        'suspension_details'    => 'array',
+        'suspension_amount_due' => 'decimal:2',
+        'suspension_ends_at'    => 'datetime',
     ];
 
     // ─── Relationships ────────────────────────────────────────────────────────
@@ -83,6 +93,51 @@ class Tenant extends Model
     public function isSuspended(): bool
     {
         return $this->status === 'suspended';
+    }
+    
+    /**
+     * Get suspension display info for the error page.
+     */
+    public function getSuspensionInfo(): array
+    {
+        $types = [
+            'financial' => [
+                'title' => 'Account Suspended Due to Payment Issues',
+                'description' => 'Your account has been suspended due to outstanding payment. Please settle the amount below to restore access.',
+                'icon' => 'credit-card',
+                'color' => 'warning',
+            ],
+            'terms_violation' => [
+                'title' => 'Account Suspended - Terms of Service Violation',
+                'description' => 'Your account has been suspended for violating our Terms of Service. Please contact our support team for assistance.',
+                'icon' => 'shield-exclamation',
+                'color' => 'danger',
+            ],
+            'admin_action' => [
+                'title' => 'Account Temporarily Suspended',
+                'description' => 'Your account has been temporarily suspended by an administrator. Please contact our support team for more information.',
+                'icon' => 'lock',
+                'color' => 'secondary',
+            ],
+        ];
+        
+        $type = $this->suspension_type ?? 'admin_action';
+        $info = $types[$type] ?? $types['admin_action'];
+        
+        return [
+            'type' => $type,
+            'title' => $info['title'],
+            'description' => $info['description'],
+            'icon' => $info['icon'],
+            'color' => $info['color'],
+            'reason' => $this->suspension_reason,
+            'amount_due' => $this->suspension_amount_due,
+            'currency' => $this->suspension_currency ?? 'KES',
+            'ends_at' => $this->suspension_ends_at,
+            'is_financial' => $type === 'financial',
+            'is_terms_violation' => $type === 'terms_violation',
+            'is_admin_action' => $type === 'admin_action',
+        ];
     }
 
     public function isWithinGracePeriod(): bool

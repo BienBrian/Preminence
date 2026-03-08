@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PlatformAuditLog extends Model
 {
+    protected $table = 'platform_audit_log';  // Singular table name
+    
     public $timestamps = false;  // Only has created_at (immutable log)
 
     protected $fillable = [

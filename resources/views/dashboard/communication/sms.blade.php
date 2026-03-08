@@ -197,10 +197,37 @@
                     <div class="tab-content">
                         <!-- All / Mpesa / Birthday / Pledge / Manual tabs share the same DataTable -->
                         <div class="tab-pane fade show active" id="all-pane" role="tabpanel">
+                            <!-- Bulk Actions Toolbar -->
+                            <div class="row mb-3" id="bulk-actions-toolbar" style="display: none;">
+                                <div class="col-md-6">
+                                    <div class="btn-group">
+                                        @if(auth()->user()->hasPermissionTo('Resend SMS'))
+                                        <button type="button" class="btn btn-warning btn-sm" id="bulk-resend-btn">
+                                            <i class="fas fa-redo"></i> Resend Selected (<span id="selected-count">0</span>)
+                                        </button>
+                                        @endif
+                                        <button type="button" class="btn btn-danger btn-sm" id="bulk-delete-btn">
+                                            <i class="fas fa-trash"></i> Delete Selected
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" id="bulk-clear-btn">
+                                            <i class="fas fa-times"></i> Clear Selection
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <span class="text-muted small">Select messages to perform bulk actions</span>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table class='table w-100' id="sms-table">
                                     <thead>
                                         <tr>
+                                            <th style="width: 40px;">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input" id="select-all-checkbox">
+                                                    <label class="custom-control-label" for="select-all-checkbox"></label>
+                                                </div>
+                                            </th>
                                             <th>Message</th>
                                             <th>Recipients</th>
                                             <th>Sent</th>
@@ -391,6 +418,57 @@
             </div>
         </div>
     </div>
+
+    <!-- Resend SMS Modal -->
+    <div class="modal fade" id="smsResendModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-gradient-warning text-white">
+                    <h5 class="modal-title"><i class="fas fa-redo"></i> Resend SMS</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="smsResendForm">
+                    <input type="hidden" name="sms_id" id="resend-sms-id">
+                    <div class="modal-body">
+                        <div id="resend-loading" class="text-center p-4">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p class="mt-2 text-muted">Loading message details...</p>
+                        </div>
+                        <div id="resend-content" style="display:none;">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> 
+                                This will resend the message to the same <strong id="resend-recipient-count"></strong> recipient(s).
+                                You can edit the message below before sending.
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-comment"></i> Message <small class="text-muted">(you can edit this)</small></label>
+                                <textarea class="form-control" name="message" id="resend-message" rows="4" style="border: 2px solid #ddd;"></textarea>
+                                <small class="text-muted"><span id="resend-char-count">0</span> characters</small>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-tag"></i> Category</label>
+                                <span id="resend-category-badge" class="ml-2"></span>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-clock"></i> Originally Sent</label>
+                                <p class="form-control-static text-muted" id="resend-original-sent"></p>
+                            </div>
+                        </div>
+                        <div id="resend-error" class="alert alert-danger" style="display:none;"></div>
+                        <div id="resend-success" class="alert alert-success" style="display:none;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning" id="resend-submit-btn">
+                            <i class="fas fa-paper-plane"></i> Resend Now
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 @push('js')
     <script>
@@ -447,6 +525,9 @@
             var currentCategory = 'all';
 
             // ===== Sent DataTable =====
+            // Selected SMS IDs for bulk actions
+            var selectedSmsIds = [];
+            
             var table = $('#sms-table').DataTable({
                 processing: true,
                 serverSide: true,
@@ -459,30 +540,51 @@
                         d.category = currentCategory;
                     }
                 },
-                dom: "<'top'B>rtip",
+                dom: "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+                     "<'row'<'col-sm-12'tr>>" +
+                     "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>" +
+                     "<'row'<'col-sm-12'B>>",
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                pageLength: 25,
                 buttons: [
                     {
                         extend: 'excel',
                         text: '<i class="fas fa-file-excel"></i> Excel',
                         className: 'btn btn-success btn-sm text-white',
-                        exportOptions: { columns: ':not(.notexport)' }
+                        exportOptions: { columns: ':not(.notexport):not(:first-child)' }
                     },
                     {
                         extend: 'pdf',
                         text: '<i class="fas fa-file-pdf"></i> PDF',
                         className: 'btn btn-danger btn-sm text-white',
-                        exportOptions: { columns: ':not(.notexport)' }
+                        exportOptions: { columns: ':not(.notexport):not(:first-child)' }
                     },
                     {
                         extend: 'print',
                         text: '<i class="fas fa-print"></i> Print',
                         className: 'btn btn-info btn-sm text-white',
-                        exportOptions: { columns: ':not(.notexport)' }
+                        exportOptions: { columns: ':not(.notexport):not(:first-child)' }
                     }
                 ],
                 order: [],
-                language: { emptyTable: "<i class='fas fa-ban'></i> No SMS messages found" },
+                language: { 
+                    emptyTable: "<i class='fas fa-ban'></i> No SMS messages found",
+                    lengthMenu: "Show _MENU_ entries per page"
+                },
                 columns: [
+                    { 
+                        data: 'id', 
+                        name: 'id', 
+                        orderable: false, 
+                        searchable: false,
+                        render: function(data, type, row) {
+                            var checked = selectedSmsIds.includes(data) ? 'checked' : '';
+                            return '<div class="custom-control custom-checkbox">' +
+                                   '<input type="checkbox" class="custom-control-input sms-checkbox" id="sms-check-' + data + '" value="' + data + '" ' + checked + '>' +
+                                   '<label class="custom-control-label" for="sms-check-' + data + '"></label>' +
+                                   '</div>';
+                        }
+                    },
                     { data: 'preview', name: 'preview', orderable: false, searchable: false },
                     {
                         data: 'recipients', name: 'recipients', orderable: false, searchable: false,
@@ -497,7 +599,152 @@
                         }
                     },
                     { data: 'action', name: 'action', orderable: false, searchable: false },
-                ]
+                ],
+                drawCallback: function(settings) {
+                    // Re-check checkboxes that are in selectedSmsIds
+                    $('.sms-checkbox').each(function() {
+                        var id = parseInt($(this).val());
+                        if (selectedSmsIds.includes(id)) {
+                            $(this).prop('checked', true);
+                        }
+                    });
+                    updateBulkToolbar();
+                }
+            });
+            
+            // ===== Bulk Selection Handlers =====
+            
+            // Individual checkbox change
+            $(document).on('change', '.sms-checkbox', function() {
+                var id = parseInt($(this).val());
+                if ($(this).is(':checked')) {
+                    if (!selectedSmsIds.includes(id)) {
+                        selectedSmsIds.push(id);
+                    }
+                } else {
+                    selectedSmsIds = selectedSmsIds.filter(function(sid) { return sid !== id; });
+                }
+                updateBulkToolbar();
+            });
+            
+            // Select all checkbox
+            $('#select-all-checkbox').on('change', function() {
+                var isChecked = $(this).is(':checked');
+                $('.sms-checkbox').each(function() {
+                    var id = parseInt($(this).val());
+                    $(this).prop('checked', isChecked);
+                    if (isChecked) {
+                        if (!selectedSmsIds.includes(id)) {
+                            selectedSmsIds.push(id);
+                        }
+                    } else {
+                        selectedSmsIds = selectedSmsIds.filter(function(sid) { return sid !== id; });
+                    }
+                });
+                updateBulkToolbar();
+            });
+            
+            // Update bulk toolbar visibility
+            function updateBulkToolbar() {
+                var count = selectedSmsIds.length;
+                $('#selected-count').text(count);
+                if (count > 0) {
+                    $('#bulk-actions-toolbar').show();
+                } else {
+                    $('#bulk-actions-toolbar').hide();
+                }
+            }
+            
+            // Clear selection
+            $('#bulk-clear-btn').on('click', function() {
+                selectedSmsIds = [];
+                $('.sms-checkbox').prop('checked', false);
+                $('#select-all-checkbox').prop('checked', false);
+                updateBulkToolbar();
+            });
+            
+            // Bulk Resend
+            $('#bulk-resend-btn').on('click', function() {
+                if (selectedSmsIds.length === 0) {
+                    toastr.warning('Please select at least one SMS to resend');
+                    return;
+                }
+                
+                if (!confirm('Resend ' + selectedSmsIds.length + ' selected SMS message(s)?')) {
+                    return;
+                }
+                
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+                
+                $.ajax({
+                    url: "{{ route('communication.sms.bulk-resend') }}",
+                    method: 'POST',
+                    data: {
+                        sms_ids: selectedSmsIds,
+                        _token: $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(data) {
+                        toastr.success(data.message);
+                        selectedSmsIds = [];
+                        $('.sms-checkbox').prop('checked', false);
+                        $('#select-all-checkbox').prop('checked', false);
+                        updateBulkToolbar();
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        var errorMsg = 'Failed to resend SMS';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        }
+                        toastr.error(errorMsg);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).html('<i class="fas fa-redo"></i> Resend Selected (<span id="selected-count">' + selectedSmsIds.length + '</span>)');
+                    }
+                });
+            });
+            
+            // Bulk Delete
+            $('#bulk-delete-btn').on('click', function() {
+                if (selectedSmsIds.length === 0) {
+                    toastr.warning('Please select at least one SMS to delete');
+                    return;
+                }
+                
+                if (!confirm('Are you sure you want to delete ' + selectedSmsIds.length + ' selected SMS message(s)? This action cannot be undone.')) {
+                    return;
+                }
+                
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
+                
+                $.ajax({
+                    url: "{{ route('communication.sms.bulk-delete') }}",
+                    method: 'POST',
+                    data: {
+                        sms_ids: selectedSmsIds,
+                        _token: $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(data) {
+                        toastr.success(data.message);
+                        selectedSmsIds = [];
+                        $('.sms-checkbox').prop('checked', false);
+                        $('#select-all-checkbox').prop('checked', false);
+                        updateBulkToolbar();
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        var errorMsg = 'Failed to delete SMS';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        }
+                        toastr.error(errorMsg);
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false).html('<i class="fas fa-trash"></i> Delete Selected');
+                    }
+                });
             });
 
             // ===== Scheduled DataTable =====
@@ -914,6 +1161,114 @@
                     },
                     error: function(xhr) {
                         toastr.error('Failed to save Mpesa message settings');
+                    }
+                });
+            });
+
+            // ===== Resend SMS Functionality =====
+            $(document).on('click', '.btn-resend-sms', function() {
+                var id = $(this).data('id');
+                $('#resend-sms-id').val(id);
+                $('#resend-loading').show();
+                $('#resend-content').hide();
+                $('#resend-error').hide();
+                $('#resend-success').hide();
+                $('#resend-submit-btn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Resend Now');
+                $('#smsResendModal').modal('show');
+
+                // Load SMS details
+                $.ajax({
+                    url: "{{ url('dashboard/communication/sms') }}/" + id + "/resend-data",
+                    type: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(data) {
+                        $('#resend-message').val(data.message);
+                        $('#resend-char-count').text(data.message.length);
+                        $('#resend-recipient-count').text(data.recipient_count);
+                        $('#resend-original-sent').text(data.sent);
+
+                        // Category badge
+                        var badge = '';
+                        switch (data.category) {
+                            case 'mpesa': badge = '<span class="badge badge-success">Mpesa</span>'; break;
+                            case 'birthday': badge = '<span class="badge badge-info"><i class="fas fa-birthday-cake"></i> Birthday</span>'; break;
+                            case 'pledge': badge = '<span class="badge badge-warning">Pledge</span>'; break;
+                            case 'verification': badge = '<span class="badge badge-primary"><i class="fas fa-user-check"></i> Verification</span>'; break;
+                            case 'invitation': badge = '<span class="badge badge-secondary"><i class="fas fa-envelope-open"></i> Invitation</span>'; break;
+                            default: badge = '<span class="badge badge-light">Manual</span>';
+                        }
+                        $('#resend-category-badge').html(badge);
+
+                        $('#resend-loading').hide();
+                        $('#resend-content').show();
+                    },
+                    error: function(xhr) {
+                        var error = xhr.responseJSON?.error || 'Failed to load SMS details';
+                        $('#resend-loading').hide();
+                        $('#resend-error').text(error).show();
+                    }
+                });
+            });
+
+            // Character counter for resend
+            $(document).on('input', '#resend-message', function() {
+                $('#resend-char-count').text($(this).val().length);
+            });
+
+            // Handle resend form submission
+            $('#smsResendForm').submit(function(e) {
+                e.preventDefault();
+                var message = $.trim($('#resend-message').val());
+                
+                if (message.length === 0) {
+                    $('#resend-error').text('Message cannot be empty').show();
+                    return;
+                }
+
+                $('#resend-submit-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+                $('#resend-error').hide();
+                $('#resend-success').hide();
+
+                $.ajax({
+                    url: "{{ route('communication.sms.resend') }}",
+                    method: 'POST',
+                    data: {
+                        sms_id: $('#resend-sms-id').val(),
+                        message: message,
+                        _token: $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(data) {
+                        $('#resend-success').text(data.message).show();
+                        $('#resend-submit-btn').html('<i class="fas fa-check"></i> Sent');
+                        toastr.success(data.message);
+                        
+                        // Refresh the table
+                        table.ajax.reload();
+                        
+                        // Close modal after delay
+                        setTimeout(function() {
+                            $('#smsResendModal').modal('hide');
+                        }, 2000);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Resend SMS Error:', xhr.status, xhr.responseText);
+                        var errorMsg = 'Failed to resend SMS';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMsg = xhr.responseJSON.error;
+                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        } else if (xhr.status === 419) {
+                            errorMsg = 'Session expired. Please refresh the page and try again.';
+                        } else if (xhr.status === 403) {
+                            errorMsg = 'You do not have permission to resend SMS.';
+                        } else if (xhr.status === 422) {
+                            errorMsg = 'Validation error. Please check your input.';
+                        }
+                        $('#resend-error').text(errorMsg).show();
+                        $('#resend-submit-btn').prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Resend Now');
+                        toastr.error(errorMsg);
                     }
                 });
             });

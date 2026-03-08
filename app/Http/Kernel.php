@@ -83,5 +83,7 @@ class Kernel extends HttpKernel
         'module'         => \App\Http\Middleware\CheckModule::class,
         // Protects superadmin-only routes (guard wired in Phase 8)
         'superadmin'     => \App\Http\Middleware\SuperAdminMiddleware::class,
+        // Custom superadmin guest middleware
+        'superadmin.guest' => \App\Http\Middleware\RedirectSuperAdminIfAuthenticated::class,
     ];
 }

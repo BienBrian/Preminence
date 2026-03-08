@@ -12,6 +12,10 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // MPESA API callbacks - these come from Safaricom, not browser forms
+        'api/validation',
+        'api/transaction/confirmation',
+        'api/stk/confirmation',
+        'api/*',
     ];
 }

@@ -55,16 +55,14 @@
                     </a>
                     
                     @if($tenant->status !== 'suspended')
-                        <form action="{{ route('superadmin.tenants.suspend', $tenant->id) }}" method="POST" class="d-inline">
-                            @csrf
-                            <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Are you sure you want to suspend this tenant?')">
-                                <i class="bi bi-pause-circle"></i> Suspend Tenant
-                            </button>
-                        </form>
+                        <a href="{{ route('superadmin.tenants.suspend.form', $tenant->id) }}" class="btn btn-danger">
+                            <i class="bi bi-pause-circle"></i> Suspend Tenant
+                        </a>
                     @else
-                        <form action="{{ route('superadmin.tenants.activate', $tenant->id) }}" method="POST" class="d-inline">
+                        <form action="{{ route('superadmin.tenants.activate', $tenant->id) }}" method="POST" class="d-inline w-100">
                             @csrf
-                            <button type="submit" class="btn btn-success w-100">
+                            <input type="hidden" name="tenant_id" value="{{ $tenant->id }}">
+                            <button type="submit" class="btn btn-success w-100" onclick="return confirm('Activate tenant: {{ $tenant->name }}?')">
                                 <i class="bi bi-play-circle"></i> Activate Tenant
                             </button>
                         </form>
@@ -118,6 +116,70 @@
                 </div>
             </div>
         </div>
+        
+        @if($tenant->status === 'suspended')
+        <!-- Suspension Details -->
+        <div class="card shadow mb-4 border-danger">
+            <div class="card-header py-3 bg-danger text-white">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="bi bi-exclamation-triangle"></i> Suspension Details
+                </h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered">
+                    <tr>
+                        <td><strong>Suspension Type:</strong></td>
+                        <td>
+                            @switch($tenant->suspension_type)
+                                @case('financial')
+                                    <span class="badge bg-warning">Financial - Payment Required</span>
+                                    @break
+                                @case('terms_violation')
+                                    <span class="badge bg-danger">Terms of Service Violation</span>
+                                    @break
+                                @case('admin_action')
+                                    <span class="badge bg-secondary">Administrative Action</span>
+                                    @break
+                                @default
+                                    <span class="badge bg-info">Other</span>
+                            @endswitch
+                        </td>
+                    </tr>
+                    @if($tenant->suspension_type === 'financial' && $tenant->suspension_amount_due)
+                    <tr>
+                        <td><strong>Amount Due:</strong></td>
+                        <td class="text-danger fw-bold">
+                            {{ $tenant->suspension_currency }} {{ number_format($tenant->suspension_amount_due, 2) }}
+                        </td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td><strong>Reason:</strong></td>
+                        <td>{{ $tenant->suspension_reason ?: 'No reason provided' }}</td>
+                    </tr>
+                    @if($tenant->suspension_ends_at)
+                    <tr>
+                        <td><strong>Suspension Ends:</strong></td>
+                        <td>{{ $tenant->suspension_ends_at->format('M d, Y h:i A') }}</td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td><strong>Suspended By:</strong></td>
+                        <td>
+                            @php
+                                $suspendedBy = \App\Models\SuperAdmin::find($tenant->suspended_by);
+                            @endphp
+                            {{ $suspendedBy ? $suspendedBy->name : 'System' }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Suspended At:</strong></td>
+                        <td>{{ $tenant->updated_at->format('M d, Y h:i A') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        @endif
         
         <!-- Subscription Info -->
         <div class="card shadow mb-4">

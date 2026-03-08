@@ -3,27 +3,25 @@
 namespace App\Http\Controllers\SuperAdmin\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
-    use AuthenticatesUsers;
-
     /**
      * Where to redirect superadmins after login.
      *
      * @var string
      */
-    protected $redirectTo = '/superadmin/dashboard';
+    protected $redirectTo = '/dashboard';
 
     /**
      * Create a new controller instance.
      */
     public function __construct()
     {
-        $this->middleware('guest:superadmin')->except('logout');
+        // Apply custom guest middleware for superadmin
+        $this->middleware(\App\Http\Middleware\RedirectSuperAdminIfAuthenticated::class)->only(['showLoginForm', 'login']);
     }
 
     /**
@@ -55,7 +53,8 @@ class LoginController extends Controller
             $superAdmin = Auth::guard('superadmin')->user();
             $superAdmin->recordLogin($request->ip());
 
-            return redirect()->intended($this->redirectPath());
+            // Redirect to dashboard using named route
+            return redirect()->route('superadmin.dashboard');
         }
 
         return back()
