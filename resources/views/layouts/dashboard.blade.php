@@ -917,17 +917,20 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
 
             // ===== Load real credits balance via AJAX =====
             @can('View Credits')
-            (function loadCreditsBalance() {
+            // Global function to refresh credits - can be called from any page after SMS send
+            window.refreshCreditsBalance = function() {
+                $('#sms-credits').html('<i class="fas fa-spinner fa-spin" style="font-size:0.7rem;"></i>');
                 $.ajax({
                     url: '{{ url("dashboard/communication/sms/credits-balance") }}',
                     method: 'GET',
                     success: function(data) {
-                        var sms   = parseInt(data.sms)   || 0;
-                        var email = parseInt(data.email) || 0;
-                        $('#sms-credits').text(sms.toLocaleString());
-                        $('#email-credits').text(email.toLocaleString());
-                        $('#credits-balance-sms').text(sms.toLocaleString());
-                        $('#credits-balance-email').text(email.toLocaleString());
+                        // Handle null (unknown) credits - show as "—"
+                        var smsText   = data.sms === null ? '—' : (parseInt(data.sms) || 0).toLocaleString();
+                        var emailText = data.email === null ? '—' : (parseInt(data.email) || 0).toLocaleString();
+                        $('#sms-credits').text(smsText);
+                        $('#email-credits').text(emailText);
+                        $('#credits-balance-sms').text(smsText);
+                        $('#credits-balance-email').text(emailText);
                     },
                     error: function() {
                         $('#sms-credits').text('—');
@@ -936,7 +939,13 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         $('#credits-balance-email').text('—');
                     }
                 });
-            })();
+            };
+            
+            // Initial load
+            refreshCreditsBalance();
+            
+            // Auto-refresh credits every 60 seconds
+            setInterval(refreshCreditsBalance, 60000);
             @endcan
 
             // ===== Login check =====

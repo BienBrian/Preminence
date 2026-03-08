@@ -958,6 +958,11 @@ $(document).ready(function () {
             $('#sms-msg-char-count').text('0');
             setTimeout(() => { $('#smsModal .sms-feedback').addClass('d-none'); }, 3000);
             btn.removeAttr('disabled');
+            
+            // Refresh credits display after successful SMS send
+            if (typeof refreshCreditsBalance === 'function') {
+                refreshCreditsBalance();
+            }
         }).fail(function (response) {
             let data = response.responseJSON;
             $('#smsModal .sms-feedback').addClass('alert-danger');

@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class MediaFile extends Model
 {
-    protected $fillable = ['folder_id', 'filename', 'original_name', 'path', 'mime_type', 'size', 'alt_text', 'uploaded_by'];
+    use BelongsToTenant;
+
+    protected $fillable = [
+        'tenant_id', 'folder_id', 'filename', 'original_name',
+        'path', 'mime_type', 'size', 'alt_text', 'uploaded_by',
+    ];
 
     public function folder()
     {

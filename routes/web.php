@@ -13,16 +13,16 @@ use App\Http\Controllers\Dashboard\People\PeopleController;
 use App\Http\Controllers\Dashboard\Profile\ProfileController;
 use App\Http\Controllers\Dashboard\Search\SearchController;
 use App\Http\Controllers\Dashboard\Settings\EmailSettingsController;
-use App\Http\Controllers\Dashboard\Settings\SMSSettingsController;
-use App\Http\Controllers\Dashboard\Shop\ShopController;
 use App\Http\Controllers\Dashboard\SMS\SMSController;
-use App\Http\Controllers\Dashboard\Spiritual\PrayersController;
-use App\Http\Controllers\Dashboard\Spiritual\SermonController;
+use App\Http\Controllers\Dashboard\Settings\SMSSettingsController;
 use App\Http\Controllers\Dashboard\Settings\CurrencySettingsController;
 use App\Http\Controllers\Dashboard\Settings\GameLevelSettingsController;
 use App\Http\Controllers\Dashboard\Settings\GeneralSettingsController;
 use App\Http\Controllers\Dashboard\Settings\NotificationSettingsController;
 use App\Http\Controllers\Dashboard\Settings\TopupAccountSettingsController;
+use App\Http\Controllers\Dashboard\Shop\ShopController;
+use App\Http\Controllers\Dashboard\Spiritual\PrayersController;
+use App\Http\Controllers\Dashboard\Spiritual\SermonController;
 use App\Http\Controllers\Dashboard\Spiritual\TestimonialController;
 use App\Http\Controllers\Dashboard\Users\AttendanceController;
 use App\Http\Controllers\Dashboard\People\PastorsController;
@@ -34,6 +34,7 @@ use App\Http\Controllers\Dashboard\Settings\IntegrationsController;
 use App\Http\Controllers\Dashboard\FileManager\FileManagerController;
 use App\Http\Controllers\Dashboard\PrayerRequests\PrayerRequestController;
 use App\Http\Controllers\Dashboard\Reports\ReportsController;
+use App\Http\Controllers\Dashboard\Billing\BillingController;
 use App\Http\Controllers\PrayerWallController;
 use App\Http\Controllers\Dashboard\Websites\GalleryController;
 use App\Http\Controllers\Dashboard\Websites\HomePageSettingsController;
@@ -41,6 +42,8 @@ use App\Http\Controllers\Dashboard\Websites\OrderOfServiceSettingsController;
 use App\Http\Controllers\Dashboard\Websites\PastorSettingsController;
 use App\Http\Controllers\Dashboard\Websites\WebsiteSettingsController;
 use App\Http\Controllers\IndexController;
+use App\Http\Controllers\SuperAdmin\Auth\LoginController as SuperAdminLoginController;
+use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -119,6 +122,59 @@ Route::group(['prefix' => 'dashboard/spiritual/discipleship', 'middleware' => ['
     Route::post('journal/save', [\App\Http\Controllers\Dashboard\Spiritual\DiscipleshipController::class, 'saveJournal']);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUPERADMIN ROUTES (Platform Administration)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// SuperAdmin Guest Routes
+Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.'], function () {
+    // Login routes
+    Route::get('login', [SuperAdminLoginController::class, 'showLoginForm'])->name('login');
+    Route::post('login', [SuperAdminLoginController::class, 'login']);
+});
+
+// SuperAdmin Authenticated Routes
+Route::group(['prefix' => 'superadmin', 'as' => 'superadmin.', 'middleware' => ['auth:superadmin']], function () {
+    // Dashboard
+    Route::get('/', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
+    
+    // Logout
+    Route::post('logout', [SuperAdminLoginController::class, 'logout'])->name('logout');
+    
+    // Tenant Management
+    Route::get('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'index'])->name('tenants.index');
+    Route::get('tenants/create', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'create'])->name('tenants.create');
+    Route::post('tenants', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'store'])->name('tenants.store');
+    Route::get('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'show'])->name('tenants.show');
+    Route::get('tenants/{id}/edit', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'edit'])->name('tenants.edit');
+    Route::put('tenants/{id}', [\App\Http\Controllers\SuperAdmin\TenantController::class, 'update'])->name('tenants.update');
+    
+    // Plans Management
+    Route::get('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'index'])->name('plans.index');
+    Route::get('plans/create', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'create'])->name('plans.create');
+    Route::post('plans', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'store'])->name('plans.store');
+    Route::get('plans/{id}/edit', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'edit'])->name('plans.edit');
+    Route::put('plans/{id}', [\App\Http\Controllers\SuperAdmin\PlanController::class, 'update'])->name('plans.update');
+    
+    // SuperAdmins Management
+    Route::get('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'index'])->name('admins.index');
+    Route::get('admins/create', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'create'])->name('admins.create');
+    Route::post('admins', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'store'])->name('admins.store');
+    Route::get('admins/{id}/edit', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'edit'])->name('admins.edit');
+    Route::put('admins/{id}', [\App\Http\Controllers\SuperAdmin\AdminController::class, 'update'])->name('admins.update');
+    
+    // DNS Management
+    Route::get('dns', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'index'])->name('dns.index');
+    Route::get('dns/{tenant}/subdomain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editSubdomain'])->name('dns.subdomain.edit');
+    Route::put('dns/{tenant}/subdomain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateSubdomain'])->name('dns.subdomain.update');
+    Route::get('dns/{tenant}/custom-domain/edit', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'editCustomDomain'])->name('dns.custom_domain.edit');
+    Route::put('dns/{tenant}/custom-domain', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'updateCustomDomain'])->name('dns.custom_domain.update');
+    Route::post('dns/{tenant}/verify', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'verifyDns'])->name('dns.verify');
+    Route::post('dns/{tenant}/provision-ssl', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'provisionSsl'])->name('dns.provision-ssl');
+    Route::get('dns/{tenant}/propagation', [\App\Http\Controllers\SuperAdmin\DnsManagementController::class, 'propagationStatus'])->name('dns.propagation');
+});
+
 Auth::routes(/*['verify' => true]*/);
 
 Route::get('home', function () {
@@ -173,7 +229,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('website/weeklyverse', [OrderOfServiceSettingsController::class, 'weeklyverse']);
     Route::post('website/weeklyverse/add', [OrderOfServiceSettingsController::class, 'addverse']);
 
-    //Financial Controller
+    //Financial Controller (requires finance module)
+    Route::group(['middleware' => 'module:finance'], function () {
     Route::get('finances/overview', [FinancialController::class, 'overview']);
 
     Route::get('finances/funds', [FinancialController::class, 'index']);
@@ -253,7 +310,10 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     //funds summaries
     Route::get("finances/summaries", [FinancialController::class, "summaries"]);
     Route::post("finances/summaries/settings/add", [FinancialController::class, "summaries_settings"]);
+    }); // End finance module group
 
+    // Spiritual Content (requires spiritual module)
+    Route::group(['middleware' => 'module:spiritual'], function () {
     //sermons
     Route::get('spiritual/sermons', [SermonController::class, 'index']);
     Route::get('spiritual/sermons/new', [SermonController::class, 'sermon']);
@@ -268,12 +328,13 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('spiritual/testimonials/activate/{id}', [TestimonialController::class, 'activate']);
     Route::get('spiritual/testimonials/deactivate/{id}', [TestimonialController::class, 'deactivate']);
     Route::get('spiritual/testimonials/{id}', [TestimonialController::class, 'testimonial']);
+    }); // End spiritual module group
 
     //events
     Route::get('events_and_notices/events', [EventsController::class, 'index']);
     Route::post('events_and_notices/events/add', [EventsController::class, 'addevent']);
     Route::get('events_and_notices/events/{id}', [EventsController::class, 'getevent']);
-    Route::post('events_and_seminars/events/delete/{id}', [EventsController::class, 'removeEvent']);
+    Route::post('events_and_notices/semiars/events/delete/{id}', [EventsController::class, 'removeEvent']);
 
     //notices
     Route::get('events_and_notices/notices', [NoticesController::class, 'index']);
@@ -313,7 +374,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::post('spiritual/prayers/add', [PrayersController::class, 'addprayer']);
     Route::post('spiritual/prayers/delete/{id}', [PrayersController::class, 'deleteprayer']);
 
-    //shop
+    // Shop (requires shop module)
+    Route::group(['middleware' => 'module:shop'], function () {
     Route::get("shop", [ShopController::class, "index"]);
     Route::get("shop/products", [ShopController::class, "products"]);
     Route::get("shop/products/{id}", [ShopController::class, "product"]);
@@ -324,6 +386,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::post("shop/products/remove/{id}", [ShopController::class, "removeproduct"]);
 
     Route::get("shop/purchases", [ShopController::class, "purchases"]);
+    }); // End shop module group
 
     //update contacts
     Route::get("user/contacts/update", [UsersController::class, "updateMyContacts"]);
@@ -401,16 +464,17 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get("communication", function () { return redirect()->to('dashboard/communication/sms'); });
     Route::get("communication/emails", [EmailController::class, "index"]);
     Route::get("communication/emails/datatable", [EmailController::class, "getEmailsDataTable"]);
-    Route::get("communication/emails/users", [EMailController::class, "getemails"]);
+    Route::get("communication/emails/users", [EmailController::class, "getemails"]);
     Route::get('communication/emails/scheduled/datatable', [EmailController::class, 'getScheduledEmailsDataTable']);
     Route::post('communication/emails/schedule/cancel', [EmailController::class, 'cancelScheduledEmail']);
     Route::get("communication/emails/view/{id}", [EmailController::class, "email"]);
     Route::get("communication/emails/json/{id}", [EmailController::class, "emailJson"]);
     Route::post('communication/emails/delete/{id}', [EmailController::class, 'removeemail']);
-    Route::post('communication/emails/send', [EMailController::class, 'html_email']);
+    Route::post('communication/emails/send', [EmailController::class, 'html_email']);
 
     //sms
     Route::get("communication/sms", [SMSController::class, "sms"]);
+    Route::get("communication/sms/credits-balance", [SMSController::class, "getCreditsBalance"]);
     Route::get("communication/sms/datatable", [SMSController::class, "getSmsDataTable"]);
     Route::get("communication/sms/summary", [SMSController::class, "getSmsSummary"]);
     Route::post('communication/sms/send', [SMSController::class, 'sendSms'])->middleware('throttle:10,1');
@@ -467,7 +531,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('settings/integrations', [IntegrationsController::class, 'index']);
     Route::get('settings/integrations/datatable', [IntegrationsController::class, 'datatable']);
     Route::get('settings/integrations/schema', [IntegrationsController::class, 'getFieldSchema']);
-    Route::post('settings/integrations/save', [IntegrationsController::class, 'store']);
+    Route::get('settings/integrations/s', [IntegrationsController::class, 'store']);
     Route::post('settings/integrations/delete/{id}', [IntegrationsController::class, 'delete']);
     Route::post('settings/integrations/toggle/{id}', [IntegrationsController::class, 'toggleActive']);
     Route::post('settings/integrations/default/{id}', [IntegrationsController::class, 'setDefault']);
@@ -498,6 +562,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::post('users/quick-edit', [UsersController::class, 'quickEditUser']);
     Route::post('users/archive', [UsersController::class, 'archiveUser']);
     Route::post('users/unarchive', [UsersController::class, 'unarchiveUser']);
+    Route::get('users/hash-coverage', [UsersController::class, 'hashCoverage']);
+    Route::post('users/rehash', [UsersController::class, 'rehashUser']);
     Route::post('users/delete', [UsersController::class, 'deleteUser']);
     Route::post('users/share/add', [UsersController::class, 'addShare']);
     Route::get('users/view/datatable/shares/{id}', [UsersController::class, 'getShares']);
@@ -527,12 +593,14 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('settings/general', [GeneralSettingsController::class, 'index']);
     Route::post('settings/general/add', [GeneralSettingsController::class, 'addGeneralSettings']);
 
-    //reports
+    //reports (requires reports module)
+    Route::group(['middleware' => 'module:reports'], function () {
     Route::get('reports', [ReportsController::class, 'index']);
     Route::get('reports/mpesa-logs', [ReportsController::class, 'mpesaLogs']);
     Route::get('reports/mpesa-logs/datatable', [ReportsController::class, 'mpesaLogsDataTable']);
     Route::post('reports/mpesa-logs/rehash', [ReportsController::class, 'rehashTransaction']);
     Route::post('reports/mpesa-logs/bulk-rehash', [ReportsController::class, 'bulkRehash']);
+    }); // End reports module group
 
     //prayer requests
     Route::get('prayer-requests', [PrayerRequestController::class, 'index']);
@@ -571,4 +639,31 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'force_password_
     Route::get('search/roles', [SearchController::class, 'searchRoles']);
     Route::get('search/days', [SearchController::class, 'searchDays']);
     Route::get('search/payments/{payment_method}/{user_id}', [SearchController::class, 'searchPaymentMethods']);
+
+    // Billing & Subscription
+    Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::get('billing/upgrade', [BillingController::class, 'upgrade'])->name('billing.upgrade');
+    Route::get('billing/module-locked', [BillingController::class, 'moduleLocked'])->name('billing.module_locked');
 });
+
+// ── Phase 3: Tenant File Storage ──────────────────────────────────────────────
+// Serve files from the current tenant's storage directory.
+// URL:  /tenant-assets/{path}
+// Maps: storage/app/tenants/{tenant_id}/{path}
+Route::get('tenant-assets/{path}', function (string $path) {
+    $fullPath = tenant_storage_path($path);
+
+    if (!file_exists($fullPath) || !is_file($fullPath)) {
+        abort(404);
+    }
+
+    $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
+
+    return response()->stream(function () use ($fullPath) {
+        readfile($fullPath);
+    }, 200, [
+        'Content-Type'   => $mime,
+        'Cache-Control'  => 'public, max-age=86400',
+        'Content-Length' => filesize($fullPath),
+    ]);
+})->where('path', '.*')->middleware(['auth'])->name('tenant.assets');

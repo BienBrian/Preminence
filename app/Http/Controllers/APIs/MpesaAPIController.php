@@ -4,9 +4,12 @@ namespace App\Http\Controllers\APIs;
 
 use App\Http\Controllers\Controller;
 use App\Models\Funds;
+use App\Models\Integration;
 use App\Models\MissingMpesaPhone;
 use App\Models\MpesaPhone;
 use App\Models\MpesaTransaction;
+use App\Models\Tenant;
+use App\Services\IntegrationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -16,27 +19,24 @@ use Illuminate\Support\Facades\Validator;
 class MpesaAPIController extends Controller
 {
     protected $site_settings;
-    public function __construct()
+    protected IntegrationService $integrations;
+
+    public function __construct(IntegrationService $integrations)
     {
+        $this->integrations  = $integrations;
         $this->site_settings = \DB::table("settings")->first();
         \View::share('site_settings', $this->site_settings);
     }
 
     public function lipaNaMpesaPassword()
     {
-        $lipa_time = Carbon::rawParse('now')->format('YmdHms');
-        $passkey = env('MPESA_LNMO_PASSKEY');
-        $BusinessShortCode = env('MPESA_SHORTCODE');
-        $timestamp =$lipa_time;
-        $lipa_na_mpesa_password = base64_encode($BusinessShortCode.$passkey.$timestamp);
-        return $lipa_na_mpesa_password;
+        return $this->integrations->lipaNaMpesaPassword();
     }
     /**
      * Lipa na M-PESA STK Push method
      * */
     public function customerMpesaSTKPush(Request $request)
     {
-        //return json_encode($request->all());
         $validator = \Validator::make($request->all(), [
             "phone"=>"required|numeric",
             "firstname"=>"string|required",
@@ -45,26 +45,24 @@ class MpesaAPIController extends Controller
             "account"=>"string|required",
         ]);
         if($validator->passes()){
-            //return $request->phone;
+            $mpesaConfig = $this->integrations->getMpesaConfig();
             $phone = "254".intval($request->phone);
-            $url = env('MPESA_STK_URL');
             $curl = curl_init();
-            curl_setopt($curl, CURLOPT_URL, $url);
+            curl_setopt($curl, CURLOPT_URL, $mpesaConfig['stk_url']);
             curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$this->generateAccessToken()));
-            $shortcode = env('MPESA_SHORTCODE');
+            $shortcode = $mpesaConfig['shortcode'];
             $curl_post_data = [
-                //Fill in the request parameters with valid values
                 'BusinessShortCode' => $shortcode,
-                'Password' => $this->lipaNaMpesaPassword(),
-                'Timestamp' => Carbon::rawParse('now')->format('YmdHms'),
-                'TransactionType' => 'CustomerPayBillOnline',
-                'Amount' => intval($request->amount),
-                'PartyA' => $phone,
-                'PartyB' => $shortcode,
-                'PhoneNumber' => $phone,
-                'CallBackURL' => env('MPESA_CALLBACK_BASE_URL').'/api/stk/confirmation',
-                'AccountReference' => env('MPESA_ACCOUNT_REF'),
-                'TransactionDesc' => "Church donation via mpesa"
+                'Password'          => $this->lipaNaMpesaPassword(),
+                'Timestamp'         => Carbon::rawParse('now')->format('YmdHms'),
+                'TransactionType'   => 'CustomerPayBillOnline',
+                'Amount'            => intval($request->amount),
+                'PartyA'            => $phone,
+                'PartyB'            => $shortcode,
+                'PhoneNumber'       => $phone,
+                'CallBackURL'       => $mpesaConfig['callback_base_url'].'/api/stk/confirmation',
+                'AccountReference'  => $mpesaConfig['account_ref'],
+                'TransactionDesc'   => "Church donation via mpesa"
             ];
             $data_string = json_encode($curl_post_data);
             curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
@@ -79,19 +77,7 @@ class MpesaAPIController extends Controller
 
     public function generateAccessToken()
     {
-        $consumer_key = env('MPESA_CONSUMER_KEY');
-        $consumer_secret = env('MPESA_CONSUMER_SECRET');
-        $credentials = base64_encode($consumer_key.":".$consumer_secret);
-        $url = env('MPESA_OAUTH_URL');
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array("Authorization: Basic ".$credentials));
-        curl_setopt($curl, CURLOPT_HEADER,false);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        $curl_response = curl_exec($curl);
-        $access_token=json_decode($curl_response);
-        return $access_token->access_token;
+        return $this->integrations->generateMpesaAccessToken();
     }
 
         /**
@@ -187,7 +173,27 @@ class MpesaAPIController extends Controller
     public function mpesaConfirmation(Request $request)
     {
         Log::info("M-Pesa confirmation callback received");
-        $content=json_decode($request->getContent());
+        $content = json_decode($request->getContent());
+
+        // ── Phase 3: Resolve tenant by BusinessShortCode ───────────────────────
+        $shortcode = $content->BusinessShortCode ?? null;
+        if ($shortcode) {
+            $mpesaIntegration = $this->integrations->resolveMpesaIntegrationByShortcode((string)$shortcode);
+            if ($mpesaIntegration) {
+                $tenant = Tenant::withoutTenantScope()->find($mpesaIntegration->tenant_id);
+                if ($tenant) {
+                    app()->instance('tenant', $tenant);
+                    config(['app.tenant_id' => $tenant->id]);
+                    // Refresh integration service cache for this tenant context
+                    $this->integrations = app(IntegrationService::class);
+                    Log::info("M-Pesa callback routed to tenant #{$tenant->id} ({$tenant->name}) for shortcode {$shortcode}");
+                } else {
+                    Log::warning("M-Pesa callback: integration found for shortcode {$shortcode} but tenant #{$mpesaIntegration->tenant_id} not found");
+                }
+            } else {
+                Log::warning("M-Pesa callback: no integration found for shortcode {$shortcode}");
+            }
+        }
         $mpesa_transaction = new MpesaTransaction();
         $mpesa_transaction->TransactionType = $content->TransactionType;
         $mpesa_transaction->TransID = $content->TransID;
@@ -227,7 +233,9 @@ class MpesaAPIController extends Controller
         }
 
         // Second: try mpesa_phones hash lookup (works when MSISDN is hashed)
-        $mpesaPhone = MpesaPhone::where('phone_hash', $content->MSISDN)->first();
+        // Use withoutTenantScope() because this is an unauthenticated webhook — tenant context
+        // may not yet be resolved if ShortCode lookup fails (no integrations row for this shortcode).
+        $mpesaPhone = MpesaPhone::withoutTenantScope()->where('phone_hash', $content->MSISDN)->first();
         if ($user == null && $mpesaPhone != null) {
             $user = \DB::table("contacts")->where("phone", "0".substr($mpesaPhone->phone, 3))->first();
             $actualPhone = $mpesaPhone->phone;
@@ -270,9 +278,11 @@ class MpesaAPIController extends Controller
                 $smsSentOk = true;
             }
 
+            $tid = config('app.tenant_id', 1);
             if ($smsSentOk) {
                 // Log to sms + sms_recipients tables
                 $mid = \DB::table('sms')->insertGetId([
+                    'tenant_id' => $tid,
                     'people_id' => 0,
                     'message'   => $message,
                     'category'  => 'mpesa',
@@ -281,6 +291,7 @@ class MpesaAPIController extends Controller
                 // Link to user if we found one
                 if ($user && $user->user_id > 0) {
                     \DB::table('sms_recipients')->insert([
+                        'tenant_id'  => $tid,
                         'recipients' => $user->user_id,
                         'sms_id'     => $mid,
                         'sent'       => Carbon::now(),
@@ -290,6 +301,7 @@ class MpesaAPIController extends Controller
                 // SMS API failed (e.g. out of credits) — queue for retry
                 Log::warning("MPESA SMS failed for {$smsPhone}, queueing for retry. Response: " . json_encode($smsResponse));
                 \DB::table('pending_sms')->insert([
+                    'tenant_id'      => $tid,
                     'phone'          => $smsPhone,
                     'message'        => $message,
                     'transaction_id' => $content->TransID ?? null,
@@ -311,17 +323,18 @@ class MpesaAPIController extends Controller
 
     public function mpesaRegisterUrls()
     {
+        $mpesaConfig = $this->integrations->getMpesaConfig();
         $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, env('MPESA_C2B_REGISTER_URL'));
+        curl_setopt($curl, CURLOPT_URL, $mpesaConfig['c2b_register_url']);
         curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization: Bearer '. $this->generateAccessToken()));
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_POST, true);
-        $baseUrl = env('MPESA_CALLBACK_BASE_URL');
+        $baseUrl = $mpesaConfig['callback_base_url'];
         curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode(array(
-            'ShortCode' => env('MPESA_SHORTCODE'),
-            'ResponseType' => 'Completed',
+            'ShortCode'       => $mpesaConfig['shortcode'],
+            'ResponseType'    => 'Completed',
             'ConfirmationURL' => $baseUrl."/api/transaction/confirmation",
-            'ValidationURL' => $baseUrl."/api/validation"
+            'ValidationURL'   => $baseUrl."/api/validation"
         )));
         $curl_response = curl_exec($curl);
         return response()->json(json_decode($curl_response, true) ?? ['error' => 'Invalid response']);
@@ -335,30 +348,6 @@ class MpesaAPIController extends Controller
         return $this->send($request->phone, $request->message);
     }
     public function send($number, $message){
-         $curl = curl_init();
-
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/x-www-form-urlencoded',
-                'Authorization: Bearer ' . env('SMS_API_KEY'),
-            ),
-        )
-        );
-
-        $curl_response = curl_exec($curl);
-
-        curl_close($curl);
-        $response = json_decode($curl_response, true);
-        //\Log::info(json_encode($response).'NUMBER: '.$number);
-        return $response;
+        return $this->integrations->sendSms($number, $message);
     }
 }

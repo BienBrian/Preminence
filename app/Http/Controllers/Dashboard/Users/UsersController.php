@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Mail;
+use App\Models\MpesaPhone;
 use Spatie\Permission\Models\Role;
 use Yajra\DataTables\DataTables;
 use DB;
@@ -406,21 +407,7 @@ class UsersController extends DashboardController
         if ($request->method === 'sms') {
             $message = "You have been invited to join {$church_name}. Click the link to register: {$onboardingUrl}";
 
-            $curl = curl_init();
-            curl_setopt_array($curl, [
-                CURLOPT_URL => env('SMS_URL'),
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 15,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'GET',
-                CURLOPT_POSTFIELDS => 'apikey=' . env('SMS_API_KEY') . '&partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($message) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $phone,
-                CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
-            ]);
-            curl_exec($curl);
-            curl_close($curl);
+            app(\App\Services\IntegrationService::class)->sendSms($phone, $message);
 
             // Log SMS to sms table
             $mid = DB::table('sms')->insertGetId([
@@ -562,8 +549,111 @@ class UsersController extends DashboardController
         } catch (\Exception $e) {
             $userTags = collect();
         }
-        return view("dashboard.users.user")->with("roles", $roles)->with("user", $user)->with("scontact", $scontact)->with("emergency", $emergency)
-        ->with("communities", $communities)->with("departments", $departments)->with("userRole", $userRole)->with("userTags", $userTags);
+        // ── Mpesa contribution analytics ───────────────────────────────────────
+        $mpesaTotal   = DB::table('funds')->where('user_id', $request->id)->where('source', 1)->sum('amount');
+        $mpesaCount   = DB::table('funds')->where('user_id', $request->id)->where('source', 1)->count();
+        $mpesaRecords = DB::table('funds')
+            ->where('funds.user_id', $request->id)
+            ->where('funds.source', 1)
+            ->leftJoin('mpesa_transactions', function ($join) {
+                $join->on('mpesa_transactions.TransAmount', '=', 'funds.amount')
+                     ->whereRaw('DATE(mpesa_transactions.created_at) = DATE(funds.created_at)');
+            })
+            ->select('funds.id', 'funds.amount', 'funds.created_at', 'funds.description',
+                     'mpesa_transactions.TransID', 'mpesa_transactions.BillRefNumber')
+            ->orderByDesc('funds.created_at')
+            ->limit(50)
+            ->get();
+        $mpesaLastTx  = $mpesaRecords->first();
+
+        return view("dashboard.users.user")
+            ->with("roles", $roles)->with("user", $user)->with("scontact", $scontact)
+            ->with("emergency", $emergency)->with("communities", $communities)
+            ->with("departments", $departments)->with("userRole", $userRole)
+            ->with("userTags", $userTags)
+            ->with("mpesaTotal", $mpesaTotal)->with("mpesaCount", $mpesaCount)
+            ->with("mpesaRecords", $mpesaRecords)->with("mpesaLastTx", $mpesaLastTx);
+    }
+
+    /**
+     * Show hash coverage admin page: all users with their phone hashes.
+     */
+    public function hashCoverage()
+    {
+        $tid = config('app.tenant_id');
+
+        $users = DB::table('users')
+            ->where('users.tenant_id', $tid)
+            ->whereNotNull('users.phone')
+            ->where('users.phone', '<>', '')
+            ->select('users.id', 'users.firstname', 'users.lastname', 'users.phone')
+            ->orderBy('users.firstname')
+            ->paginate(100);
+
+        // Normalize all phones to 254... and compute expected hash
+        $normalizedUsers = $users->map(function ($u) {
+            $phone = preg_replace('/[^0-9]/', '', $u->phone);
+            if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
+                $phone = '254' . substr($phone, 1);
+            } elseif (strlen($phone) == 9) {
+                $phone = '254' . $phone;
+            }
+            $u->phone_normalized = strlen($phone) == 12 ? $phone : null;
+            $u->expected_hash    = $u->phone_normalized ? hash('sha256', $u->phone_normalized) : null;
+            return $u;
+        });
+
+        // Load all existing hashes (cross-tenant safe: admins see all they manage)
+        $hashedPhones = MpesaPhone::withoutTenantScope()
+            ->pluck('phone_hash', 'phone')
+            ->mapWithKeys(function ($hash, $phone) {
+                return [$phone => ['phone_hash' => $hash]];
+            });
+
+        $totalWithPhone = DB::table('users')
+            ->where('tenant_id', $tid)
+            ->whereNotNull('phone')->where('phone', '<>', '')
+            ->count();
+
+        $totalHashed = MpesaPhone::withoutTenantScope()->count();
+
+        return view('dashboard.reports.hash_coverage', compact(
+            'users', 'hashedPhones', 'totalWithPhone', 'totalHashed'
+        ));
+    }
+
+    /**
+     * AJAX: Generate / refresh the SHA-256 hash for a single user's phone.
+     */
+    public function rehashUser(Request $request)
+    {
+        $request->validate(['user_id' => 'required|integer']);
+        $tid = config('app.tenant_id');
+
+        $user = DB::table('users')
+            ->where('id', $request->user_id)
+            ->where('tenant_id', $tid)
+            ->select('id', 'firstname', 'lastname', 'phone')
+            ->first();
+
+        if (!$user || empty($user->phone)) {
+            return response()->json(['error' => 'User not found or has no phone'], 404);
+        }
+
+        $phone = preg_replace('/[^0-9]/', '', $user->phone);
+        if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
+            $phone = '254' . substr($phone, 1);
+        } elseif (strlen($phone) == 9) {
+            $phone = '254' . $phone;
+        }
+        if (strlen($phone) != 12) {
+            return response()->json(['error' => 'Cannot normalize phone: ' . $user->phone], 422);
+        }
+
+        $this->createMpesaHashAndMatch($user->phone, $user->firstname . ' ' . $user->lastname, $user->id);
+        $hash = hash('sha256', $phone);
+
+        return response()->json(['success' => 'Hash generated for ' . $user->firstname, 'hash' => $hash]);
     }
 
     public function updateBasic(Request $request)
@@ -786,22 +876,9 @@ class UsersController extends DashboardController
             $number = '254' . substr($number, 1);
         }
 
-        // Send SMS via gateway
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'apikey=' . env('SMS_API_KEY') . '&partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($request->message) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $number,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
-        ]);
-        curl_exec($curl);
-        curl_close($curl);
+        // Send SMS via IntegrationService (uses tenant's configured SMS credentials)
+        $integrationService = app(\App\Services\IntegrationService::class);
+        $sendResult = $integrationService->sendSms($number, $request->message);
 
         // Log SMS
         $mid = DB::table('sms')->insertGetId([
@@ -814,8 +891,23 @@ class UsersController extends DashboardController
             'sms_id' => $mid,
             'sent' => Carbon::now(),
         ]);
+        
+        // Get updated credits
+        $creditsResponse = $integrationService->checkSmsCredits();
+        $smsCredits = null;
+        if (is_array($creditsResponse)) {
+            $smsCredits = $creditsResponse['balance'] 
+                ?? $creditsResponse['credit'] 
+                ?? $creditsResponse['credits'] 
+                ?? $creditsResponse['credits_remaining'] 
+                ?? null;
+        }
 
-        return response()->json(['success' => 'SMS sent to ' . $user->firstname . ' ' . $user->lastname]);
+        return response()->json([
+            'success' => 'SMS sent to ' . $user->firstname . ' ' . $user->lastname,
+            'credits' => $smsCredits,
+            'send_result' => $sendResult !== false
+        ]);
     }
 
     public function toggleVerification(Request $request)
@@ -931,29 +1023,11 @@ class UsersController extends DashboardController
 
             $smsMessage = "Dear {$user->firstname}, please verify your profile for {$church_name}. Click here: {$verifyUrl} (expires in 7 days)";
 
-            $curl = curl_init();
-            curl_setopt_array($curl, [
-                CURLOPT_URL => env('SMS_URL'),
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 15,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'GET',
-                CURLOPT_POSTFIELDS => 'apikey=' . env('SMS_API_KEY') . '&partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($smsMessage) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $number,
-                CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
-            ]);
-            $curlResponse = curl_exec($curl);
-            $curlError = curl_error($curl);
-            curl_close($curl);
-
-            if ($curlResponse === false) {
-                \Log::error('Verification SMS curl failed: ' . $curlError);
-                return response()->json(['error' => 'Failed to connect to SMS gateway: ' . $curlError], 500);
+            $response = app(\App\Services\IntegrationService::class)->sendSms($number, $smsMessage);
+            if ($response === false) {
+                \Log::error('Verification SMS failed via IntegrationService');
+                return response()->json(['error' => 'Failed to connect to SMS gateway.'], 500);
             }
-
-            $response = json_decode($curlResponse, true);
             $apiSuccess = true;
             $apiMessage = '';
 
@@ -1047,15 +1121,7 @@ class UsersController extends DashboardController
                         $number = '254' . substr($number, 1);
                     }
                     $smsMessage = "Dear {$user->firstname}, please verify your profile for {$church_name}: {$verifyUrl}";
-                    $curl = curl_init();
-                    curl_setopt_array($curl, [
-                        CURLOPT_URL => env('SMS_URL'), CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_TIMEOUT => 15, CURLOPT_CUSTOMREQUEST => 'GET',
-                        CURLOPT_POSTFIELDS => 'apikey=' . env('SMS_API_KEY') . '&partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($smsMessage) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $number,
-                        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
-                    ]);
-                    curl_exec($curl);
-                    curl_close($curl);
+                    app(\App\Services\IntegrationService::class)->sendSms($number, $smsMessage);
                     $mid = DB::table('sms')->insertGetId(['people_id' => 0, 'message' => $smsMessage, 'category' => 'verification', 'sent' => Carbon::now()]);
                     DB::table('sms_recipients')->insert(['recipients' => $user->id, 'sms_id' => $mid, 'sent' => Carbon::now()]);
                     $userSent = true;

@@ -39,7 +39,12 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
-        ],/*
+        ],
+        'superadmin' => [
+            'driver' => 'session',
+            'provider' => 'super_admins',
+        ],
+        /*
         'api'=> [
             'driver' => 'jwt',
             'provider' => 'users',
@@ -67,6 +72,10 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
+        ],
+        'super_admins' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\SuperAdmin::class,
         ],
 
         // 'users' => [
@@ -97,6 +106,12 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
+            'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'super_admins' => [
+            'provider' => 'super_admins',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,

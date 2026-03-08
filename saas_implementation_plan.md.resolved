@@ -1,0 +1,503 @@
+# SaaS Conversion: Step-Wise Implementation Plan
+
+## Pisti — Multi-Tenant Church Management SaaS Platform
+
+---
+
+> **Platform name:** Pisti &nbsp;|&nbsp; **First customer (Tenant #1):** Happy Church Ruiru
+
+## Part 1: Analysis of the Existing [MULTITENANT_SAAS_PLAN.md](file:///Users/bien/Downloads/pisti-app/MULTITENANT_SAAS_PLAN.md)
+
+### ✅ What the Existing Plan Gets Right
+
+| Area | Assessment |
+|------|-----------|
+| **Tenancy strategy** | Correct choice — single DB + `tenant_id` is right for ~70 tables. Database-per-tenant would be operationally unmanageable. |
+| **`BelongsToTenant` trait** | Excellent pattern. Global Eloquent scopes are the cleanest isolation mechanism. |
+| **Mpesa callback routing** | Smart solution — route by `BusinessShortCode` through a single endpoint. |
+| **Spatie team mode** | Correct approach for per-tenant role/permission isolation. |
+| **Superadmin panel design** | Comprehensive screens defined; correctly isolated from tenant dashboards. |
+| **Onboarding flow** | Automated provisioning steps are well thought out. |
+| **Migration strategy** | Safe — existing data inherits `tenant_id = 1`, no data loss. |
+| **Phase ordering** | Logical progression from foundation → data → integrations → billing → launch. |
+
+### ⚠️ Gaps & Issues in the Existing Plan
+
+| # | Gap | Risk | Fix |
+|---|-----|------|-----|
+| 1 | **No modular feature toggles per tenant** | Tenants cannot selectively enable/disable features | Add a `modules` table + `TenantModule` registry with on/off switches |
+| 2 | **No queue/job isolation** | Background jobs (SMS, Mpesa) won't set tenant context | Jobs must inject and restore `tenant_id` before execution |
+| 3 | **No feature gating on public routes** | Public church website routes check no plan limits | Route middleware must also check feature flags |
+| 4 | **`stancl/tenancy` vs custom** is left open | Mixing approaches mid-project is risky | **Decided**: use custom middleware only — simpler and fully controllable. `stancl/tenancy` is built for DB-per-tenant, not column isolation. |
+| 5 | **No API versioning strategy** | Future integrations will break existing API consumers | Add `/api/v1/` prefix from the start |
+| 6 | **Trial expiry is not enforced on login** | A suspended/expired tenant's users can still log in | Add `EnsureTenantActive` middleware check on every auth'd request |
+| 7 | **No data export per tenant** | Tenants who cancel cannot take their data with them (legal/trust risk) | Add data export job (GDPR-ready) |
+| 8 | **Wildcard SSL not addressed operationally** | Without `*.pisti.co.ke` cert, subdomain routing breaks | Add explicit DNS + SSL steps with Let's Encrypt certbot wildcard |
+| 9 | **No webhook/event system** | Enterprise tenants will need integrations (Zapier, custom webhooks) | Reserve the architecture for webhook dispatch events |
+| 10 | **Redis/Horizon mentioned but not planned** | Async jobs will be unreliable without a queue driver | Add Horizon setup as a Phase 1 prerequisite |
+
+### 🔑 Critical Recommendation: Use Custom Middleware, Not `stancl/tenancy`
+
+The existing plan recommends `stancl/tenancy` but acknowledges the app uses column-based isolation (not database-per-tenant). `stancl/tenancy` is primarily built for database-per-tenant. Using it for column isolation adds unnecessary complexity and package lock-in.
+
+**Decision: Build a lightweight custom tenant resolution layer** (`IdentifyTenant` middleware + `BelongsToTenant` trait). This is simpler, fully controllable, and already designed in the plan.
+
+---
+
+## Part 2: Modular Architecture — Switchable Feature Modules
+
+Each core area of the app becomes a **named module** that can be toggled on/off per tenant via a plan or manual override.
+
+### Module Registry
+
+| Module Key | Description | Default State | Min Plan |
+|------------|-------------|---------------|----------|
+| `people` | Member directory, profiles, families | ON | Free |
+| `attendance` | Service attendance tracking | ON | Free |
+| `finance` | Funds, donations, budget, pledges | OFF | Starter |
+| `mpesa` | M-Pesa payment integration | OFF | Pro |
+| `sms` | SMS sending & scheduling | OFF | Starter |
+| `email` | Email campaigns | OFF | Starter |
+| `events` | Events, seminars, notices | ON | Free |
+| `spiritual` | Sermons, prayers, testimonials | ON | Free |
+| `website` | Public church website | OFF | Starter |
+| `shop` | Products & purchases | OFF | Pro |
+| `media` | Media library & file manager | OFF | Starter |
+| `reports` | Analytics and reporting | OFF | Starter |
+| `discipleship` | Discipleship & small groups | OFF | Pro |
+| `api_access` | REST API for external integrations | OFF | Enterprise |
+
+### DB Schema: `tenant_modules` Table
+
+```sql
+CREATE TABLE tenant_modules (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id BIGINT UNSIGNED NOT NULL,
+    module VARCHAR(50) NOT NULL,           -- e.g. 'finance', 'mpesa'
+    is_enabled BOOLEAN DEFAULT FALSE,
+    override_by_admin BOOLEAN DEFAULT FALSE, -- superadmin manual override
+    enabled_at TIMESTAMP NULLABLE,
+    disabled_at TIMESTAMP NULLABLE,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    UNIQUE KEY unique_tenant_module (tenant_id, module),
+    INDEX idx_tenant_modules (tenant_id)
+);
+```
+
+### Module Service
+
+```php
+// app/Services/ModuleService.php
+class ModuleService
+{
+    public function isEnabled(string $module): bool
+    {
+        $tenantId = config('app.tenant_id');
+        return cache()->remember("tenant_{$tenantId}_module_{$module}", 300, fn() =>
+            TenantModule::where('tenant_id', $tenantId)
+                ->where('module', $module)
+                ->where('is_enabled', true)
+                ->exists()
+        );
+    }
+}
+```
+
+### Usage in Routes & Blade
+
+```php
+// In routes/web.php — wrap entire module route group:
+Route::middleware(['auth', 'module:finance'])->prefix('dashboard/finance')->group(function () {
+    // Finance routes
+});
+
+// In Blade view — hide nav items:
+@if(module('finance'))
+    <li><a href="/dashboard/finance">Finance</a></li>
+@endif
+```
+
+---
+
+## Part 3: Step-Wise Implementation Plan
+
+### Phase 0: Pre-Work & Infrastructure (Days 1–3)
+
+> Prerequisite setup before any code changes.
+
+- [ ] **0.1** Set up Redis locally and on server; configure `QUEUE_CONNECTION=redis` in [.env](file:///Users/bien/Downloads/pisti-app/.env)
+- [ ] **0.2** Install & configure Laravel Horizon (`composer require laravel/horizon`)
+- [ ] **0.3** Obtain wildcard SSL certificate for `*.pisti.co.ke` via Let's Encrypt:
+  ```bash
+  certbot certonly --manual --preferred-challenges dns -d "*.pisti.co.ke" -d "pisti.co.ke"
+  ```
+- [ ] **0.4** Configure Nginx with wildcard subdomain routing:
+  ```nginx
+  server_name *.pisti.co.ke pisti.co.ke;
+  ```
+- [ ] **0.5** Set up staging environment subdomain: `churchname.pisti.co.ke` for safe testing
+- [ ] **0.6** Take full database backup of production
+
+---
+
+### Phase 1: Foundation — Tenant & Module Tables (Days 4–7)
+
+> Create the core SaaS scaffolding without touching existing app behaviour.
+
+- [ ] **1.1** Create migration for `tenants` table (as specified in existing plan Section 3a)
+- [ ] **1.2** Create migration for `plans` table with feature JSON column
+- [ ] **1.3** Create migration for `subscriptions` table
+- [ ] **1.4** Create migration for `super_admins` table
+- [ ] **1.5** Create migration for `platform_audit_log` table
+- [ ] **1.6** Create migration for `tenant_modules` table *(new — not in original plan)*
+- [ ] **1.7** Create `Tenant`, `Plan`, `Subscription`, `SuperAdmin`, `TenantModule` Eloquent models
+- [ ] **1.8** Seed: Insert seed plans (Free, Starter, Pro, Enterprise) with feature JSON
+- [ ] **1.9** Seed: Insert `tenant #1` = Happy Church Ruiru (migrating existing instance)
+- [ ] **1.10** Seed: Insert default modules per plan tier into `tenant_modules` for tenant #1
+- [ ] **1.11** Write `PlatformAuditLog::record()` static helper for logging action
+
+**Verification:**
+```bash
+php artisan migrate
+php artisan db:seed --class=PlansSeeder
+php artisan db:seed --class=DefaultTenantSeeder
+php artisan tinker  # Tenant::count() should return 1, Plan::count() should return 4
+```
+
+---
+
+### Phase 2: Tenant Resolution Middleware (Days 7–9)
+
+> Wire up subdomain → tenant resolution. Existing Happy Church users must be unaffected.
+
+- [ ] **2.1** Create `app/Http/Middleware/IdentifyTenant.php`:
+  - Extract subdomain slug from request host
+  - Look up `Tenant` by `slug` OR `domain` (custom domain support)
+  - Abort 404 if no tenant found (except for `www.` and `admin.` subdomains)
+  - Bind tenant to service container: `app()->instance('tenant', $tenant)`
+  - Set `config('app.tenant_id', $tenant->id)`
+- [ ] **2.2** Create `app/Http/Middleware/EnsureTenantActive.php`:
+  - Check `$tenant->status` is `active` or `trial`
+  - Check trial not expired: `$tenant->trial_ends_at > now()`
+  - Redirect to billing/upgrade page if expired
+- [ ] **2.3** Create `app/Http/Middleware/CheckModule.php`:
+  - Read module name from middleware parameter: `middleware('module:finance')`
+  - Use `ModuleService::isEnabled()` to check
+  - Return 403 with upgrade prompt if module is off
+- [ ] **2.4** Register all three middleware in [app/Http/Kernel.php](file:///Users/bien/Downloads/pisti-app/app/Http/Kernel.php)
+- [ ] **2.5** Create `app/Services/ModuleService.php` with Redis-cached module checks
+- [ ] **2.6** Create `tenant()` global helper function returning `app('tenant')`
+- [ ] **2.7** Create `module($key)` global helper returning `ModuleService::isEnabled($key)`
+- [ ] **2.8** Create `app/Helpers/helpers.php` and register in [composer.json](file:///Users/bien/Downloads/pisti-app/composer.json) autoload
+
+**Verification:**
+```bash
+# Set up local /etc/hosts: 127.0.0.1 happychurch-ruiru.pisti.local
+# Visit happychurch-ruiru.pisti.local/dashboard
+# Confirm: config('app.tenant_id') == 1 in tinker or in a debug route
+```
+
+---
+
+### Phase 3: BelongsToTenant Trait & Core Models (Days 9–12)
+
+> Apply the global scope trait to models, starting with the most critical, without breaking existing functionality.
+
+- [ ] **3.1** Create `app/Traits/BelongsToTenant.php` with:
+  - Global Eloquent scope filtering by `config('app.tenant_id')`
+  - Auto-setting `tenant_id` on model `creating` event
+  - `withoutTenantScope()` scope for superadmin use
+- [ ] **3.2** Add `tenant_id` column migration (batch 1 — critical tables):
+  - `users`, `settings`, `integrations`
+  - Default value: `1` (existing data safe)
+  - Add index on `tenant_id`
+- [ ] **3.3** Apply `BelongsToTenant` trait to `User`, `Setting`, `Integration` models
+- [ ] **3.4** Update `User` model: scope login by `tenant_id` in auth credentials
+- [ ] **3.5** Update `LoginController` to inject `tenant_id` into credentials array
+- [ ] **3.6** Update unique indexes on `users.email` and `users.phone` to be per-tenant composites
+
+**Verification:**
+```bash
+php artisan migrate
+# Login at happychurch-ruiru.pisti.local — should work normally
+# Confirm User::all() returns only tenant_id=1 users (not a global list)
+```
+
+---
+
+### Phase 4: Full Data Migration — All 70 Tables (Days 12–18)
+
+> The most mechanical phase. Add `tenant_id` to all remaining tables and apply the trait.
+
+**Grouped migration batches:**
+
+- [ ] **4.1** People tables: `contacts`, `scontacts`, `emergency_contact`, `church`, `families`, `professions`, `education`, `profiles`, `profile_categories`
+- [ ] **4.2** Finance tables: `funds`, `sources`, `pledges`, `pledge_sms`, `assets`, `donations`, `budget`, `budget_items`, `activities`, `summaries`, `summaries_operations`, `ModeOfPayment`
+- [ ] **4.3** Communication tables: `sms`, `sms_recipients`, `emails`, `email_recipients`, `schedules`, `twilios`
+- [ ] **4.4** Events tables: `events`, `notices`, `seminars`, `attendance`, `attendance_groups`, `registration`
+- [ ] **4.5** Spiritual tables: `sermons`, `prayers`, `testimonials`
+- [ ] **4.6** People Groups: `communities`, `departments`, `people`, `people_members`, `participants`, `groups`, `pastors`
+- [ ] **4.7** Content: `articles`, `article_categories`, `article_tags`, `galleries`, `home_pages`, `pastorsmessage`, `orderofservice`, `weeklyverse`, `media_folders`, `media_files`
+- [ ] **4.8** Shop: `products`, `purchases`
+- [ ] **4.9** Settings/Tags: `tags`, `tag_user`, `birthday_settings`, `sunday_school_classes`, `residences`, `mpesa_message_settings`
+- [ ] **4.10** Mpesa: `mpesa_transactions`, `mpesa_phones`, `missing_mpesa_phones`
+- [ ] **4.11** Spatie auth: `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions`
+- [ ] **4.12** Apply `BelongsToTenant` trait to ALL corresponding models
+- [ ] **4.13** Audit all `DB::table()` and `DB::select()` raw queries — add manual `where('tenant_id', tenant()->id)` scoping:
+  ```bash
+  grep -rn "DB::table\|DB::select\|DB::statement" app/Http/Controllers/ --include="*.php"
+  ```
+- [ ] **4.14** Add composite indexes: `(tenant_id, created_at)`, `(tenant_id, phone)`, `(tenant_id, email)`
+- [ ] **4.15** Enable Spatie `teams` mode in [config/permission.php](file:///Users/bien/Downloads/pisti-app/config/permission.php):
+  ```php
+  'teams' => true,
+  'team_foreign_key' => 'tenant_id',
+  ```
+- [ ] **4.16** Write isolation test: create two test tenants, verify data from tenant A is invisible to tenant B
+
+**Verification:**
+```bash
+php artisan migrate
+php artisan test --filter=TenantIsolationTest  # new test to write
+# Manually: log in as two different tenants, confirm data is isolated
+```
+
+---
+
+### Phase 5: Module-Gated Routes & UI (Days 18–22)
+
+> Wrap each dashboard section's routes with the `module:` middleware. Hide nav items in Blade.
+
+- [ ] **5.1** Restructure [routes/web.php](file:///Users/bien/Downloads/pisti-app/routes/web.php) — group routes by module with `middleware('module:X')`:
+  - Finance routes → `middleware(['auth', 'tenant.active', 'module:finance'])`
+  - SMS routes → `middleware(['auth', 'tenant.active', 'module:sms'])`
+  - Mpesa routes → `middleware(['auth', 'tenant.active', 'module:mpesa'])`
+  - Events routes → `middleware(['auth', 'tenant.active', 'module:events'])`
+  - Spiritual routes → `middleware(['auth', 'tenant.active', 'module:spiritual'])`
+  - Shop routes → `middleware(['auth', 'tenant.active', 'module:shop'])`
+  - Website routes → `middleware(['auth', 'tenant.active', 'module:website'])`
+  - Media routes → `middleware(['auth', 'tenant.active', 'module:media'])`
+  - Reports routes → `middleware(['auth', 'tenant.active', 'module:reports'])`
+  - Discipleship routes → `middleware(['auth', 'tenant.active', 'module:discipleship'])`
+- [ ] **5.2** Update sidebar navigation Blade component to use `@if(module('X'))` guards
+- [ ] **5.3** Create "Module Disabled" / upgrade prompt view returned by `CheckModule` middleware
+- [ ] **5.4** Create tenant Settings page section: **"Features"** — a toggle UI for tenants to enable/disable modules (respecting plan limits)
+- [ ] **5.5** Flush module cache on plan change or module toggle:
+  ```php
+  Cache::forget("tenant_{$tenantId}_module_{$module}");
+  ```
+
+---
+
+### Phase 6: Integration Isolation (Days 22–26)
+
+> Ensure Mpesa, SMS, and Email all use per-tenant credentials.
+
+- [ ] **6.1** Update all SMS-sending code to read `Integration` by `tenant_id` and `type = 'sms'`
+- [ ] **6.2** Update all Email-sending code to dynamically set mail config per-tenant
+- [ ] **6.3** Update Mpesa STK Push to use tenant's own paybill from `integrations`
+- [ ] **6.4** Update `MpesaAPIController::mpesaConfirmation()` to resolve tenant by `BusinessShortCode`
+- [ ] **6.5** Implement tenant-isolated file storage paths: `storage/app/tenants/{tenant_id}/`
+- [ ] **6.6** Update all file upload controllers to use `tenant_storage_path()` helper
+- [ ] **6.7** Update file serving route to serve from tenant-specific directory
+- [ ] **6.8** Update all queue Jobs to carry and restore `tenant_id` context:
+  ```php
+  class SendSmsJob implements ShouldQueue
+  {
+      public int $tenantId;
+      public function handle(): void {
+          config(['app.tenant_id' => $this->tenantId]);
+          // ... send SMS
+      }
+  }
+  ```
+
+---
+
+### Phase 7: SaaS Billing & Subscriptions (Days 26–33)
+
+> Subscription management, plan gating, payment collection.
+
+- [ ] **7.1** Create `BillingController` for tenant self-service billing page
+- [ ] **7.2** Build tenant billing dashboard view: current plan, usage stats, upgrade CTA
+- [ ] **7.3** Implement Mpesa STK Push for subscription payment (use Pisti's central platform paybill)
+- [ ] **7.4** Create `SubscriptionWebhookController` to handle successful subscription payments:
+  - Update `subscriptions` record
+  - Update `tenant.status` to `active`
+  - Activate modules for new plan
+  - Log to `platform_audit_log`
+- [ ] **7.5** Create `CheckPlanLimits` middleware (user count, SMS quota, storage)
+- [ ] **7.6** Create artisan command `saas:check-expiring-trials` — runs daily via scheduler:
+  - 7 days before: send warning email
+  - 3 days before: send SMS
+  - On expiry: set `tenant.status = 'trial_expired'`; disable paid modules
+- [ ] **7.7** Create artisan command `saas:check-overdue-subscriptions` — runs daily
+- [ ] **7.8** Create invoice generation (PDF export per subscription record)
+- [ ] **7.9** Add `grace_period_days` config (default: 7 days after expiry before suspension)
+
+---
+
+### Phase 8: Superadmin Panel (Days 33–40)
+
+> Complete Superadmin panel at `admin.pisti.co.ke` for platform monitoring
+
+- [ ] **8.1** Create `SuperAdmin` Eloquent model + `superadmin` auth guard in [config/auth.php](file:///Users/bien/Downloads/pisti-app/config/auth.php)
+- [ ] **8.2** Create `SuperAdminAuthController` (login, logout)
+- [ ] **8.3** Create `app/Http/Middleware/SuperAdminMiddleware.php`
+- [ ] **8.4** Create superadmin route group scoped to `admin.pisti.co.ke` domain
+- [ ] **8.5** Build Superadmin views (using AdminLTE or same Blade stack):
+  - **Overview Dashboard** — platform KPIs: churches, users, MRR, SMS sent
+  - **Tenants List** — DataTable with plan, status, last active; actions: suspend/activate/impersonate
+  - **Tenant Detail** — usage stats, audit log, integration status, manual module overrides
+  - **Plans CRUD** — feature matrix toggle, subscriber counts
+  - **Billing & Revenue** — MRR, ARR, failed payments, invoices
+  - **SMS Monitor** — per-tenant usage, delivery rates
+  - **Mpesa Monitor** — callback success/failure, unresolved callbacks
+  - **Audit Log** — filterable, exportable
+  - **Platform Settings** — global defaults, email templates, feature flags
+- [ ] **8.6** Implement **Impersonation**: store real superadmin session, set `impersonate_tenant_id` to switch context; exit impersonation restores original session
+- [ ] **8.7** Add manual module override: superadmin can force-enable/disable any module for any tenant regardless of plan
+- [ ] **8.8** Seed default superadmin account
+
+---
+
+### Phase 9: Tenant Onboarding & Self-Service (Days 40–46)
+
+> Public registration and automated tenant provisioning.
+
+- [ ] **9.1** Build marketing landing page at `www.pisti.co.ke` with pricing section
+- [ ] **9.2** Build public registration form: church name, admin name, email, phone, password, plan selection
+- [ ] **9.3** Create `TenantProvisioningJob` (queued) that runs on registration:
+  1. Create `Tenant` record (slug auto-generated from church name, deduplicated)
+  2. Create initial `Settings` row for tenant
+  3. Create admin `User` with `Super Admin` role
+  4. `setPermissionsTeamId($tenant->id)` → seed default roles + permissions
+  5. Create default fund sources (Tithe, Offering, Special Offering)
+  6. Create default attendance groups
+  7. Enable default modules for selected plan
+  8. Send welcome email with login URL
+  9. Log to `platform_audit_log`
+- [ ] **9.4** Create post-login **Setup Wizard** for new tenants (first login only):
+  - Step 1: Upload church logo
+  - Step 2: Configure Mpesa (optional)
+  - Step 3: Configure SMS sender (optional)
+  - Step 4: Invite team members
+  - Step 5: Done!
+- [ ] **9.5** Add `setup_complete` boolean to `tenants` table — wizard shown until `true`
+- [ ] **9.6** Implement custom domain support: `tenants.domain` column + `IdentifyTenant` middleware already handles this; add DNS instructions in onboarding
+- [ ] **9.7** Build **Data Export** page (GDPR): tenant admin can request full data export as ZIP (queued job)
+
+---
+
+### Phase 10: Testing, Security Audit & Launch (Days 46–55)
+
+> Comprehensive validation before production.
+
+- [ ] **10.1** Write `TenantIsolationTest` — PHPUnit feature test:
+  - Create 2 tenants with data
+  - Assert tenant A's Eloquent queries never return tenant B's records
+  - Test for users, funds, contacts, SMS, Mpesa transactions
+- [ ] **10.2** Write `ModuleGatingTest`:
+  - Assert routes return 403 when module is disabled
+  - Assert routes are accessible when module is enabled
+- [ ] **10.3** Write `BillingFlowTest`:
+  - Mock Mpesa callback for subscription payment
+  - Assert tenant status updated to active after payment
+- [ ] **10.4** Run security audit:
+  ```bash
+  grep -rn "DB::table\|DB::select" app/ --include="*.php" | grep -v "tenant_id"
+  # Any results = potential data leakage
+  ```
+- [ ] **10.5** Load test with multiple tenants (use Laravel's HTTP tests with different tenant configs)
+- [ ] **10.6** Migrate existing Happy Church Ruiru production data as Tenant #1:
+  ```bash
+  php artisan migrate --force  # On production
+  php artisan db:seed --class=PlansSeeder
+  php artisan db:seed --class=DefaultTenantSeeder  # Creates tenant #1
+  ```
+- [ ] **10.7** Configure production DNS:
+  - `*.pisti.co.ke` → server IP (A record)
+  - Wildcard SSL certificate in place
+- [ ] **10.8** Configure cron jobs on server:
+  ```bash
+  * * * * * php /path/to/artisan schedule:run
+  ```
+  (Covers trial expiry checks, subscription overdue checks, etc.)
+- [ ] **10.9** Configure Horizon supervisor on server
+- [ ] **10.10** Update `SESSION_DOMAIN=.pisti.co.ke` in [.env](file:///Users/bien/Downloads/pisti-app/.env) (subdomain-shared cookies)
+- [ ] **10.11** Set up monitoring: Laravel Telescope (dev) + error tracking (Sentry or similar)
+- [ ] **10.12** Redirect old production URL to `happychurch-ruiru.pisti.co.ke`
+
+---
+
+## Part 4: Module Architecture — File Structure
+
+```
+app/
+├── Http/
+│   ├── Middleware/
+│   │   ├── IdentifyTenant.php          ← NEW: subdomain → tenant resolution
+│   │   ├── EnsureTenantActive.php      ← NEW: trial/subscription status check
+│   │   ├── CheckModule.php             ← NEW: module on/off gating
+│   │   └── CheckPlanLimits.php         ← NEW: quota enforcement (users, SMS, storage)
+│   └── Controllers/
+│       ├── Superadmin/                 ← NEW: entire superadmin panel
+│       │   ├── SuperAdminAuthController.php
+│       │   ├── DashboardController.php
+│       │   ├── TenantController.php
+│       │   ├── PlanController.php
+│       │   ├── BillingController.php
+│       │   ├── SmsMonitorController.php
+│       │   ├── MpesaMonitorController.php
+│       │   ├── AuditController.php
+│       │   └── PlatformSettingsController.php
+│       └── SaaS/                       ← NEW: tenant self-service
+│           ├── RegistrationController.php
+│           ├── OnboardingWizardController.php
+│           ├── BillingController.php
+│           └── DataExportController.php
+├── Models/
+│   ├── Tenant.php                      ← NEW
+│   ├── Plan.php                        ← NEW
+│   ├── Subscription.php                ← NEW
+│   ├── SuperAdmin.php                  ← NEW
+│   ├── TenantModule.php               ← NEW
+│   └── PlatformAuditLog.php           ← NEW
+├── Services/
+│   └── ModuleService.php              ← NEW: cached module checks
+├── Traits/
+│   └── BelongsToTenant.php            ← NEW: global scope trait
+├── Jobs/
+│   ├── TenantProvisioningJob.php      ← NEW: async tenant setup
+│   ├── DataExportJob.php              ← NEW: GDPR data export
+│   └── [existing jobs updated with tenant context]
+└── Helpers/
+    └── helpers.php                    ← NEW: tenant(), module() global helpers
+```
+
+---
+
+## Part 5: Delivery Timeline Summary
+
+| Phase | Focus | Duration |
+|-------|-------|----------|
+| 0 | Infrastructure (Redis, Horizon, SSL, Nginx, Staging) | Days 1–3 |
+| 1 | Core SaaS tables (tenants, plans, subscriptions, modules) | Days 4–7 |
+| 2 | Tenant resolution middleware + module service | Days 7–9 |
+| 3 | BelongsToTenant trait + critical models (users, settings) | Days 9–12 |
+| 4 | Full 70-table migration + raw query audit | Days 12–18 |
+| 5 | Module-gated routes + Blade UI guards | Days 18–22 |
+| 6 | Integration isolation (Mpesa, SMS, Email, Storage, Jobs) | Days 22–26 |
+| 7 | Billing & subscriptions | Days 26–33 |
+| 8 | Superadmin panel | Days 33–40 |
+| 9 | Tenant onboarding & self-service | Days 40–46 |
+| 10 | Testing, security audit, production migration & launch | Days 46–55 |
+
+**Total estimated duration: ~8 weeks**
+
+> [!IMPORTANT]
+> Phase 4 (full table migration) is the highest-risk phase. All 70 tables must have `tenant_id` before any phase 5+ work begins. Each batch should be migrated on the staging environment first and tested for data isolation before running on production.
+
+> [!NOTE]
+> The existing [MULTITENANT_SAAS_PLAN.md](file:///Users/bien/Downloads/pisti-app/MULTITENANT_SAAS_PLAN.md) is an excellent foundation and structurally sound. This plan extends it with the modular feature system, fixes the identified gaps, and provides execution-level granularity. The two plans should be considered complementary.

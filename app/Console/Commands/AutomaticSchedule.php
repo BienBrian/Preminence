@@ -117,38 +117,15 @@ class AutomaticSchedule extends Command
 
     private function sendEmail($email, $subject, $firstname, $lastname, $body, $church_name)
     {
+        app(\App\Services\IntegrationService::class)->applyEmailConfig();
         $data = ['name' => $firstname . ' ' . $lastname, 'mes' => $body];
         Mail::send('dashboard.communication.mail', $data, function ($message) use ($email, $subject, $firstname, $lastname, $church_name) {
             $message->to($email, $firstname . ' ' . $lastname)->subject($subject);
-            $message->from('info@happychurchruiru.org', $church_name);
+            $message->from(config('mail.from.address', 'info@happychurchruiru.org'), $church_name);
         });
     }
 
     public function send($number, $message){
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/x-www-form-urlencoded',
-                'Authorization: Bearer ' . env('SMS_API_KEY'),
-            ),
-        ));
-
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-        curl_close($curl);
-        if ($err) {
-            return false;
-        } else {
-            return true;
-        }
+        return app(\App\Services\IntegrationService::class)->sendSms($number, $message);
     }
 }

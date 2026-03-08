@@ -62,15 +62,14 @@ class FinancialController extends DashboardController
 
     public function overview()
     {
-
-        $collected = \DB::table('funds')->where('sources.ftype', 0)->join("sources", "sources.id", "funds.source")->sum('amount')
-            + \DB::table('pledges')->where('status', 1)->sum('amount')
-            + \DB::table('purchases')->where('status', 1)->sum('amount');
-        $spent = \DB::table('funds')->where('sources.ftype', 1)->join("sources", "sources.id", "funds.source")->sum('amount');
-        $donation = \DB::table('donations')->sum('amount');
-        $sources = \DB::table("sources")->get();
+        $tid = config('app.tenant_id');
+        $collected = \DB::table('funds')->where('funds.tenant_id', $tid)->where('sources.ftype', 0)->join("sources", "sources.id", "funds.source")->sum('funds.amount')
+            + \DB::table('pledges')->where('tenant_id', $tid)->where('status', 1)->sum('amount')
+            + \DB::table('purchases')->where('tenant_id', $tid)->where('status', 1)->sum('amount');
+        $spent = \DB::table('funds')->where('funds.tenant_id', $tid)->where('sources.ftype', 1)->join("sources", "sources.id", "funds.source")->sum('funds.amount');
+        $donation = \DB::table('donations')->where('tenant_id', $tid)->sum('amount');
+        $sources = \DB::table("sources")->where('tenant_id', $tid)->get();
         return view('dashboard.finance.overview')->with('collected', $collected)->with("sources", $sources)->with('spent', $spent)->with('donation', $donation);
-
     }
 
     public function budgetpdf(Request $request)
@@ -122,23 +121,21 @@ class FinancialController extends DashboardController
     }*/
     public function budgets(Request $request)
     {
-        $sources = \DB::table('sources')->get();
-        return view('dashboard.finance.budgets', ['sources' => $sources, "budget" => \DB::table('budget')->orderBy('id', 'DESC')->paginate(15)]);
+        $tid = config('app.tenant_id');
+        $sources = \DB::table('sources')->where('tenant_id', $tid)->get();
+        return view('dashboard.finance.budgets', ['sources' => $sources, "budget" => \DB::table('budget')->where('tenant_id', $tid)->orderBy('id', 'DESC')->paginate(15)]);
     }
     public function budget(Request $request)
     {
-        $sources = \DB::table('sources')->get();
-        $budget = \DB::table("budget")->where("budget.id", $request->id)->first();
+        $tid = config('app.tenant_id');
+        $sources = \DB::table('sources')->where('tenant_id', $tid)->get();
+        $budget = \DB::table("budget")->where("tenant_id", $tid)->where("budget.id", $request->id)->first();
         if ($budget == null) {
             return redirect()->to("budget")->with("error", "Invalid budget ID");
         }
         $budget_items = \DB::table('budget_items')->select("sources.id", "sources.name", "sources.ftype", "budget_items.amount")->where('budget_items.budget_id', $request->id)
             ->leftJoin("sources", "sources.id", "=", "budget_items.source")->get();
-
-        //return json_encode($budget_items);
-
         return view('dashboard.finance.budget-edit', ['sources' => $sources, "budget_items" => $budget_items, "budget" => $budget, "bid" => $request->id]);
-
     }
 
     public function previewbudget(Request $request)
@@ -176,12 +173,10 @@ class FinancialController extends DashboardController
 
     public function removebudget(Request $request)
     {
-        if (\DB::table("budget")->where("id", $request->id)->delete()) {
-            if (\DB::table("budget_items")->where("budget_id", $request->id)->delete()) {
-                return back()->with("success", "Budget removal successful");
-            } else {
-                return back()->with("Unable to complete budget removal!");
-            }
+        $tid = config('app.tenant_id');
+        if (\DB::table("budget")->where("tenant_id", $tid)->where("id", $request->id)->delete()) {
+            \DB::table("budget_items")->where("budget_id", $request->id)->delete();
+            return back()->with("success", "Budget removal successful");
         } else {
             return back()->with("error", "Unable to remove budget!");
         }
@@ -198,16 +193,14 @@ class FinancialController extends DashboardController
         $name = $request->name;
         $end = \Carbon\Carbon::parse($temp);
 
+        $tid = config('app.tenant_id');
         if (!empty($request->bid)) {
-            \DB::table('budget')->where("id", $request->bid)->update(["name" => $name, "start" => $start, "end" => $end]);
+            \DB::table('budget')->where("tenant_id", $tid)->where("id", $request->bid)->update(["name" => $name, "start" => $start, "end" => $end]);
             \DB::table("budget_items")->where("budget_id", $request->bid)->delete();
             foreach ($input as $name => $value) {
-                if (
-                    !($name == "through" || $name == "month" || $name == "endthrough" || $name == "endmonth" ||
-                        $name == "name" || $name == "_token" || $name == "categories" || $name == "bid")
-                ) {
+                if (!($name == "through" || $name == "month" || $name == "endthrough" || $name == "endmonth" || $name == "name" || $name == "_token" || $name == "categories" || $name == "bid")) {
                     $item_id = preg_replace("/[^0-9]/", "", $name);
-                    \DB::table("budget_items")->insert(["budget_id" => $request->bid, "amount" => $value, "source" => $item_id, "choice" => 0]);
+                    \DB::table("budget_items")->insert(["tenant_id" => $tid, "budget_id" => $request->bid, "amount" => $value, "source" => $item_id, "choice" => 0]);
                 }
             }
         } else {
@@ -215,21 +208,14 @@ class FinancialController extends DashboardController
             $temp = \Carbon\Carbon::parse($request->endmonth . " " . $request->endthrough)->format('Y-m-t');
             $name = $request->name;
             $end = \Carbon\Carbon::parse($temp);
-
-            $id = \DB::table('budget')->insertGetId(["name" => $name, "start" => $start, "end" => $end]);
-
+            $id = \DB::table('budget')->insertGetId(["tenant_id" => $tid, "name" => $name, "start" => $start, "end" => $end]);
             foreach ($input as $name => $value) {
-                if (
-                    !($name == "through" || $name == "month" || $name == "endthrough" || $name == "endmonth" ||
-                        $name == "name" || $name == "_token" || $name == "categories")
-                ) {
+                if (!($name == "through" || $name == "month" || $name == "endthrough" || $name == "endmonth" || $name == "name" || $name == "_token" || $name == "categories")) {
                     $item_id = preg_replace("/[^0-9]/", "", $name);
-                    $mid = 0;
-                    $mid = \DB::table("budget_items")->insertGetId(["budget_id" => $id, "amount" => $value, "source" => $item_id, "choice" => 0]);
+                    \DB::table("budget_items")->insertGetId(["tenant_id" => $tid, "budget_id" => $id, "amount" => $value, "source" => $item_id, "choice" => 0]);
                 }
             }
         }
-
         return back()->with("success", "Successfully saved!");
     }
 
@@ -402,8 +388,8 @@ class FinancialController extends DashboardController
                     $mpesaApiController->send($number, $message);
 
                     if ($user != null) {
-                        $mid = \DB::table("sms")->insertGetId(["people_id" => 0, "message" => $message, "category" => "mpesa", "sent" => \Carbon\Carbon::now()]);
-                        \DB::table('sms_recipients')->insert(["recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                        $mid = \DB::table("sms")->insertGetId(["tenant_id" => config('app.tenant_id'), "people_id" => 0, "message" => $message, "category" => "mpesa", "sent" => \Carbon\Carbon::now()]);
+                        \DB::table('sms_recipients')->insert(["tenant_id" => config('app.tenant_id'), "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
                     }
                 }
                 return redirect()->back()->with('success', "Tithe added successfully!");
@@ -508,7 +494,8 @@ class FinancialController extends DashboardController
 
     public function removefund(Request $request)
     {
-        if (\DB::table('funds')->where('id', $request->id)->delete()) {
+        $tid = config('app.tenant_id');
+        if (\DB::table('funds')->where('tenant_id', $tid)->where('id', $request->id)->delete()) {
             return redirect()->back()->with('success', 'Selected funds removed!');
         } else {
             return redirect()->back()->with('error', 'Unable to remove. Try again');
@@ -601,23 +588,19 @@ class FinancialController extends DashboardController
     }
     public function donations()
     {
-        $donations = \DB::table('donations')->paginate(15);
+        $tid = config('app.tenant_id');
+        $donations = \DB::table('donations')->where('tenant_id', $tid)->paginate(15);
         return view('dashboard.finance.donations')->with('donations', $donations);
     }
 
     public function assets()
     {
-    $totals = \DB::table('assets')->sum('amount');
-            $assets = \DB::table('assets')->select(
-                "assets.id",
-                "assets.name",
-                "assets.description",
-                "assets.acquired",
-                "assets.amount",
-                "users.firstname",
-                "users.lastname"
-            )->leftJoin("users", "users.id", "=", "assets.user_id")->paginate(15);
-            return view('dashboard.finance.assets')->with('assets', $assets)->with('totals', $totals);
+        $tid = config('app.tenant_id');
+        $totals = \DB::table('assets')->where('tenant_id', $tid)->sum('amount');
+        $assets = \DB::table('assets')->where('assets.tenant_id', $tid)
+            ->select("assets.id", "assets.name", "assets.description", "assets.acquired", "assets.amount", "users.firstname", "users.lastname")
+            ->leftJoin("users", "users.id", "=", "assets.user_id")->paginate(15);
+        return view('dashboard.finance.assets')->with('assets', $assets)->with('totals', $totals);
     }
 
     public function saveassets(Request $request)
@@ -627,31 +610,23 @@ class FinancialController extends DashboardController
             'amount' => 'required|regex:/^[0-9]+(\.[0-9][0-9]?)?$/',
             'acquired'=>'required|date'
         ]);
+        $tid = config('app.tenant_id');
         if ($request->id > 0) {
-            if (
-                \DB::table('assets')->where('id', $request->id)->update([
-                    "name" => $request->name,
-                    "amount" => $request->amount,
-                    "description" => $this->purify($request->description),
-                    "user_id" => \Auth::user()->id,
-                    "acquired"=>$request->acquired,
-                ])
-            ) {
+            if (\DB::table('assets')->where('tenant_id', $tid)->where('id', $request->id)->update([
+                "name" => $request->name, "amount" => $request->amount,
+                "description" => $this->purify($request->description),
+                "user_id" => \Auth::user()->id, "acquired" => $request->acquired,
+            ])) {
                 return redirect()->back()->with('success', 'Assets update succesfully!');
             } else {
                 return redirect()->back()->with('error', 'Unable to save assets!');
             }
         } else {
-            $date =$request->acquired;
-            if (
-                \DB::table('assets')->insert([
-                    "name" => $request->name,
-                    "amount" => $request->amount,
-                    "description" => $this->purify($request->description),
-                    "user_id" => \Auth::user()->id,
-                    "acquired" => $date
-                ])
-            ) {
+            if (\DB::table('assets')->insert([
+                "tenant_id" => $tid, "name" => $request->name, "amount" => $request->amount,
+                "description" => $this->purify($request->description),
+                "user_id" => \Auth::user()->id, "acquired" => $request->acquired,
+            ])) {
                 return redirect()->back()->with('success', 'Assets saved succesfully!');
             } else {
                 return redirect()->back()->with('error', 'Unable to save assets!');
@@ -661,7 +636,8 @@ class FinancialController extends DashboardController
 
     public function removeasset(Request $request)
     {
-        if (\DB::table('assets')->where('id', $request->id)->delete()) {
+        $tid = config('app.tenant_id');
+        if (\DB::table('assets')->where('tenant_id', $tid)->where('id', $request->id)->delete()) {
             return redirect()->back()->with('success', 'Asset successfully removed');
         } else {
             return redirect()->back()->with('error', 'Unable to update. Try again');
@@ -670,9 +646,9 @@ class FinancialController extends DashboardController
 
     public function activities()
     {
-        $activities = \DB::table('activities')->orderBy('id', 'desc')->paginate(15);
+        $tid = config('app.tenant_id');
+        $activities = \DB::table('activities')->where('tenant_id', $tid)->orderBy('id', 'desc')->paginate(15);
         return view("dashboard.finance.activities")->with("activities", $activities);
-
     }
     public function activitiespermissions()
     {
@@ -690,17 +666,16 @@ class FinancialController extends DashboardController
 
     public function removeactivity(Request $request)
     {
-        $activity = \DB::table("activities")->where("id", $request->id)->first();
+        $tid = config('app.tenant_id');
+        $activity = \DB::table("activities")->where("tenant_id", $tid)->where("id", $request->id)->first();
         if ($activity == null) {
             return back()->with("error", "Invalid Choice!");
         } else {
-            if (
-                (\DB::table("pledges")->where("activity", $request->id)->count() > 0) ||
-                (\DB::table("groups")->where("activity", $request->id)->count() > 0)
-            ) {
+            if ((\DB::table("pledges")->where("tenant_id", $tid)->where("activity", $request->id)->count() > 0) ||
+                (\DB::table("groups")->where("tenant_id", $tid)->where("activity", $request->id)->count() > 0)) {
                 return back()->with("error", "The item you are deleting is already in use");
             } else {
-                if (\DB::table("activities")->where("id", $request->id)->delete()) {
+                if (\DB::table("activities")->where("tenant_id", $tid)->where("id", $request->id)->delete()) {
                     return back()->with("success", "Item has been removed successfully!");
                 } else {
                     return back()->with("error", "unable to remove item!");
@@ -717,37 +692,28 @@ class FinancialController extends DashboardController
             "date" => "required",
         ]);
         $today = \Carbon\Carbon::now();
+        $tid = config('app.tenant_id');
         $to = \Carbon\Carbon::parse($request->date);
         if ($to > $today) {
             if ($request->id > 0) {
-                if (\DB::table("activities")->where("id", "<>", $request->id)->where("name", $request->name)->count() > 0) {
+                if (\DB::table("activities")->where('tenant_id', $tid)->where("id", "<>", $request->id)->where("name", $request->name)->count() > 0) {
                     return redirect()->back()->with("error", "Duplicate name! Choose a different name!");
                 } else {
-                    if (
-                        \DB::table("activities")->where("id", $request->id)->update([
-                            "name" => $request->name,
-                            "description" => $request->description,
-                            "amount" => $request->amount,
-                            "closes_on" => $to
-                        ])
-                    ) {
+                    if (\DB::table("activities")->where('tenant_id', $tid)->where("id", $request->id)->update([
+                        "name" => $request->name, "description" => $request->description, "amount" => $request->amount, "closes_on" => $to
+                    ])) {
                         return redirect()->back()->with("success", "updated successfully!");
                     } else {
                         return redirect()->back()->with("error", "Unable to update");
                     }
                 }
             } else {
-                if (\DB::table("activities")->where("name", $request->name)->count() > 0) {
+                if (\DB::table("activities")->where('tenant_id', $tid)->where("name", $request->name)->count() > 0) {
                     return redirect()->back()->with("error", "Duplicate name! Choose a different name!");
                 } else {
-                    if (
-                        \DB::table("activities")->insert([
-                            "name" => $request->name,
-                            "description" => $request->description,
-                            "amount" => $request->amount,
-                            "closes_on" => $to
-                        ])
-                    ) {
+                    if (\DB::table("activities")->insert([
+                        "tenant_id" => $tid, "name" => $request->name, "description" => $request->description, "amount" => $request->amount, "closes_on" => $to
+                    ])) {
                         return redirect()->back()->with("success", "Activated Created!");
                     } else {
                         return redirect()->back()->with("error", "Unable to create activity");
@@ -761,30 +727,21 @@ class FinancialController extends DashboardController
 
     public function getactivity(Request $request)
     {
-        return json_encode(\DB::table("activities")->where("id", $request->id)->first());
+        $tid = config('app.tenant_id');
+        return json_encode(\DB::table("activities")->where('tenant_id', $tid)->where("id", $request->id)->first());
     }
 
     public function pledges(Request $request)
     {
-            $activity = \DB::table('activities')->where('id', $request->id)->first();
-            $pledged = \DB::table('pledges')->where("activity", $request->id)->sum("amount");
-            $paid = \DB::table('pledges')->where("activity", $request->id)->sum("paid");
-
-            $pledges = \DB::table("pledges")->select(
-                "pledges.id",
-                "activities.name",
-                "pledges.paid",
-                "pledges.status",
-                "activities.closes_on",
-                "pledges.amount",
-                "users.firstname",
-                "users.lastname",
-                "users.id as user"
-            )->where("activity", $request->id)->join("activities", "activities.id", "pledges.activity")->leftJoin("users", "users.id", "pledges.user_id")
-                ->paginate(15);
-
-            return view('dashboard.finance.pledges', ["pledges" => $pledges, "activity" => $activity, "pledged" => $pledged, "paid" => $paid]);
-
+        $tid = config('app.tenant_id');
+        $activity = \DB::table('activities')->where('tenant_id', $tid)->where('id', $request->id)->first();
+        $pledged  = \DB::table('pledges')->where('tenant_id', $tid)->where("activity", $request->id)->sum("amount");
+        $paid     = \DB::table('pledges')->where('tenant_id', $tid)->where("activity", $request->id)->sum("paid");
+        $pledges  = \DB::table("pledges")->where('pledges.tenant_id', $tid)
+            ->select("pledges.id", "activities.name", "pledges.paid", "pledges.status", "activities.closes_on", "pledges.amount", "users.firstname", "users.lastname", "users.id as user")
+            ->where("activity", $request->id)->join("activities", "activities.id", "pledges.activity")->leftJoin("users", "users.id", "pledges.user_id")
+            ->paginate(15);
+        return view('dashboard.finance.pledges', ["pledges" => $pledges, "activity" => $activity, "pledged" => $pledged, "paid" => $paid]);
     }
 
     public function importPledges(Request $request)

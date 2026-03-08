@@ -44,27 +44,8 @@ class OnboardingController extends Controller
     private function sendSmsOtp(string $phone, string $otp, string $churchName, ?int $userId = null): void
     {
         $message = "Your {$churchName} verification code is: {$otp}. Valid for 15 minutes.";
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL            => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_MAXREDIRS      => 10,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST  => 'GET',
-            CURLOPT_POSTFIELDS     => 'partnerID=' . env('SMS_PARTNER_ID') .
-                                      '&message=' . urlencode($message) .
-                                      '&shortcode=' . env('SMS_SHORT_CODE') .
-                                      '&mobile=' . $phone,
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/x-www-form-urlencoded',
-                'Authorization: Bearer ' . env('SMS_API_KEY'),
-            ],
-        ]);
-        curl_exec($curl);
-        curl_close($curl);
+
+        app(\App\Services\IntegrationService::class)->sendSms($phone, $message);
 
         // Log the OTP SMS to sms + sms_recipients tables
         $mid = DB::table('sms')->insertGetId([

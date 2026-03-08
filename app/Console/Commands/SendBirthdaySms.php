@@ -104,23 +104,6 @@ class SendBirthdaySms extends Command
 
     private function send($number, $message)
     {
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'partnerID=' . env('SMS_PARTNER_ID') . '&message=' . urlencode($message) . '&shortcode=' . env('SMS_SHORT_CODE') . '&mobile=' . $number,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded', 'Authorization: Bearer ' . env('SMS_API_KEY')],
-        ]);
-
-        $response = curl_exec($curl);
-        curl_close($curl);
-        $decoded = json_decode($response, true);
-        return $decoded;
+        return app(\App\Services\IntegrationService::class)->sendSms($number, $message);
     }
 }

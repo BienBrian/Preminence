@@ -20,11 +20,12 @@ trait AutoHashesMpesaPhone
 
         $hash = hash('sha256', $normalized);
 
-        // Create hash entry if not exists
-        if (!MpesaPhone::where('phone_hash', $hash)->exists()) {
+        // Use withoutTenantScope() so this works in both HTTP contexts (tenant set)
+        // and artisan commands / queue jobs (tenant context may not be configured).
+        if (!MpesaPhone::withoutTenantScope()->where('phone_hash', $hash)->exists()) {
             MpesaPhone::create([
-                'name' => $name,
-                'phone' => $normalized,
+                'name'       => $name,
+                'phone'      => $normalized,
                 'phone_hash' => $hash,
             ]);
         }

@@ -171,8 +171,8 @@ class ReportsController extends DashboardController
             }
         }
 
-        // 2. Try existing hash match
-        $mpesaPhone = MpesaPhone::where('phone_hash', $msisdn)->first();
+        // 2. Try existing hash match — withoutTenantScope() so this works cross-tenant
+        $mpesaPhone = MpesaPhone::withoutTenantScope()->where('phone_hash', $msisdn)->first();
         if ($mpesaPhone) {
             $contact = DB::table('contacts')
                 ->where('phone', '0' . substr($mpesaPhone->phone, 3))
@@ -210,7 +210,7 @@ class ReportsController extends DashboardController
             $hash = hash('sha256', $phone);
 
             // Ensure this hash is in mpesa_phones table
-            if (!MpesaPhone::where('phone_hash', $hash)->exists()) {
+            if (!MpesaPhone::withoutTenantScope()->where('phone_hash', $hash)->exists()) {
                 MpesaPhone::create([
                     'name' => $phoneRecord->firstname . ' ' . $phoneRecord->lastname,
                     'phone' => $phone,
@@ -246,7 +246,7 @@ class ReportsController extends DashboardController
                 $this->matchFundToUser($transaction, $userRecord->id);
 
                 // Ensure hash is stored
-                if (!MpesaPhone::where('phone_hash', $hash)->exists()) {
+                if (!MpesaPhone::withoutTenantScope()->where('phone_hash', $hash)->exists()) {
                     MpesaPhone::create([
                         'name' => $userRecord->firstname . ' ' . $userRecord->lastname,
                         'phone' => $phone,
@@ -287,7 +287,7 @@ class ReportsController extends DashboardController
             if (strlen($phone) != 12) continue;
 
             $hash = hash('sha256', $phone);
-            if (!MpesaPhone::where('phone_hash', $hash)->exists()) {
+            if (!MpesaPhone::withoutTenantScope()->where('phone_hash', $hash)->exists()) {
                 MpesaPhone::create([
                     'name' => $contact->firstname . ' ' . $contact->lastname,
                     'phone' => $phone,
@@ -311,7 +311,7 @@ class ReportsController extends DashboardController
             if (strlen($phone) != 12) continue;
 
             $hash = hash('sha256', $phone);
-            if (!MpesaPhone::where('phone_hash', $hash)->exists()) {
+            if (!MpesaPhone::withoutTenantScope()->where('phone_hash', $hash)->exists()) {
                 MpesaPhone::create([
                     'name' => $user->firstname . ' ' . $user->lastname,
                     'phone' => $phone,
@@ -359,7 +359,7 @@ class ReportsController extends DashboardController
             }
 
             // Hash match
-            $mpesaPhone = MpesaPhone::where('phone_hash', $msisdn)->first();
+            $mpesaPhone = MpesaPhone::withoutTenantScope()->where('phone_hash', $msisdn)->first();
             if ($mpesaPhone) {
                 $contact = DB::table('contacts')
                     ->where('phone', '0' . substr($mpesaPhone->phone, 3))

@@ -2,16 +2,20 @@
 
 namespace App\Models\Discipleship;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Mentorship extends Model
 {
+    use HasFactory, BelongsToTenant;
+
     protected $table = 'mentorships';
-    protected $fillable = ['mentor_id', 'mentee_id', 'status', 'started_at', 'ended_at', 'notes'];
+    protected $fillable = ['tenant_id', 'mentor_id', 'mentee_id', 'status', 'started_at', 'ended_at', 'notes'];
+
     protected $casts = [
         'started_at' => 'datetime',
-        'ended_at' => 'datetime',
+        'ended_at'   => 'datetime',
     ];
 
     public function mentor()
@@ -26,6 +30,6 @@ class Mentorship extends Model
 
     public function sessions()
     {
-        return $this->hasMany(MentorshipSession::class, 'mentorship_id')->orderBy('session_date', 'desc');
+        return $this->hasMany(MentorshipSession::class, 'mentorship_id');
     }
 }

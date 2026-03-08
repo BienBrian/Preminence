@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Dashboard\SMS;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
+use App\Services\IntegrationService;
 use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Carbon;
@@ -22,27 +23,46 @@ class SMSController extends DashboardController
     }
 
     public function sms(){
-        $totalSms = \DB::table("sms")->count();
-        $thisMonth = \DB::table("sms")->where("sent", ">=", Carbon::now()->startOfMonth())->count();
-        $totalRecipients = \DB::table("sms_recipients")->distinct("recipients")->count("recipients");
-        $scheduledCount = \DB::table("schedules")->where("type", 0)->count();
-        $invitationCount = \DB::table('sms')->where('category', 'invitation')->count();
+        $tid = config('app.tenant_id');
+        $totalSms = \DB::table("sms")->where('tenant_id', $tid)->count();
+        $thisMonth = \DB::table("sms")->where('tenant_id', $tid)->where("sent", ">=", Carbon::now()->startOfMonth())->count();
+        $totalRecipients = \DB::table("sms_recipients")->where('tenant_id', $tid)->distinct("recipients")->count("recipients");
+        $scheduledCount = \DB::table("schedules")->where('tenant_id', $tid)->where("type", 0)->count();
+        $invitationCount = \DB::table('sms')->where('tenant_id', $tid)->where('category', 'invitation')->count();
         return view("dashboard.communication.sms", compact('totalSms', 'thisMonth', 'totalRecipients', 'scheduledCount', 'invitationCount'));
     }
 
     public function getCreditsBalance(Request $request)
     {
-        // Query available SMS and email credits from the credits table
-        $smsCredits  = \DB::table('credits')->where('type', 'sms')->sum('balance') ?? 0;
-        $emailCredits = \DB::table('credits')->where('type', 'email')->sum('balance') ?? 0;
+        // Fetch SMS credits from the provider API
+        $integrationService = app(IntegrationService::class);
+        $smsCreditsResponse = $integrationService->checkSmsCredits();
+        
+        $smsCredits = null;
+        if (is_array($smsCreditsResponse)) {
+            // Try common response formats from SMS providers
+            $smsCredits = $smsCreditsResponse['balance'] 
+                ?? $smsCreditsResponse['credit'] 
+                ?? $smsCreditsResponse['credits'] 
+                ?? $smsCreditsResponse['credits_remaining'] 
+                ?? $smsCreditsResponse['data']['balance'] 
+                ?? null;
+        }
+        
+        // Email credits - still from config or could be from email provider API
+        $emailCredits = 9999; // Unlimited for SMTP-based email
+        
         return response()->json([
-            'sms'   => (int) $smsCredits,
+            'sms'   => $smsCredits !== null ? (int) $smsCredits : null,
             'email' => (int) $emailCredits,
+            'source' => $smsCredits !== null ? 'api' : 'unknown',
         ]);
     }
 
     public function getSmsDataTable(Request $request){
+        $tid = config('app.tenant_id');
         $query = \DB::table("sms")
+            ->where('sms.tenant_id', $tid)
             ->select("sms.id", "sms.message", "sms.category", "sms.sent", \DB::Raw("count(sms_recipients.sms_id) as recipients"))
             ->leftJoin("sms_recipients", "sms_recipients.sms_id", "=", "sms.id")
             ->groupBy("sms.id", "sms.message", "sms.category", "sms.sent")
@@ -154,7 +174,9 @@ class SMSController extends DashboardController
     }
 
     public function getScheduledDataTable(Request $request){
+        $tid = config('app.tenant_id');
         $query = \DB::table("schedules")
+            ->where('schedules.tenant_id', $tid)
             ->select(
                 "schedules.id",
                 "schedules.message",
@@ -196,61 +218,46 @@ class SMSController extends DashboardController
     }
 
     public function cancelSchedule(Request $request){
-        \DB::table("schedules")->where("id", $request->id)->delete();
+        $tid = config('app.tenant_id');
+        \DB::table("schedules")->where('tenant_id', $tid)->where("id", $request->id)->delete();
         return response()->json(["success" => "Scheduled message cancelled"]);
     }
 
     public function getBirthdaySettings(){
-        $settings = \DB::table("birthday_settings")->first();
+        $tid = config('app.tenant_id');
+        $settings = \DB::table("birthday_settings")->where('tenant_id', $tid)->first();
         return response()->json($settings);
     }
 
     public function saveBirthdaySettings(Request $request){
-        $request->validate([
-            'message' => 'required',
-            'send_time' => 'required',
-        ]);
-
-        $exists = \DB::table("birthday_settings")->first();
-        $data = [
-            'message' => $request->message,
-            'send_time' => $request->send_time,
-            'active' => $request->has('active') ? 1 : 0,
-            'updated_at' => Carbon::now(),
-        ];
-
+        $request->validate(['message' => 'required', 'send_time' => 'required']);
+        $tid = config('app.tenant_id');
+        $exists = \DB::table("birthday_settings")->where('tenant_id', $tid)->first();
+        $data = ['message' => $request->message, 'send_time' => $request->send_time, 'active' => $request->has('active') ? 1 : 0, 'updated_at' => Carbon::now()];
         if ($exists) {
-            \DB::table("birthday_settings")->where("id", $exists->id)->update($data);
+            \DB::table("birthday_settings")->where('tenant_id', $tid)->where("id", $exists->id)->update($data);
         } else {
-            \DB::table("birthday_settings")->insert($data);
+            \DB::table("birthday_settings")->insert(array_merge($data, ['tenant_id' => $tid, 'created_at' => Carbon::now()]));
         }
-
         return response()->json(["success" => "Birthday settings saved"]);
     }
 
     public function getMpesaSettings(){
-        $settings = \DB::table("mpesa_message_settings")->first();
+        $tid = config('app.tenant_id');
+        $settings = \DB::table("mpesa_message_settings")->where('tenant_id', $tid)->first();
         return response()->json($settings);
     }
 
     public function saveMpesaSettings(Request $request){
-        $request->validate([
-            'message' => 'required',
-        ]);
-
-        $exists = \DB::table("mpesa_message_settings")->first();
-        $data = [
-            'message' => $request->message,
-            'active' => $request->has('active') ? 1 : 0,
-            'updated_at' => Carbon::now(),
-        ];
-
+        $request->validate(['message' => 'required']);
+        $tid = config('app.tenant_id');
+        $exists = \DB::table("mpesa_message_settings")->where('tenant_id', $tid)->first();
+        $data = ['message' => $request->message, 'active' => $request->has('active') ? 1 : 0, 'updated_at' => Carbon::now()];
         if ($exists) {
-            \DB::table("mpesa_message_settings")->where("id", $exists->id)->update($data);
+            \DB::table("mpesa_message_settings")->where('tenant_id', $tid)->where("id", $exists->id)->update($data);
         } else {
-            \DB::table("mpesa_message_settings")->insert($data);
+            \DB::table("mpesa_message_settings")->insert(array_merge($data, ['tenant_id' => $tid, 'created_at' => Carbon::now()]));
         }
-
         return response()->json(["success" => "Mpesa message settings saved"]);
     }
 
@@ -260,101 +267,92 @@ class SMSController extends DashboardController
             "message"=>"required",
         ]);
         $sent = 0;
+        $failed = 0;
+        $tid = config('app.tenant_id');
         $site_settings = $this->site_settings;
-        $appname = $site_settings != null?"".$site_settings->name:"CHURCH APP";
+        $appname = $site_settings != null ? "" . $site_settings->name : "CHURCH APP";
         $message = $request->message;
-        if($request->has('time') && $request->time != null){
-            //schedule sms
+        
+        if ($request->has('time') && $request->time != null) {
             $date = \Carbon\Carbon::parse($request->time);
-            if($request->choice == 0){
-                if(empty($request['contacts'])){
-                    return back()->with("error", "No recipients selected!");
-                }else{
-                    foreach($request['contacts'] as $contact){
-                        \DB::table('schedules')->insert(["message"=>$message, "type"=>0, "user_id"=>$contact, "group_id"=>0,
-                            "schedule"=>$date, "status"=>0, "created_at"=>\Carbon\Carbon::now()]);
-                    }
+            if ($request->choice == 0) {
+                if (empty($request['contacts'])) return back()->with("error", "No recipients selected!");
+                foreach ($request['contacts'] as $contact) {
+                    \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => $contact, "group_id" => 0, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
                 }
-            }else if($request->choice == 1){
-                //send to groups
-                if(empty($request['groups'])){
-                    return back()->with("error", "No groups selected!");
-                }else{
-                    foreach($request['groups'] as $contact){
-                        \DB::table('schedules')->insert(["message"=>$message, "type"=>0, "user_id"=>0, "group_id"=>$contact,
-                            "schedule"=>$date, "status"=>0, "created_at"=>\Carbon\Carbon::now()]);
-                    }
+            } elseif ($request->choice == 1) {
+                if (empty($request['groups'])) return back()->with("error", "No groups selected!");
+                foreach ($request['groups'] as $contact) {
+                    \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => 0, "group_id" => $contact, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
                 }
-            }else{
-                //send ALL
-                \DB::table('schedules')->insert(["message"=>$message, "type"=>0, "user_id"=>0, "group_id"=>0,
-                "schedule"=>$date, "status"=>0, "created_at"=>\Carbon\Carbon::now()]);
+            } else {
+                \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => 0, "group_id" => 0, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
             }
             return redirect()->to('dashboard/communication/sms')->with("success", "Message scheduled for " . $date->format('d M, Y h:i A'));
         }
 
-        if($request->choice == 0){
-            //send to individual
-            if(empty($request['contacts'])){
-                return back()->with("error", "No recipients selected!");
-            }else{
-                $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$request->message, "sent"=>\Carbon\Carbon::now()]);
-
-                foreach($request['contacts'] as $contact){
-                    $user = \DB::table('users')->select("id", "phone")->where('id', '=', $contact)->where("status", 1)->first();
-                    if($user != null && $user->phone != null){
-                        $number = $user->phone;
-                        if(substr($number, 0, 1) === '0'){
-                            $number = "254".substr($number, 1);
-                        }
-                        if($this->send($number, $message)){
-                            $sent++;
-                            \DB::table('sms_recipients')->insert(["recipients"=>$user->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
-                        }
+        if ($request->choice == 0) {
+            if (empty($request['contacts'])) return back()->with("error", "No recipients selected!");
+            $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => 0, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+            foreach ($request['contacts'] as $contact) {
+                $user = \DB::table('users')->where('tenant_id', $tid)->select("id", "phone")->where('id', '=', $contact)->where("status", 1)->first();
+                if ($user != null && $user->phone != null) {
+                    $number = $user->phone;
+                    if (substr($number, 0, 1) === '0') $number = "254" . substr($number, 1);
+                    if ($this->send($number, $message)) {
+                        $sent++;
+                        \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                    } else {
+                        $failed++;
+                        \Log::error("SMS failed to send to {$number} (user: {$user->id})");
                     }
                 }
             }
-        }else{
-            if($request->choice == 1){
-                //send to groups
-                if(empty($request['groups'])){
-                    return back()->with("error", "No groups selected!");
-                }else{
-                    foreach($request['groups'] as $contact){
-                        $members = \DB::table("people_members")->select("contacts.phone", "people_members.user_id")->where("people_id", $contact)->where("people_members.status", 1)->
-                        where("users.status", 1)->join("contacts", "contacts.user_id", "=",
-                        "people_members.user_id")->join("users", "users.id", "=", "contacts.user_id")->get();
-                        $mid = \DB::table('sms')->insertGetId(["people_id"=>$contact, "message"=>$request->message, "sent"=>\Carbon\Carbon::now()]);
-                        foreach($members as $member){
-                            if($this->send("254".substr($member->phone, 1), $message)){
-                                $sent++;
-                                \DB::table('sms_recipients')->insert(["recipients"=>$member->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
-                            }
+        } else {
+            if ($request->choice == 1) {
+                if (empty($request['groups'])) return back()->with("error", "No groups selected!");
+                foreach ($request['groups'] as $contact) {
+                    $members = \DB::table("people_members")->where('people_members.tenant_id', $tid)->select("contacts.phone", "people_members.user_id")->where("people_id", $contact)->where("people_members.status", 1)
+                        ->where("users.status", 1)->join("contacts", "contacts.user_id", "=", "people_members.user_id")->join("users", "users.id", "=", "contacts.user_id")->get();
+                    $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => $contact, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+                    foreach ($members as $member) {
+                        if ($this->send("254" . substr($member->phone, 1), $message)) {
+                            $sent++;
+                            \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $member->user_id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                        } else {
+                            $failed++;
+                            \Log::error("SMS failed to send to {$member->phone} (user: {$member->user_id})");
                         }
                     }
                 }
-            }else{
-                //send ALL
-                $users = \DB::table('users')->select("id", "phone")->where("status", 1)->whereNotNull("phone")->where("phone", "!=", "")->get();
-                $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$request->message, "sent"=>\Carbon\Carbon::now()]);
-                foreach($users as $user){
+            } else {
+                $users = \DB::table('users')->where('tenant_id', $tid)->select("id", "phone")->where("status", 1)->whereNotNull("phone")->where("phone", "!=", "")->get();
+                $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => 0, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+                foreach ($users as $user) {
                     $number = $user->phone;
-                    if(substr($number, 0, 1) === '0'){
-                        $number = "254".substr($number, 1);
-                    }
-                    if($this->send($number, $message)){
+                    if (substr($number, 0, 1) === '0') $number = "254" . substr($number, 1);
+                    if ($this->send($number, $message)) {
                         $sent++;
-                        \DB::table('sms_recipients')->insert(["recipients"=>$user->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                        \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                    } else {
+                        $failed++;
+                        \Log::error("SMS failed to send to {$number} (user: {$user->id})");
                     }
                 }
-                return back()->with("success", "Sent to <strong>".$sent."</strong> Members!");
             }
         }
-        return back()->with("success", "Messages sent successfully!");
+        
+        // Build success message
+        $msg = "Sent to <strong>{$sent}</strong> Members";
+        if ($failed > 0) {
+            $msg .= " ({$failed} failed)";
+        }
+        return back()->with("success", $msg . "!");
    }
 
    public function sendsinglesms( Request $request )
    {
+        $tid = config('app.tenant_id');
         $site_settings = $this->site_settings;
         $appname = $site_settings != null?"\n".$site_settings->name:"\nCHURCH APP";
         $message = $request->message;
@@ -366,22 +364,35 @@ class SMSController extends DashboardController
 
         if($validator->passes()){
             $number = "254".substr($request->input( 'numbers' ), 1);
-            //$message = $request->input( 'message' );
-
-            $this->send($number, $message);
+            
+            $sendResult = $this->send($number, $message);
 
             $user = \DB::table("contacts")->where("phone", $request->numbers)->first();
 
-            $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$request->message, "sent"=>\Carbon\Carbon::now()]);
+            $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id"=>0, "message"=>$request->message, "sent"=>\Carbon\Carbon::now()]);
 
             if($user != null){
-                \DB::table('sms_recipients')->insert(["recipients"=>$user->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients"=>$user->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
             }
-            return response()->json(['success'=>"Message sent to <strong>".$number."</strong>!"]);
-            //return back()->with( 'success', "Message sent to <strong>".$number."</strong>!" );
+            
+            // Get updated credits
+            $creditsResponse = app(IntegrationService::class)->checkSmsCredits();
+            $smsCredits = null;
+            if (is_array($creditsResponse)) {
+                $smsCredits = $creditsResponse['balance'] 
+                    ?? $creditsResponse['credit'] 
+                    ?? $creditsResponse['credits'] 
+                    ?? $creditsResponse['credits_remaining'] 
+                    ?? null;
+            }
+            
+            return response()->json([
+                'success' => "Message sent to <strong>".$number."</strong>!",
+                'credits' => $smsCredits,
+                'send_result' => $sendResult !== false
+            ]);
         } else {
             return response()->json(["error"=>"Invalid info submitted! Check before sending again"]);
-            //return back()->withErrors( $validator );
         }
   }
 
@@ -661,30 +672,32 @@ class SMSController extends DashboardController
     }
 
     public function send($number, $message){
-        $curl = curl_init();
-
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => env('SMS_URL'),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_POSTFIELDS => 'partnerID='.env('SMS_PARTNER_ID').'&message=' . urlencode($message) . '&shortcode='.env('SMS_SHORT_CODE').'&mobile='.$number,
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/x-www-form-urlencoded',
-                'Authorization: Bearer ' . env('SMS_API_KEY'),
-            ),
-        )
-        );
-
-        $curl_response = curl_exec($curl);
-
-        curl_close($curl);
-        $response = json_decode($curl_response, true);
-        //\Log::info(json_encode($response).'NUMBER: '.$number);
-        return $response;
+        $tid = config('app.tenant_id');
+        
+        // Send SMS via IntegrationService
+        $integrationService = app(\App\Services\IntegrationService::class);
+        $result = $integrationService->sendSms($number, $message);
+        
+        // Log usage for tracking (optional - doesn't affect actual credits)
+        if ($result !== false) {
+            // Only update usage stats if credits table exists
+            try {
+                \DB::table('credits')
+                    ->where('tenant_id', $tid)
+                    ->where('type', 'sms')
+                    ->increment('used', 1);
+                
+                \DB::table('credits')
+                    ->where('tenant_id', $tid)
+                    ->where('type', 'sms')
+                    ->update(['last_used_at' => now()]);
+            } catch (\Exception $e) {
+                // Ignore errors if table doesn't exist or has issues
+            }
+        } else {
+            \Log::error("SMS send failed for tenant {$tid}, number: {$number}");
+        }
+        
+        return $result;
     }
 }

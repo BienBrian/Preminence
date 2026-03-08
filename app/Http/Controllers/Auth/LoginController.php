@@ -70,7 +70,13 @@ class LoginController extends Controller
     }
     protected function credentials(Request $request)
     {
-        return array_merge($request->only($this->username(), 'password'), ['status' => 1]);
+        $credentials = array_merge($request->only($this->username(), 'password'), ['status' => 1]);
+        
+        if ($tenantId = config('app.tenant_id')) {
+            $credentials['tenant_id'] = $tenantId;
+        }
+        
+        return $credentials;
     }
 
     protected function sendFailedLoginResponse(Request $request)
@@ -83,7 +89,10 @@ class LoginController extends Controller
 
     public function authenticated(Request $request, $user)
     {
-        //
+        // Ensure Spatie Permission team context is set for the authenticated user
+        if ($user->tenant_id) {
+            app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+        }
     }
     public function username()
     {

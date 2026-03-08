@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class Invitation extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
-        'token', 'phone', 'email', 'via', 'invited_by', 'user_id',
+        'tenant_id', 'token', 'phone', 'email', 'via', 'invited_by', 'user_id',
         'status', 'onboarding_step', 'expires_at', 'started_at', 'completed_at',
         'phone_otp', 'email_otp', 'otp_expires_at',
     ];

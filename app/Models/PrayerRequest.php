@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PrayerRequest extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, BelongsToTenant;
 
     protected $fillable = [
-        'title', 'description', 'category', 'request_type',
+        'tenant_id', 'title', 'description', 'category', 'request_type',
         'submitted_by', 'submitted_name', 'submitted_phone', 'submitted_alternate_phone', 'submitted_email',
         'visibility', 'is_anonymous', 'is_urgent', 'status',
         'assigned_to', 'prayer_count', 'moderation_status',

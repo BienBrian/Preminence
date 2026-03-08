@@ -38,6 +38,8 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\SecurityHeaders::class,
+            // Pisti SaaS: resolve tenant from subdomain on every web request
+            \App\Http\Middleware\IdentifyTenant::class,
         ],
 
         'api' => [
@@ -72,6 +74,14 @@ class Kernel extends HttpKernel
         'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,
         //personal middleware
         'check_approval_status' => \App\Http\Middleware\CheckUserApprovalStatus::class,
-        'force_password_change' => \App\Http\Middleware\ForcePasswordChange::class,
+        'force_password_change'  => \App\Http\Middleware\ForcePasswordChange::class,
+
+        // ─── Pisti SaaS Middleware ────────────────────────────────────────────
+        // Checks tenant subscription status on every authenticated route
+        'tenant.active'  => \App\Http\Middleware\EnsureTenantActive::class,
+        // Gates a route group to a feature module: middleware('module:finance')
+        'module'         => \App\Http\Middleware\CheckModule::class,
+        // Protects superadmin-only routes (guard wired in Phase 8)
+        'superadmin'     => \App\Http\Middleware\SuperAdminMiddleware::class,
     ];
 }

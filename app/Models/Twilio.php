@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Twilio extends Model
 {
-    use HasFactory;
-    protected $table = 'twilio';
-    protected $fillable = ["sid","token","number"];
+    use HasFactory, BelongsToTenant;
+
+    protected $table = 'twilios';
+    protected $fillable = ['tenant_id', 'sid', 'token', 'number'];
 
     public function setSidAttribute($value)
     {
@@ -18,11 +20,7 @@ class Twilio extends Model
 
     public function getSidAttribute($value)
     {
-        try {
-            return decrypt($value);
-        } catch (\Exception $e) {
-            return $value;
-        }
+        try { return decrypt($value); } catch (\Exception $e) { return $value; }
     }
 
     public function setTokenAttribute($value)
@@ -32,10 +30,6 @@ class Twilio extends Model
 
     public function getTokenAttribute($value)
     {
-        try {
-            return decrypt($value);
-        } catch (\Exception $e) {
-            return $value;
-        }
+        try { return decrypt($value); } catch (\Exception $e) { return $value; }
     }
 }

@@ -1177,6 +1177,11 @@
                 setTimeout(function(){
                     $('#smsModal .feedback').addClass('d-none');
                 }, 3000);
+                
+                // Refresh credits display after successful SMS send
+                if (typeof refreshCreditsBalance === 'function') {
+                    refreshCreditsBalance();
+                }
             }).fail(function(){
                 alert("Something went wrong");
             });

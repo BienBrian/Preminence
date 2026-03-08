@@ -2,13 +2,16 @@
 
 namespace App\Models\Discipleship;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Progress extends Model
 {
+    use HasFactory, BelongsToTenant;
+
     protected $table = 'discipleship_progress';
-    protected $fillable = ['enrollment_id', 'step_id', 'completed_at', 'notes'];
+    protected $fillable = ['tenant_id', 'enrollment_id', 'step_id', 'completed_at', 'notes'];
     protected $dates = ['completed_at'];
 
     public function enrollment()

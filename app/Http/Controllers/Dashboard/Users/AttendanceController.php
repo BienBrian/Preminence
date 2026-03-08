@@ -19,15 +19,11 @@ class AttendanceController extends DashboardController
 
     public function index()
     {
-        $attendance = \DB::table("attendance")->select(
-            "attendance.id",
-            "attendance.day",
-            "attendance.attendance",
-            "attendance_groups.name",
-            "seminars.title as seminar",
-            "events.title as event",
-            "orderofservice.description as service",
-            "attendance.attended_for as mtype"
+        $tid = config('app.tenant_id');
+        $attendance = \DB::table("attendance")->where('attendance.tenant_id', $tid)->select(
+            "attendance.id", "attendance.day", "attendance.attendance",
+            "attendance_groups.name", "seminars.title as seminar",
+            "events.title as event", "orderofservice.description as service", "attendance.attended_for as mtype"
         )
             ->join("attendance_groups", "attendance_groups.id", "=", "attendance.attendance_group")
             ->leftJoin("seminars", "seminars.id", "=", "attendance.attendance_id")
@@ -35,44 +31,30 @@ class AttendanceController extends DashboardController
             ->leftJoin("events", "events.id", "=", "attendance.attendance_id")
             ->paginate(15);
 
-        //Week Statistics
-        $thisweek = \DB::table("attendance")->where("day", ">=", \Carbon\Carbon::today()->startOfWeek())->sum("attendance");
-        $lastweek = \DB::table("attendance")->where("day", ">=", \Carbon\Carbon::today()->startOfWeek()->subDays(7))->where("day", "<", \Carbon\Carbon::today()->startOfWeek())->sum("attendance");
-
-        //Month Statistics
-        $end = new Carbon('first day of last month');
-        $start = new Carbon('first day of this month');
-
-        $thismonth = \DB::table("attendance")->where("day", ">=", $start)->sum("attendance");
-        $lastmonth = \DB::table("attendance")->where("day", ">=", $end)->where("day", "<", $start)->sum("attendance");
-
-        //Year Statistics
-        $start = \Carbon\Carbon::today()->startOfYear();
-        $end = $start->copy()->subYears(1);
-
-        $thisyear = \DB::table("attendance")->where("day", ">=", $start)->sum("attendance");
-        $lastyear = \DB::table("attendance")->where("day", ">=", $end)->where("day", "<", $start)->sum("attendance");
-
-        //$endOfYear   = $date->copy()->endOfYear();
-        $groups = \DB::table("attendance_groups")->get();
+        $thisweek  = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", \Carbon\Carbon::today()->startOfWeek())->sum("attendance");
+        $lastweek  = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", \Carbon\Carbon::today()->startOfWeek()->subDays(7))->where("day", "<", \Carbon\Carbon::today()->startOfWeek())->sum("attendance");
+        $end       = new Carbon('first day of last month');
+        $start     = new Carbon('first day of this month');
+        $thismonth = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", $start)->sum("attendance");
+        $lastmonth = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", $end)->where("day", "<", $start)->sum("attendance");
+        $start     = \Carbon\Carbon::today()->startOfYear();
+        $end       = $start->copy()->subYears(1);
+        $thisyear  = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", $start)->sum("attendance");
+        $lastyear  = \DB::table("attendance")->where('tenant_id', $tid)->where("day", ">=", $end)->where("day", "<", $start)->sum("attendance");
+        $groups    = \DB::table("attendance_groups")->where('tenant_id', $tid)->get();
 
         return view("dashboard.events_and_notices.attendance", [
-            "attendance" => $attendance,
-            "groups" => $groups,
-            "thisyear" => $thisyear,
-            "lastyear" => $lastyear,
-            "thisweek" => $thisweek,
-            "lastweek" => $lastweek,
-            "thismonth" => $thismonth,
-            "lastmonth" => $lastmonth
+            "attendance" => $attendance, "groups" => $groups,
+            "thisyear" => $thisyear, "lastyear" => $lastyear,
+            "thisweek" => $thisweek, "lastweek" => $lastweek,
+            "thismonth" => $thismonth, "lastmonth" => $lastmonth
         ]);
     }
     public function newAttendance()
     {
-        $groups = \DB::table("attendance_groups")->get();
-        $services = \DB::table("orderofservice")->get();
-        //return json_encode($services);
-
+        $tid = config('app.tenant_id');
+        $groups   = \DB::table("attendance_groups")->where('tenant_id', $tid)->get();
+        $services = \DB::table("orderofservice")->where('tenant_id', $tid)->get();
         return view("dashboard.events_and_notices.attendance-add", ["groups" => $groups, "services" => $services]);
     }
 
@@ -531,23 +513,24 @@ class AttendanceController extends DashboardController
     }
     public function ajaxEvents()
     {
+        $tid = config('app.tenant_id');
         $from = \Carbon\Carbon::today()->subDays(7);
-
-        return json_encode(\DB::table("events")->where("eventdate", ">=", $from)->where("eventdate", "<=", \Carbon\Carbon::today())
+        return json_encode(\DB::table("events")->where('tenant_id', $tid)->where("eventdate", ">=", $from)->where("eventdate", "<=", \Carbon\Carbon::today())
             ->select("id", "title as name")->orderBy('eventdate', 'DESC')->get());
     }
 
     public function ajaxSeminars()
     {
+        $tid = config('app.tenant_id');
         $from = \Carbon\Carbon::today()->subDays(7);
-
-        return json_encode(\DB::table("seminars")->where("end", ">=", $from)->where("end", "<=", \Carbon\Carbon::today())
+        return json_encode(\DB::table("seminars")->where('tenant_id', $tid)->where("end", ">=", $from)->where("end", "<=", \Carbon\Carbon::today())
             ->select("id", "title as name")->orderBy('end', 'DESC')->get());
     }
 
     public function ajaxServices()
     {
-        return json_encode(\DB::table("orderofservice")->select("id", "description as name")->get());
+        $tid = config('app.tenant_id');
+        return json_encode(\DB::table("orderofservice")->where('tenant_id', $tid)->select("id", "description as name")->get());
     }
     public function datatablesAttendance(Request $request)
     {
@@ -635,7 +618,8 @@ class AttendanceController extends DashboardController
 
     public function attendancegroups()
     {
-        $groups = \DB::table("attendance_groups")->paginate(15);
+        $tid = config('app.tenant_id');
+        $groups = \DB::table("attendance_groups")->where('tenant_id', $tid)->paginate(15);
         return view("dashboard.events_and_notices.attendance_groups")->with("groups", $groups);
     }
 
@@ -649,30 +633,23 @@ class AttendanceController extends DashboardController
             "date" => "required",
         ]);
 
+        $tid = config('app.tenant_id');
         if ($request->id > 0) {
-            if (
-                \DB::table('attendance')->where("id", $request->id)->update([
-                    'attendance_group' => $request->group_id,
-                    "attended_for" => $request->attended_for,
-                    "attendance_id" => $request->specific,
-                    "attendance" => $request->attendees,
-                    "day" => \Carbon\Carbon::parse($request->date)
-                ])
-            ) {
+            if (\DB::table('attendance')->where('tenant_id', $tid)->where("id", $request->id)->update([
+                'attendance_group' => $request->group_id, "attended_for" => $request->attended_for,
+                "attendance_id" => $request->specific, "attendance" => $request->attendees,
+                "day" => \Carbon\Carbon::parse($request->date)
+            ])) {
                 return back()->with("success", "Attendance group updated!");
             } else {
                 return back()->with("error", "unable to update");
             }
         } else {
-            if (
-                \DB::table('attendance')->insert([
-                    'attendance_group' => $request->group_id,
-                    "attended_for" => $request->attended_for,
-                    "attendance_id" => $request->specific,
-                    "attendance" => $request->attendees,
-                    "day" => \Carbon\Carbon::parse($request->date)
-                ])
-            ) {
+            if (\DB::table('attendance')->insert([
+                'tenant_id' => $tid, 'attendance_group' => $request->group_id, "attended_for" => $request->attended_for,
+                "attendance_id" => $request->specific, "attendance" => $request->attendees,
+                "day" => \Carbon\Carbon::parse($request->date)
+            ])) {
                 return redirect()->to("dashboard/events_and_notices/attendance")->with("success", "Attendance group created!");
             } else {
                 return back()->with("error", "unable to create");
@@ -682,18 +659,16 @@ class AttendanceController extends DashboardController
 
     public function addAttendanceGroup(Request $request)
     {
-        $request->validate([
-            "name" => "required|unique:attendance_groups",
-        ]);
-
+        $request->validate(["name" => "required|unique:attendance_groups"]);
+        $tid = config('app.tenant_id');
         if ($request->id > 0) {
-            if (\DB::table('attendance_groups')->where("id", $request->id)->update(['name' => $request->name])) {
+            if (\DB::table('attendance_groups')->where('tenant_id', $tid)->where("id", $request->id)->update(['name' => $request->name])) {
                 return back()->with("success", "Attendance group updated!");
             } else {
                 return back()->with("error", "unable to update");
             }
         } else {
-            if (\DB::table('attendance_groups')->insert(['name' => $request->name])) {
+            if (\DB::table('attendance_groups')->insert(['tenant_id' => $tid, 'name' => $request->name])) {
                 return back()->with("success", "Attendance group created!");
             } else {
                 return back()->with("error", "unable to create");
@@ -703,8 +678,9 @@ class AttendanceController extends DashboardController
 
     public function removeAttendance(Request $request)
     {
-        if (\DB::table("attendance")->where("id", $request->id)->count() > 0) {
-            if (\DB::table("attendance")->where("id", $request->id)->delete()) {
+        $tid = config('app.tenant_id');
+        if (\DB::table("attendance")->where('tenant_id', $tid)->where("id", $request->id)->count() > 0) {
+            if (\DB::table("attendance")->where('tenant_id', $tid)->where("id", $request->id)->delete()) {
                 return back()->with("success", "Attendance removed successfully");
             } else {
                 return back()->with("error", "Unable to remove attendance");
@@ -716,8 +692,9 @@ class AttendanceController extends DashboardController
 
     public function removeAttendanceGroup(Request $request)
     {
-        if (\DB::table("attendance")->where("attendance_group", $request->id)->count() == 0) {
-            if (\DB::table("attendance_groups")->where("id", $request->id)->delete()) {
+        $tid = config('app.tenant_id');
+        if (\DB::table("attendance")->where('tenant_id', $tid)->where("attendance_group", $request->id)->count() == 0) {
+            if (\DB::table("attendance_groups")->where('tenant_id', $tid)->where("id", $request->id)->delete()) {
                 return back()->with("success", "Attendance Group removed successfully");
             } else {
                 return back()->with("error", "Unable to remove attendance group");

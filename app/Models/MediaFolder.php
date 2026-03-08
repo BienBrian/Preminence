@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class MediaFolder extends Model
 {
-    protected $fillable = ['name', 'slug', 'parent_id', 'type', 'event_id', 'description', 'show_on_frontend', 'cover_image', 'sort_order'];
+    use BelongsToTenant;
+
+    protected $fillable = [
+        'tenant_id', 'name', 'slug', 'parent_id', 'type', 'event_id',
+        'description', 'show_on_frontend', 'cover_image', 'sort_order',
+    ];
 
     public function parent()
     {
@@ -20,6 +26,6 @@ class MediaFolder extends Model
 
     public function files()
     {
-        return $this->hasMany(MediaFile::class, 'folder_id')->orderBy('created_at', 'desc');
+        return $this->hasMany(MediaFile::class, 'folder_id');
     }
 }

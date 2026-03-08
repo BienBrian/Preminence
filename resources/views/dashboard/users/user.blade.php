@@ -177,7 +177,15 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" id="work-tab" data-toggle="tab" href="#work" role="tab">
-                                <i class='fas fa-graduation-cap text-muted'></i> <span class="d-none d-sm-inline">Work & Edu</span>
+                                <i class='fas fa-graduation-cap text-muted'></i> <span class="d-none d-sm-inline">Work &amp; Edu</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="contributions-tab" data-toggle="tab" href="#contributions" role="tab">
+                                <i class='fas fa-hand-holding-usd text-success'></i> <span class="d-none d-sm-inline">Contributions</span>
+                                @if(isset($mpesaCount) && $mpesaCount > 0)
+                                    <span class="badge badge-success ml-1">{{ $mpesaCount }}</span>
+                                @endif
                             </a>
                         </li>
                     </ul>
@@ -607,8 +615,90 @@
                             </div>
                         </form>
                     </div>
-                </div>
-            </div>
+
+                    {{-- ========== CONTRIBUTIONS TAB ========== --}}
+                    <div class="tab-pane fade p-3" id="contributions" role="tabpanel">
+
+                        {{-- Summary Cards --}}
+                        <div class="row mb-3">
+                            <div class="col-sm-4">
+                                <div class="card border-left-success shadow-sm">
+                                    <div class="card-body py-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Contributed (Mpesa)</div>
+                                        <div class="h5 mb-0 font-weight-bold">KES {{ number_format($mpesaTotal ?? 0, 2) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="card border-left-info shadow-sm">
+                                    <div class="card-body py-2">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">No. of Transactions</div>
+                                        <div class="h5 mb-0 font-weight-bold">{{ $mpesaCount ?? 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="card border-left-warning shadow-sm">
+                                    <div class="card-body py-2">
+                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Last Transaction</div>
+                                        <div class="h6 mb-0 font-weight-bold">
+                                            @if(isset($mpesaLastTx) && $mpesaLastTx)
+                                                {{ \Carbon\Carbon::parse($mpesaLastTx->created_at)->format('d M Y') }}
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if(isset($mpesaRecords) && $mpesaRecords->count() > 0)
+                        <div class="card shadow-sm">
+                            <div class="card-header py-2">
+                                <h6 class="mb-0"><i class="fas fa-list mr-1"></i> Transaction History</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead class="thead-light">
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Amount (KES)</th>
+                                                <th>Mpesa Ref</th>
+                                                <th>Account</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($mpesaRecords as $tx)
+                                            <tr>
+                                                <td>{{ \Carbon\Carbon::parse($tx->created_at)->format('d M Y, H:i') }}</td>
+                                                <td class="font-weight-bold text-success">{{ number_format($tx->amount, 2) }}</td>
+                                                <td>
+                                                    @if($tx->TransID)
+                                                        <code class="small">{{ $tx->TransID }}</code>
+                                                    @else
+                                                        <span class="text-muted small">—</span>
+                                                    @endif
+                                                </td>
+                                                <td>{{ $tx->BillRefNumber ?? '—' }}</td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        @else
+                        <div class="alert alert-light text-center py-4">
+                            <i class="fas fa-hand-holding-usd fa-2x text-muted mb-2 d-block"></i>
+                            <span class="text-muted">No Mpesa contributions have been matched to this user yet.</span><br>
+                            <small class="text-muted">Contributions are matched automatically when Mpesa MSISDN hashes align with this user's phone.</small>
+                        </div>
+                        @endif
+                    </div>
+
+                </div>{{-- /.tab-content --}}
 
         </div>
     </section>

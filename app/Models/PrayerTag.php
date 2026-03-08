@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class PrayerTag extends Model
 {
-    protected $fillable = ['name', 'color'];
+    use BelongsToTenant;
+
+    protected $fillable = ['tenant_id', 'name', 'color'];
 
     public function prayerRequests()
     {
