@@ -37,6 +37,7 @@ class ModuleService
         'reports',
         'discipleship',
         'api_access',
+        'links',
     ];
 
     /**

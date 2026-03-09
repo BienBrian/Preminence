@@ -77,6 +77,7 @@
                                 <th>Linked User</th>
                                 <th>Invited By</th>
                                 <th>Date</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                     </table>
@@ -101,9 +102,57 @@ $(document).ready(function () {
             { data: 'linked_user', name: 'linked_user', orderable: false },
             { data: 'invited_by_name', name: 'invited_by_name', orderable: false },
             { data: 'date', name: 'date', orderable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
         ],
         language: { emptyTable: "<i class='fas fa-ban'></i> No invitations sent yet" },
         order: [],
+    });
+
+    // Resend invitation handler
+    $(document).on('click', '.btn-resend-invitation', function() {
+        var btn = $(this);
+        var inviteId = btn.data('id');
+        
+        Swal.fire({
+            title: 'Resend Invitation?',
+            text: 'This will generate a new link and send it to the recipient. Continue?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, resend',
+            confirmButtonColor: '#3085d6',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+                
+                $.ajax({
+                    url: '{{ url("dashboard/users/invitations/resend") }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        invitation_id: inviteId
+                    },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Success',
+                            text: response.success,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        $('.table').DataTable().ajax.reload();
+                    },
+                    error: function(xhr) {
+                        var error = xhr.responseJSON?.error || 'Failed to resend invitation';
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: error
+                        });
+                        btn.prop('disabled', false).html('<i class="fas fa-redo"></i>');
+                    }
+                });
+            }
+        });
     });
 
     // Bulk Verify

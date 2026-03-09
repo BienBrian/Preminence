@@ -77,19 +77,33 @@ class OnboardingController extends Controller
 
     public function show($token)
     {
-        $invitation = Invitation::active()->where('token', $token)->first();
         $site_settings = $this->getSiteSettings();
         $phoneCode = $this->getPhoneCode();
 
+        // Find the invitation by token first
+        $invitation = Invitation::where('token', $token)->first();
+
         if (!$invitation) {
-            $completed = Invitation::where('token', $token)->where('status', 'completed')->first();
-            if ($completed) {
-                return view('onboarding', [
-                    'state' => 'completed',
-                    'site_settings' => $site_settings,
-                    'phoneCode' => $phoneCode,
-                ]);
-            }
+            return view('onboarding', [
+                'state' => 'expired',
+                'site_settings' => $site_settings,
+                'phoneCode' => $phoneCode,
+            ]);
+        }
+
+        // Check if completed
+        if ($invitation->status === 'completed') {
+            return view('onboarding', [
+                'state' => 'completed',
+                'site_settings' => $site_settings,
+                'phoneCode' => $phoneCode,
+            ]);
+        }
+
+        // Check expiration:
+        // - If pending (not started), check expiration
+        // - If started, allow to continue even if expires_at has passed
+        if ($invitation->status === 'pending' && $invitation->expires_at && $invitation->expires_at->isPast()) {
             return view('onboarding', [
                 'state' => 'expired',
                 'site_settings' => $site_settings,
@@ -135,8 +149,15 @@ class OnboardingController extends Controller
      */
     public function step1(Request $request, $token)
     {
-        $invitation = Invitation::active()->where('token', $token)->first();
-        if (!$invitation) {
+        $invitation = Invitation::where('token', $token)->first();
+        
+        // Check if invitation exists and is not completed
+        if (!$invitation || $invitation->status === 'completed') {
+            return redirect()->route('onboarding', $token)->with('error', 'This invitation link has expired or is invalid.');
+        }
+        
+        // If pending, check expiration
+        if ($invitation->status === 'pending' && $invitation->expires_at && $invitation->expires_at->isPast()) {
             return redirect()->route('onboarding', $token)->with('error', 'This invitation link has expired or is invalid.');
         }
 
@@ -240,7 +261,7 @@ class OnboardingController extends Controller
      */
     public function step2(Request $request, $token)
     {
-        $invitation = Invitation::active()->where('token', $token)->first();
+        $invitation = Invitation::where('token', $token)->whereIn('status', ['pending', 'started'])->first();
         if (!$invitation || !$invitation->user_id) {
             return redirect()->route('onboarding', $token)->with('error', 'Invalid session. Please start over.');
         }
@@ -343,7 +364,7 @@ class OnboardingController extends Controller
      */
     public function step3(Request $request, $token)
     {
-        $invitation = Invitation::active()->where('token', $token)->first();
+        $invitation = Invitation::where('token', $token)->whereIn('status', ['pending', 'started'])->first();
         if (!$invitation || !$invitation->user_id) {
             return redirect()->route('onboarding', $token)->with('error', 'Invalid session. Please start over.');
         }
@@ -386,7 +407,7 @@ class OnboardingController extends Controller
      */
     public function resendOtp(Request $request, $token)
     {
-        $invitation = Invitation::active()->where('token', $token)->first();
+        $invitation = Invitation::where('token', $token)->whereIn('status', ['pending', 'started'])->first();
         if (!$invitation || !$invitation->user_id) {
             return response()->json(['error' => 'Invalid invitation.'], 400);
         }

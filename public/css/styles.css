@@ -198,6 +198,28 @@ video {
     margin-right: 4px;
 }
 
+/* ----- Mobile Auth Bar ----- */
+.mobile-auth-bar {
+    background: #1a1f4e;
+    border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+.mobile-auth-bar .btn-outline-light {
+    border-width: 1px;
+    color: rgba(255, 255, 255, .9);
+    border-color: rgba(255, 255, 255, .5);
+}
+
+.mobile-auth-bar .btn-outline-light:hover {
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+}
+
+.mobile-auth-bar .btn-primary {
+    background: linear-gradient(135deg, #5e72e4, #825ee4);
+    border: none;
+}
+
 /* ----- Navbar (transparent → white on scroll) ----- */
 .navbar-site {
     background: #1a1f4e !important;

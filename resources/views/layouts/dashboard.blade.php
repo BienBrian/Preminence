@@ -422,6 +422,16 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         </li>
                         @endcan
 
+                        @can('Manage Links')
+                        <li class="nav-item">
+                            <a href="{{ url('dashboard/links') }}"
+                                class="nav-link {{ Request::is('dashboard/links*') ? 'active' : '' }}">
+                                <i class="nav-icon main-icon shadow fas fa-link"></i>
+                                <p>Link Shortener</p>
+                            </a>
+                        </li>
+                        @endcan
+
                     </ul>
                 </nav>
             </div>

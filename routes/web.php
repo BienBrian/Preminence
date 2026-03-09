@@ -40,6 +40,7 @@ use App\Http\Controllers\Dashboard\Websites\GalleryController;
 use App\Http\Controllers\Dashboard\Websites\HomePageSettingsController;
 use App\Http\Controllers\Dashboard\Websites\OrderOfServiceSettingsController;
 use App\Http\Controllers\Dashboard\Websites\PastorSettingsController;
+use App\Http\Controllers\Dashboard\Links\LinkShortenerController;
 use App\Http\Controllers\Dashboard\Websites\WebsiteSettingsController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\SuperAdmin\Auth\LoginController as SuperAdminLoginController;
@@ -92,6 +93,9 @@ Route::post('onboarding/{token}/step1', [\App\Http\Controllers\OnboardingControl
 Route::post('onboarding/{token}/step2', [\App\Http\Controllers\OnboardingController::class, 'step2'])->name('onboarding.step2');
 Route::post('onboarding/{token}/step3', [\App\Http\Controllers\OnboardingController::class, 'step3'])->name('onboarding.step3');
 Route::post('onboarding/{token}/resend-otp', [\App\Http\Controllers\OnboardingController::class, 'resendOtp'])->name('onboarding.resend-otp');
+
+// Public short link redirect
+Route::get('s/{code}', [LinkShortenerController::class, 'redirect'])->name('shortlink.redirect');
 
 // Public Prayer Wall
 Route::get('/prayer-wall', [PrayerWallController::class, 'index']);
@@ -606,6 +610,14 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'tenant.active',
     Route::post('users/import', [UsersController::class, 'importUsers']);
     Route::get('users/duplicates', [UsersController::class, 'duplicates']);
     Route::get('users/duplicates/scan', [UsersController::class, 'scanDuplicates']);
+
+    // Link Shortener
+    Route::get('links', [LinkShortenerController::class, 'index']);
+    Route::get('links/datatable', [LinkShortenerController::class, 'datatable']);
+    Route::post('links/store', [LinkShortenerController::class, 'store']);
+    Route::post('links/update', [LinkShortenerController::class, 'update']);
+    Route::post('links/delete', [LinkShortenerController::class, 'delete']);
+    Route::get('links/stats', [LinkShortenerController::class, 'stats']);
     Route::get('users/view/{id}', [UsersController::class, 'viewUser']);
     Route::post('users/update/basic', [UsersController::class, 'updateBasic']);
     Route::post('users/update/contacts', [UsersController::class, 'updateContacts']);
@@ -619,6 +631,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'tenant.active',
     Route::get('users/invitations', [UsersController::class, 'invitations']);
     Route::post('users/bulk-verify', [UsersController::class, 'bulkInviteVerification']);
     Route::get('users/invitations/datatable', [UsersController::class, 'invitationsDataTable']);
+    Route::post('users/invitations/resend', [UsersController::class, 'resendInvitation'])->middleware('throttle:5,1');
     Route::post('users/toggle-verification', [UsersController::class, 'toggleVerification']);
     Route::post('users/send-verification-request', [UsersController::class, 'sendVerificationRequest'])->middleware('throttle:5,1');
     Route::post('users/merge', [UsersController::class, 'mergeUsers']);

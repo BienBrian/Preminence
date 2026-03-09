@@ -50,6 +50,16 @@
         </div>
     </div>
 
+    <!-- Mobile Auth Links (visible only on mobile/tablet) -->
+    @guest
+    <div class="d-lg-none mobile-auth-bar">
+        <div class="container py-2 text-right">
+            <a href="{{ url('login') }}" class="btn btn-sm btn-outline-light mr-2"><i class="fas fa-sign-in-alt"></i> Login</a>
+            <a href="{{ url('/register') }}" class="btn btn-sm btn-primary"><i class="fas fa-user-plus"></i> Register</a>
+        </div>
+    </div>
+    @endguest
+
     <!-- Navbar -->
     <nav class="navbar navbar-site navbar-expand-lg navbar-dark">
         <div class="container">

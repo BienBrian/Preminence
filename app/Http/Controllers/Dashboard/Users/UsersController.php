@@ -8,6 +8,7 @@ use App\Models\Email;
 use App\Models\EmailRecipient;
 use App\Models\Invitation;
 use App\Models\Maturity;
+use App\Models\ShortLink;
 use App\Models\Share;
 use App\Models\ShareTransaction;
 use App\Models\User;
@@ -404,8 +405,20 @@ class UsersController extends DashboardController
             'expires_at' => now()->addDays(30),
         ]);
 
+        // Auto-create short link for the invitation
+        $shortLink = ShortLink::create([
+            'tenant_id' => config('app.tenant_id'),
+            'short_code' => ShortLink::generateUniqueCode(6),
+            'original_url' => $onboardingUrl,
+            'title' => 'Invitation for ' . ($phone ?? $request->email),
+            'created_by' => Auth::id(),
+            'expires_at' => now()->addDays(30),
+            'is_active' => true,
+        ]);
+        $shortUrl = $shortLink->short_url;
+
         if ($request->method === 'sms') {
-            $message = "You have been invited to join {$church_name}. Click the link to register: {$onboardingUrl}";
+            $message = "You have been invited to join {$church_name}. Click to register: {$shortUrl}";
 
             app(\App\Services\IntegrationService::class)->sendSms($phone, $message);
 
@@ -426,12 +439,12 @@ class UsersController extends DashboardController
                 'sent' => Carbon::now(),
             ]);
 
-            return response()->json(['success' => 'Invitation SMS sent to ' . $phone]);
+            return response()->json(['success' => 'Invitation SMS sent to ' . $phone, 'short_url' => $shortUrl]);
         } else {
             $message = "Dear friend,<br><br>" .
                 "You have been invited to join {$church_name}.<br><br>" .
                 "Please click the link below to create your account:<br>" .
-                "<a href='{$onboardingUrl}'>{$onboardingUrl}</a><br><br>" .
+                "<a href='{$shortUrl}'>{$shortUrl}</a><br><br>" .
                 "This link will expire in 30 days.<br><br>" .
                 "Thank you,<br>{$church_name}";
 
@@ -453,7 +466,7 @@ class UsersController extends DashboardController
                 'sent' => Carbon::now(),
             ]);
 
-            return response()->json(['success' => 'Invitation email sent to ' . $request->email]);
+            return response()->json(['success' => 'Invitation email sent to ' . $request->email, 'short_url' => $shortUrl]);
         }
     }
 
@@ -476,9 +489,25 @@ class UsersController extends DashboardController
         $invitations = Invitation::with(['invitedBy', 'user'])
             ->orderBy('created_at', 'DESC');
 
+        // Pre-load short links for invitations (match by original_url containing the token)
+        $shortLinks = ShortLink::where('title', 'like', 'Invitation%')
+            ->orWhere('original_url', 'like', '%onboarding/%')
+            ->get()
+            ->keyBy(function ($link) {
+                // Extract token from original_url
+                preg_match('/onboarding\/([^\/]+)/', $link->original_url, $matches);
+                return $matches[1] ?? $link->original_url;
+            });
+
         return DataTables::of($invitations)
-            ->addColumn('contact', function ($row) {
-                return $row->via === 'sms' ? $row->phone : $row->email;
+            ->addColumn('contact', function ($row) use ($shortLinks) {
+                $html = $row->via === 'sms' ? $row->phone : $row->email;
+                // Show short URL if available
+                if (isset($shortLinks[$row->token])) {
+                    $shortUrl = $shortLinks[$row->token]->short_url;
+                    $html .= '<br><a href="' . $shortUrl . '" target="_blank" class="small text-primary">' . $shortUrl . '</a>';
+                }
+                return $html;
             })
             ->addColumn('method', function ($row) {
                 return $row->via === 'sms'
@@ -516,7 +545,16 @@ class UsersController extends DashboardController
             ->addColumn('date', function ($row) {
                 return $row->created_at->format('d M, Y H:i');
             })
-            ->rawColumns(['method', 'status_badge', 'linked_user'])
+            ->addColumn('action', function ($row) {
+                // Only show resend for non-completed invitations
+                if ($row->status === 'completed') {
+                    return '<span class="text-muted small">-</span>';
+                }
+                return '<button class="btn btn-sm btn-outline-primary btn-resend-invitation" data-id="' . $row->id . '" title="Resend Invitation">' .
+                    '<i class="fas fa-redo"></i> Resend' .
+                    '</button>';
+            })
+            ->rawColumns(['contact', 'method', 'status_badge', 'linked_user', 'action'])
             ->make(true);
     }
 
@@ -1482,5 +1520,116 @@ class UsersController extends DashboardController
         }
 
         return $maxLen;
+    }
+
+    /**
+     * Resend an invitation
+     */
+    public function resendInvitation(Request $request)
+    {
+        $request->validate([
+            'invitation_id' => 'required|integer|exists:invitations,id',
+        ]);
+
+        $invitation = Invitation::findOrFail($request->invitation_id);
+        
+        // Cannot resend completed invitations
+        if ($invitation->status === 'completed') {
+            return response()->json(['error' => 'This invitation has already been completed.'], 400);
+        }
+
+        // Check if the invited user is already verified
+        if ($invitation->user_id) {
+            $user = User::find($invitation->user_id);
+            if ($user && $user->phone_verified_at) {
+                return response()->json(['error' => 'This user is already verified. No invitation needed.'], 400);
+            }
+        }
+
+        // Rate limiting: 60 seconds between resends
+        if ($invitation->updated_at && $invitation->updated_at->diffInSeconds(now()) < 60) {
+            return response()->json(['error' => 'Please wait at least 60 seconds before resending.'], 429);
+        }
+
+        $phoneCode = optional(\DB::table('settings')->first())->phone_code ?? '254';
+        $church_name = $this->site_settings != null ? $this->site_settings->name : 'Our Church';
+        
+        // Generate new token and reset expiration
+        $newToken = Str::random(64);
+        $onboardingUrl = url('onboarding/' . $newToken);
+        
+        // Update invitation with new token and extended expiration
+        $invitation->update([
+            'token' => $newToken,
+            'expires_at' => now()->addDays(30),
+            'status' => 'pending',
+            'onboarding_step' => 0,
+            'started_at' => null,
+        ]);
+
+        // Create or update short link for the new onboarding URL
+        $shortLink = ShortLink::create([
+            'tenant_id' => config('app.tenant_id'),
+            'short_code' => ShortLink::generateUniqueCode(6),
+            'original_url' => $onboardingUrl,
+            'title' => 'Invitation (Resent) for ' . ($invitation->phone ?? $invitation->email),
+            'created_by' => Auth::id(),
+            'expires_at' => now()->addDays(30),
+            'is_active' => true,
+        ]);
+        $shortUrl = $shortLink->short_url;
+
+        // Resend via the original method
+        if ($invitation->via === 'sms' && $invitation->phone) {
+            $message = "You have been invited to join {$church_name}. Click to register: {$shortUrl}";
+            
+            app(\App\Services\IntegrationService::class)->sendSms($invitation->phone, $message);
+
+            // Log SMS
+            $mid = DB::table('sms')->insertGetId([
+                'people_id' => 0,
+                'message' => $message,
+                'category' => 'invitation_resend',
+                'sent' => Carbon::now(),
+            ]);
+            DB::table('sms_recipients')->insert([
+                'recipients' => $invitation->user_id ?? 0,
+                'phone' => $invitation->phone,
+                'sms_id' => $mid,
+                'sent' => Carbon::now(),
+            ]);
+
+            return response()->json(['success' => 'Invitation resent via SMS to ' . $invitation->phone, 'short_url' => $shortUrl]);
+        } elseif ($invitation->via === 'email' && $invitation->email) {
+            $message = "Dear friend,<br><br>" .
+                "You have been invited to join {$church_name}.<br><br>" .
+                "Please click the link below to create your account:<br>" .
+                "<a href='{$shortUrl}'>{$shortUrl}</a><br><br>" .
+                "This link will expire in 30 days.<br><br>" .
+                "Thank you,<br>{$church_name}";
+
+            $data = ['name' => 'Friend', 'mes' => $message];
+
+            try {
+                \Mail::send('dashboard.communication.mail', $data, function ($mail) use ($invitation, $church_name) {
+                    $mail->to($invitation->email)->subject("Invitation to Join - {$church_name}");
+                });
+
+                // Log email
+                DB::table('emails')->insertGetId([
+                    'subject' => "Invitation to Join - {$church_name}",
+                    'message' => $message,
+                    'category' => 'invitation_resend',
+                    'sent' => Carbon::now(),
+                ]);
+
+                return response()->json(['success' => 'Invitation resent via email to ' . $invitation->email, 'short_url' => $shortUrl]);
+            } catch (\Exception $e) {
+                \Log::error('Invitation resend email failed: ' . $e->getMessage());
+                return response()->json(['error' => 'Failed to send email: ' . $e->getMessage()], 500);
+            }
+        }
+
+        return response()->json(['error' => 'Invalid invitation method.'], 400);
     }
 }
