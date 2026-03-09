@@ -181,7 +181,7 @@ class MpesaAPIController extends Controller
         if ($shortcode) {
             $mpesaIntegration = $this->integrations->resolveMpesaIntegrationByShortcode((string)$shortcode);
             if ($mpesaIntegration) {
-                $tenant = Tenant::withoutTenantScope()->find($mpesaIntegration->tenant_id);
+                $tenant = Tenant::withoutGlobalScopes()->find($mpesaIntegration->tenant_id);
                 if ($tenant) {
                     app()->instance('tenant', $tenant);
                     config(['app.tenant_id' => $tenant->id]);
