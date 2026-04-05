@@ -8,15 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Add fund_source_id to summary_categories to link to sources table
+        // Add fund_source_id to summary_categories to link to sources table.
+        // Using plain unsignedInteger to match the original sources.id column type
+        // (created in 2019 as INT, not BIGINT). No FK constraint to avoid type-mismatch
+        // errno 150 errors across environments — relationship enforced at app level.
         if (!Schema::hasColumn('summary_categories', 'fund_source_id')) {
             Schema::table('summary_categories', function (Blueprint $table) {
-                $table->unsignedBigInteger('fund_source_id')->nullable()->after('id');
+                $table->unsignedInteger('fund_source_id')->nullable()->after('id');
                 $table->index('fund_source_id', 'idx_summary_cat_fund_source');
-                $table->foreign('fund_source_id', 'fk_summary_cat_fund_source')
-                    ->references('id')
-                    ->on('sources')
-                    ->onDelete('set null');
             });
         }
 
@@ -32,7 +31,6 @@ return new class extends Migration
     {
         if (Schema::hasColumn('summary_categories', 'fund_source_id')) {
             Schema::table('summary_categories', function (Blueprint $table) {
-                $table->dropForeign('fk_summary_cat_fund_source');
                 $table->dropIndex('idx_summary_cat_fund_source');
                 $table->dropColumn('fund_source_id');
             });
