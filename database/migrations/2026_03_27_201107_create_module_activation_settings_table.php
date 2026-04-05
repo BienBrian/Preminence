@@ -14,6 +14,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('module_activation_settings')) {
+            return;
+        }
+
         Schema::create('module_activation_settings', function (Blueprint $table) {
             $table->id();
             $table->string('module_key', 50)->unique();
