@@ -14,6 +14,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('giving_statement_configs')) {
+            return;
+        }
+
         Schema::create('giving_statement_configs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->onDelete('cascade');
