@@ -85,6 +85,15 @@ class ReportsController extends DashboardController
             ->get()
             ->groupBy('mapped_ref');
 
+        // Get collection fund sources for syncing
+        $fundSources = Source::collections()->get();
+
+        // Auto-sync fund sources to summary_categories on first visit — avoids requiring
+        // a manual "Sync" button click before the category dropdown works.
+        if (SummaryCategory::active()->doesntExist()) {
+            $this->performFundSourceSync($fundSources);
+        }
+
         // Get summary categories - only collection sources (ftype=0) for MPESA
         $summaryCategories = SummaryCategory::active()
             ->collections() // Only show collection categories, not expenses
@@ -92,9 +101,6 @@ class ReportsController extends DashboardController
                 $q->where('is_active', true);
             }])
             ->get();
-
-        // Get collection fund sources for syncing
-        $fundSources = Source::collections()->get();
 
         return view('dashboard.reports.mpesa_logs', compact(
             'totalTransactions', 'matchedTransactions', 'unmatchedTransactions', 'totalHashes',
@@ -895,44 +901,55 @@ class ReportsController extends DashboardController
      */
     public function syncFundSourcesToCategories()
     {
-        // Get all collection sources (ftype = 0) - limit to prevent timeouts
         $sources = Source::collections()
             ->select('id', 'name', 'description')
             ->limit(100)
             ->get();
-        $synced = 0;
 
-        // Get existing category fund_source_ids for batch check
-        $existingIds = SummaryCategory::whereIn('fund_source_id', $sources->pluck('id'))
-            ->pluck('fund_source_id')
-            ->toArray();
-        $existingIds = array_flip($existingIds);
-
-        foreach ($sources as $source) {
-            // Skip if already exists
-            if (isset($existingIds[$source->id])) {
-                continue;
-            }
-            
-            SummaryCategory::create([
-                'tenant_id' => config('app.tenant_id', 1),
-                'fund_source_id' => $source->id,
-                'name' => $source->name,
-                'code' => 'fund_' . $source->id,
-                'description' => $source->description,
-                'color' => $this->generateCategoryColor($source->id),
-                'sort_order' => $source->id,
-                'is_active' => true,
-                'is_default' => true,
-            ]);
-            $synced++;
-        }
+        $synced = $this->performFundSourceSync($sources);
 
         return response()->json([
             'success' => true,
             'message' => "{$synced} new fund sources synced to categories.",
             'synced' => $synced,
         ]);
+    }
+
+    /**
+     * Shared sync logic — create summary_category records for any fund source
+     * that doesn't already have one. Returns the count of newly created records.
+     *
+     * @param \Illuminate\Support\Collection $sources  Collection of Source models
+     */
+    private function performFundSourceSync($sources): int
+    {
+        $existingIds = array_flip(
+            SummaryCategory::withoutTenantScope()
+                ->whereIn('fund_source_id', $sources->pluck('id'))
+                ->where('tenant_id', config('app.tenant_id'))
+                ->pluck('fund_source_id')
+                ->toArray()
+        );
+
+        $synced = 0;
+        foreach ($sources as $source) {
+            if (isset($existingIds[$source->id])) {
+                continue;
+            }
+            SummaryCategory::create([
+                'tenant_id'       => config('app.tenant_id'),
+                'fund_source_id'  => $source->id,
+                'name'            => $source->name,
+                'code'            => 'fund_' . $source->id,
+                'description'     => $source->description ?? '',
+                'color'           => $this->generateCategoryColor($source->id),
+                'sort_order'      => $source->id,
+                'is_active'       => true,
+                'is_default'      => true,
+            ]);
+            $synced++;
+        }
+        return $synced;
     }
 
     /**
