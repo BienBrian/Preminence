@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Models\User;
+use App\Services\ModulePermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -85,13 +86,64 @@ class RolesController extends DashboardController
         if ($role == null) {
             return redirect()->to('home');
         }
+
+        // Use ModulePermissionService to filter permissions by active modules
+        $modulePermissionService = app(ModulePermissionService::class);
+        
         $permissions = Permission::with([
             'roles' => function ($query) use ($request) {
                 $query->where('id', $request->id);
             }
-        ])->where("name", 'NOT LIKE', '%permissions%')->get();
-        //return json_encode($permissions);
-        return view('dashboard.users.role', @compact('role', 'permissions'));
+        ])
+        ->where("name", 'NOT LIKE', '%permissions%')
+        ->where(function ($query) use ($modulePermissionService) {
+            $modulePermissionService->filterPermissionQuery($query);
+        })
+        ->get();
+        
+        // Group permissions by module for better UI
+        $groupedPermissions = $this->groupPermissionsByModule($permissions);
+        
+        return view('dashboard.users.role', @compact('role', 'permissions', 'groupedPermissions'));
+    }
+
+    /**
+     * Group permissions by their associated module
+     */
+    private function groupPermissionsByModule($permissions): array
+    {
+        $modulePermissionService = app(ModulePermissionService::class);
+        $grouped = [];
+        
+        // Core permissions (not tied to any module)
+        $grouped['Core'] = [];
+        
+        foreach ($permissions as $permission) {
+            $moduleKey = $modulePermissionService->getModuleForPermission($permission->name);
+            
+            if ($moduleKey) {
+                $moduleName = $this->getModuleDisplayName($moduleKey);
+                if (!isset($grouped[$moduleName])) {
+                    $grouped[$moduleName] = [];
+                }
+                $grouped[$moduleName][] = $permission;
+            } else {
+                $grouped['Core'][] = $permission;
+            }
+        }
+        
+        // Remove empty groups
+        return array_filter($grouped);
+    }
+
+    /**
+     * Get display name for a module key
+     */
+    private function getModuleDisplayName(string $moduleKey): string
+    {
+        $module = \App\Models\Module::where('key', $moduleKey)->first();
+        
+        return $module?->name ?? ucwords(str_replace('_', ' ', $moduleKey));
     }
 
     public function addPermissions(Request $request)

@@ -140,6 +140,39 @@
                 </div>
             </div>
 
+            <!-- Manual Tithe Message Settings -->
+            <div class="card card-outline card-primary collapsed-card mb-3">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-hand-holding-usd"></i> Manual Tithe Message Settings</h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-plus"></i></button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form id="manual-tithe-settings-form">
+                        <div class="row">
+                            <div class="col-md-9">
+                                <div class="form-group">
+                                    <label>Message Template <small class="text-muted">(for cash/in-kind contributions recorded manually)</small></label>
+                                    <textarea class="form-control" name="message" rows="4" id="manual-tithe-message" placeholder="Thank you @{{NAME}} for your contribution of Ksh. @{{AMOUNT}}..."></textarea>
+                                    <small class="text-muted">Use <code>@{{NAME}}</code> for giver name, <code>@{{AMOUNT}}</code> for amount. <strong>Note:</strong> This template does NOT include @{{ACCOUNT}} since it's for manual recordings.</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <div class="custom-control custom-switch mt-2">
+                                        <input type="checkbox" class="custom-control-input" id="manual-tithe-active" name="active" checked>
+                                        <label class="custom-control-label" for="manual-tithe-active">Active</label>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Save Settings</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- SMS Table with Category Tabs -->
             <div class="card">
                 <div class="card-header">
@@ -1161,6 +1194,36 @@
                     },
                     error: function(xhr) {
                         toastr.error('Failed to save Mpesa message settings');
+                    }
+                });
+            });
+
+            // ===== Manual Tithe Message Settings =====
+            $.ajax({
+                url: "{{ url('dashboard/communication/sms/manual-tithe/settings') }}",
+                type: 'GET',
+                success: function(data) {
+                    if (data) {
+                        $('#manual-tithe-message').val(data.message);
+                        $('#manual-tithe-active').prop('checked', data.active == 1);
+                    }
+                }
+            });
+
+            $('#manual-tithe-settings-form').submit(function(e) {
+                e.preventDefault();
+                $.ajax({
+                    url: "{{ url('dashboard/communication/sms/manual-tithe/settings') }}",
+                    method: 'POST',
+                    data: {
+                        message: $('#manual-tithe-message').val(),
+                        active: $('#manual-tithe-active').is(':checked') ? 1 : 0,
+                    },
+                    success: function(data) {
+                        toastr.success(data.success);
+                    },
+                    error: function(xhr) {
+                        toastr.error('Failed to save manual tithe message settings');
                     }
                 });
             });

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AlternativePhone;
 use App\Models\Invitation;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -44,17 +45,20 @@ class OnboardingController extends Controller
     private function sendSmsOtp(string $phone, string $otp, string $churchName, ?int $userId = null): void
     {
         $message = "Your {$churchName} verification code is: {$otp}. Valid for 15 minutes.";
+        $tid = config('app.tenant_id', 1);
 
         app(\App\Services\IntegrationService::class)->sendSms($phone, $message);
 
         // Log the OTP SMS to sms + sms_recipients tables
         $mid = DB::table('sms')->insertGetId([
+            'tenant_id' => $tid,
             'people_id' => 0,
             'message'   => $message,
             'category'  => 'verification',
             'sent'      => Carbon::now(),
         ]);
         DB::table('sms_recipients')->insert([
+            'tenant_id'  => $tid,
             'recipients' => $userId ?? 0,
             'phone'      => $phone,
             'sms_id'     => $mid,
@@ -164,9 +168,12 @@ class OnboardingController extends Controller
         $phoneCode = $this->getPhoneCode();
 
         $validator = Validator::make($request->all(), [
-            'phone'    => 'required|string',
-            'email'    => 'nullable|email|max:255',
-            'password' => 'required|string|min:8|confirmed',
+            'phone'     => 'required|string',
+            'email'     => 'nullable|email|max:255',
+            'password'  => 'required|string|min:8|confirmed',
+            'firstname' => 'required|string|max:255',
+            'surname'   => 'nullable|string|max:255',
+            'lastname'  => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -198,8 +205,9 @@ class OnboardingController extends Controller
         if (!$user) {
             try {
                 $user = new User();
-                $user->firstname = '';
-                $user->lastname  = '';
+                $user->firstname = $request->firstname;
+                $user->surname   = $request->surname ?? '';
+                $user->lastname  = $request->lastname;
                 $user->phone     = $phone;
                 $user->status    = 1;
                 $user->password  = Hash::make($request->password);
@@ -305,13 +313,10 @@ class OnboardingController extends Controller
                 ->with('success', 'New verification codes sent!');
         }
 
-        // Validate OTP inputs
-        $rules = ['phone_otp' => 'required|digits:6'];
-        if ($invitation->email_otp) {
-            $rules['email_otp'] = 'required|digits:6';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
+        // Validate OTP input (phone only)
+        $validator = Validator::make($request->all(), [
+            'phone_otp' => 'required|digits:6',
+        ]);
         if ($validator->fails()) {
             return redirect()->route('onboarding', $token)
                 ->withErrors($validator)
@@ -322,7 +327,7 @@ class OnboardingController extends Controller
         // Check OTP expiry
         if ($invitation->otp_expires_at && Carbon::now()->isAfter($invitation->otp_expires_at)) {
             return redirect()->route('onboarding', $token)
-                ->withErrors(['phone_otp' => 'Verification codes have expired. Please request new codes.'])
+                ->withErrors(['phone_otp' => 'Verification code has expired. Please request a new code.'])
                 ->with('force_step', 2);
         }
 
@@ -334,19 +339,8 @@ class OnboardingController extends Controller
                 ->with('force_step', 2);
         }
 
-        // Verify email OTP
-        if ($invitation->email_otp && $request->email_otp !== $invitation->email_otp) {
-            return redirect()->route('onboarding', $token)
-                ->withErrors(['email_otp' => 'Invalid email verification code.'])
-                ->withInput()
-                ->with('force_step', 2);
-        }
-
-        // Mark phone as verified
+        // Mark phone as verified only (email will be verified later)
         $user->phone_verified_at = now();
-        if ($invitation->email_otp) {
-            $user->email_verified_at = now();
-        }
         $user->save();
 
         $invitation->update([
@@ -356,7 +350,7 @@ class OnboardingController extends Controller
         ]);
 
         return redirect()->route('onboarding', $token)
-            ->with('success', 'Phone' . ($user->email ? ' and email' : '') . ' verified successfully!');
+            ->with('success', 'Phone verified successfully! You can verify your email later from your dashboard.');
     }
 
     /**
@@ -374,14 +368,33 @@ class OnboardingController extends Controller
 
         // Save alternate phone(s) if provided
         if ($request->filled('alt_phone_1') || $request->filled('alt_phone_2')) {
+            $tid       = config('app.tenant_id', 1);
             $altPhones = [];
-            if ($request->filled('alt_phone_1')) {
-                $altPhones[] = $this->normalizePhone($request->alt_phone_1, $phoneCode);
+
+            foreach (['alt_phone_1' => 'Alternative 1', 'alt_phone_2' => 'Alternative 2'] as $field => $label) {
+                if (!$request->filled($field)) continue;
+
+                $phone = $this->normalizePhone($request->$field, $phoneCode);
+                $altPhones[] = $phone;
+
+                // Skip if already the user's primary phone
+                if ($user->phone === $phone) continue;
+
+                // Persist to alternative_phones table (model auto-generates phone_hash via boot())
+                if (!AlternativePhone::where('user_id', $user->id)->where('phone', $phone)->exists()) {
+                    AlternativePhone::create([
+                        'tenant_id' => $tid,
+                        'user_id'   => $user->id,
+                        'phone'     => $phone,
+                        'label'     => $label,
+                    ]);
+                }
+
+                // Ensure the number has an mpesa_phones entry for matching
+                $this->createMpesaHashAndMatch($phone, $user->firstname . ' ' . $user->lastname, $user->id);
             }
-            if ($request->filled('alt_phone_2')) {
-                $altPhones[] = $this->normalizePhone($request->alt_phone_2, $phoneCode);
-            }
-            // Store in scontacts
+
+            // Also keep legacy scontacts entry for backwards compatibility
             DB::table('scontacts')->updateOrInsert(
                 ['user_id' => $user->id],
                 ['secondary_phone' => implode(',', $altPhones)]
@@ -398,8 +411,12 @@ class OnboardingController extends Controller
         // Log user in
         Auth::login($user);
 
+        // Check if user has unverified email
+        $hasUnverifiedEmail = $user->email && !$user->email_verified_at;
+
         return redirect()->to('dashboard/home')
-            ->with('success', 'Welcome! Your account has been created. You can complete your profile from here.');
+            ->with('success', 'Welcome! Your account has been created. You can complete your profile from here.')
+            ->with('show_email_verification_modal', $hasUnverifiedEmail);
     }
 
     /**

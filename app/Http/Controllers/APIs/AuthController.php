@@ -19,10 +19,11 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:255', 'unique:users'],
+            'firstname' => ['required', 'string', 'max:255'],
+            'surname' => ['nullable', 'string', 'max:255'],
+            'lastname' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'regex:/^\d{9,15}$/', 'unique:users'],
-            'referrer' => ['required', 'string', 'exists:users,username,status,1'],
+            'referrer' => ['required', 'string', 'exists:users,phone,status,1'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:12', 'confirmed', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'terms_and_conditions' => ['required', 'integer', 'min:1', 'max:1'],
@@ -35,8 +36,9 @@ class AuthController extends Controller
             $role = Role::create(['name' => 'User']);
         }
         $user = new User;
-        $user->name = $request->name;
-        $user->username = $request->username;
+        $user->firstname = $request->firstname;
+        $user->surname = $request->surname ?? '';
+        $user->lastname = $request->lastname;
         $user->email = $request->email;
         $user->password = Hash::make($request->password);
         $user->referrer = $request->referrer;

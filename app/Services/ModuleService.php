@@ -23,6 +23,7 @@ class ModuleService
      * Must match the keys in PlansSeeder and tenant_modules.module column.
      */
     public const MODULES = [
+        // Core modules
         'people',
         'attendance',
         'finance',
@@ -38,6 +39,29 @@ class ModuleService
         'discipleship',
         'api_access',
         'links',
+        
+        // Feature modules - Spiritual Content
+        'sermons',
+        'articles',
+        'testimonials',
+        'prayer_requests',
+        
+        // Feature modules - Financial
+        'donations',
+        'budgets',
+        'assets',
+        'mpesa_logs',
+        
+        // Feature modules - Administration
+        'duplication_checker',
+        'children_checkin',
+        'file_manager',
+        
+        // Feature modules - Advanced
+        'reports_advanced',
+        
+        // Feature modules - Giving Statements
+        'giving_statements',
     ];
 
     /**
@@ -76,6 +100,9 @@ class ModuleService
                 Cache::forget("tenant_{$tenantId}_module_{$m}");
             }
         }
+        
+        // Also flush the module permission cache
+        app(ModulePermissionService::class)->clearCache($tenantId);
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Models\HomePage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PastorSettingsController extends DashboardController
 {
@@ -80,22 +81,21 @@ class PastorSettingsController extends DashboardController
 
     public function uploadimage(Request $request)
     {
-        $data = $request->image;
         $message = \DB::table('pastorsmessage')->first();
 
-        list($type, $data) = explode(';', $data);
-        list(, $data) = explode(',', $data);
+        $result = $this->processBase64Image($request->image, public_path('website/pastors'));
+        if (isset($result['error'])) {
+            return response()->json(['success' => '<p class="text-center text-danger"><i class="fas fa-exclamation-circle"></i> ' . e($result['error']) . '</p>']);
+        }
 
-        $data = base64_decode($data);
-        $image_name = time() . '.png';
+        $image_name = $result['filename'];
 
-        $path = public_path() . "/website/pastors/" . $image_name;
         if ($message->image != "") {
             if (file_exists(public_path() . "/website/pastors/" . $message->image)) {
                 unlink(public_path() . "/website/pastors/" . $message->image);
             }
         }
-        file_put_contents($path, $data);
+
         if ($message != null) {
             $update = \DB::table('pastorsmessage')->where("id", $message->id)->update(["image" => $image_name]);
             if (!$update) {
@@ -108,5 +108,60 @@ class PastorSettingsController extends DashboardController
             }
         }
         return response()->json(['success' => '<p class="text-center text-success"><i class="fas fa-check"></i> Successfully uploaded</p>']);
+    }
+
+    /**
+     * Process a base64-encoded image string and save it to disk.
+     * Validates MIME type and file contents.
+     */
+    private function processBase64Image(?string $base64String, string $directory): array
+    {
+        if (empty($base64String)) {
+            return ['error' => 'No image provided'];
+        }
+
+        if (!preg_match('/^data:image\/(\w+);base64,/', $base64String, $matches)) {
+            return ['error' => 'Invalid image format'];
+        }
+
+        $imageType = strtolower($matches[1]);
+        $allowedTypes = ['jpeg', 'jpg', 'png', 'gif', 'webp'];
+        if (!in_array($imageType, $allowedTypes, true)) {
+            return ['error' => 'Invalid image type. Allowed: jpeg, png, gif, webp'];
+        }
+
+        $data = substr($base64String, strpos($base64String, ',') + 1);
+        $data = base64_decode($data, true);
+
+        if ($data === false) {
+            return ['error' => 'Invalid base64 data'];
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($finfo, $data);
+        finfo_close($finfo);
+
+        $mimeToExt = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+
+        if (!isset($mimeToExt[$mimeType])) {
+            return ['error' => 'Invalid image content'];
+        }
+
+        $extension = $mimeToExt[$mimeType];
+        $filename = time() . '_' . Str::random(8) . '.' . $extension;
+
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $path = rtrim($directory, '/') . '/' . $filename;
+        file_put_contents($path, $data);
+
+        return ['success' => true, 'filename' => $filename];
     }
 }

@@ -35,14 +35,18 @@ use Symfony\Component\HttpFoundation\Response;
  *  - superadmin.* → Superadmin panel
  *  - admin.* → Superadmin panel alias
  *  - api.* → API endpoints
+ *
+ * Configuration:
+ *  - See config/pisti.php for all settings
+ *  - Use PISTI_ENV in .env to control behavior (dev/staging/production)
  */
 class IdentifyTenant
 {
-    /** Subdomains that bypass tenant resolution */
-    private const BYPASSED_SUBDOMAINS = ['www', 'admin', 'api', 'staging', 'horizon', 'superadmin'];
+    /** Subdomains that bypass tenant resolution - loaded from config */
+    private array $bypassedSubdomains;
 
     /** Current platform domain - serves Tenant #1 directly */
-    private const PRIMARY_PLATFORM_DOMAIN = 'happychurchruiru.org';
+    private string $primaryPlatformDomain;
 
     /** Future marketing domains (Phase 2) */
     private const MARKETING_DOMAINS = [
@@ -51,6 +55,12 @@ class IdentifyTenant
         'pisti.co.ke',
         'www.pisti.co.ke',
     ];
+
+    public function __construct()
+    {
+        $this->bypassedSubdomains = reserved_subdomains();
+        $this->primaryPlatformDomain = pisti_platform_domain();
+    }
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -64,7 +74,7 @@ class IdentifyTenant
 
         // ── Check for bypassed subdomains (superadmin, www, etc.) ──────────────
         $subdomain = $this->extractSubdomain($host);
-        if ($subdomain && in_array($subdomain, self::BYPASSED_SUBDOMAINS)) {
+        if ($subdomain && in_array($subdomain, $this->bypassedSubdomains)) {
             // These routes handle their own authentication
             return $next($request);
         }
@@ -89,7 +99,7 @@ class IdentifyTenant
         if (!$tenant && $this->isMarketingDomain($host)) {
             // Future: Return marketing site view
             // For now, redirect to primary domain
-            return redirect()->away('https://' . self::PRIMARY_PLATFORM_DOMAIN);
+            return redirect()->away('https://' . $this->primaryPlatformDomain);
         }
 
         // ── No tenant found → Show coming soon / 404 ───────────────────────────
@@ -118,14 +128,15 @@ class IdentifyTenant
     {
         $tenant = null;
 
-        // Check for ?__tenant={slug} query parameter for testing
-        if ($request->has('__tenant')) {
+        // Check for ?__tenant={slug} query parameter for testing (if enabled)
+        if (pisti_config('tenant.allow_query_override') && $request->has('__tenant')) {
             $tenant = Tenant::where('slug', $request->get('__tenant'))->first();
         }
 
-        // Default to tenant #1 for local development
+        // Default to configured tenant ID for local development
         if (!$tenant) {
-            $tenant = Tenant::find(1);
+            $defaultTenantId = pisti_config('tenant.default_id', 1);
+            $tenant = Tenant::find($defaultTenantId);
         }
 
         if ($tenant) {
@@ -206,14 +217,14 @@ class IdentifyTenant
     }
 
     /**
-     * Check if host is the primary platform domain (happychurchruiru.org).
+     * Check if host is the primary platform domain.
      */
     private function isPrimaryPlatformDomain(string $host): bool
     {
         $host = explode(':', $host)[0];
 
-        return $host === self::PRIMARY_PLATFORM_DOMAIN
-            || $host === 'www.' . self::PRIMARY_PLATFORM_DOMAIN;
+        return $host === $this->primaryPlatformDomain
+            || $host === 'www.' . $this->primaryPlatformDomain;
     }
 
     /**

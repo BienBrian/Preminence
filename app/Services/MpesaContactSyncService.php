@@ -290,20 +290,21 @@ class MpesaContactSyncService
     }
 
     /**
-     * Retroactively rehash all contacts that don't have mpesa_phone records.
-     * This can be run periodically or on-demand.
-     * 
+     * Retroactively rehash all contacts AND alternative phones that don't yet
+     * have mpesa_phone records. Safe to call multiple times — skips existing entries.
+     *
      * @return array Statistics about the operation
      */
     public function rehashAllContacts(): array
     {
         $stats = [
             'processed' => 0,
-            'created' => 0,
-            'skipped' => 0,
-            'errors' => 0,
+            'created'   => 0,
+            'skipped'   => 0,
+            'errors'    => 0,
         ];
 
+        // ── Primary contacts ──────────────────────────────────────────────────
         $contacts = DB::table('contacts')
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
@@ -311,31 +312,64 @@ class MpesaContactSyncService
 
         foreach ($contacts as $contact) {
             $stats['processed']++;
-
             try {
                 $normalized = $this->normalizePhoneNumber($contact->phone);
-                
-                if (!$normalized) {
-                    $stats['skipped']++;
-                    continue;
-                }
+                if (!$normalized) { $stats['skipped']++; continue; }
 
                 $phoneHash = hash('sha256', $normalized);
-
-                // Skip if already exists
-                if ($this->hasMpesaPhoneRecord($phoneHash)) {
-                    $stats['skipped']++;
-                    continue;
-                }
+                if ($this->hasMpesaPhoneRecord($phoneHash)) { $stats['skipped']++; continue; }
 
                 $this->createMpesaPhoneRecord($contact, $normalized, $phoneHash);
                 $stats['created']++;
-
             } catch (\Exception $e) {
                 $stats['errors']++;
                 Log::error("MpesaContactSync: Error rehashing contact", [
-                    'contact_id' => $contact->id,
-                    'error' => $e->getMessage(),
+                    'contact_id' => $contact->id ?? null,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // ── Alternative phones ────────────────────────────────────────────────
+        // These are additional MPesa-paying numbers registered against a user.
+        // Without hashing them, a contribution from an alt phone will always
+        // appear as "unknown donor" even though the user IS in the system.
+        $altPhones = DB::table('alternative_phones')
+            ->whereNotNull('phone')
+            ->where('phone', '!=', '')
+            ->get();
+
+        foreach ($altPhones as $altPhone) {
+            $stats['processed']++;
+            try {
+                $normalized = $this->normalizePhoneNumber($altPhone->phone);
+                if (!$normalized) { $stats['skipped']++; continue; }
+
+                $phoneHash = hash('sha256', $normalized);
+                if ($this->hasMpesaPhoneRecord($phoneHash)) { $stats['skipped']++; continue; }
+
+                // Build a minimal contact-like object so createMpesaPhoneRecord works
+                $user = DB::table('users')->where('id', $altPhone->user_id)->first();
+                $name = $user ? trim(($user->firstname ?? '') . ' ' . ($user->lastname ?? '')) : 'Unknown';
+
+                \App\Models\MpesaPhone::create([
+                    'tenant_id'  => $altPhone->tenant_id ?? config('app.tenant_id', 1),
+                    'name'       => $name,
+                    'phone'      => $normalized,
+                    'phone_hash' => $phoneHash,
+                ]);
+
+                $stats['created']++;
+
+                Log::info("MpesaContactSync: Hashed alternative phone", [
+                    'user_id' => $altPhone->user_id,
+                    'phone'   => substr($normalized, 0, 6) . '****',
+                ]);
+            } catch (\Exception $e) {
+                $stats['errors']++;
+                Log::error("MpesaContactSync: Error rehashing alternative phone", [
+                    'alt_phone_id' => $altPhone->id ?? null,
+                    'error'        => $e->getMessage(),
                 ]);
             }
         }

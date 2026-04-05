@@ -14,7 +14,7 @@
     <div class="hero-content">
         <span class="hero-badge"><i class="fas fa-church mr-1"></i> Welcome to {{ $site_settings->name ?? 'Our Church' }}</span>
         <h1 class="hero-title">{{ ($homepage == null) ? "Experience Faith, Hope & Love" : $homepage->title }}</h1>
-        <p class="hero-subtitle">{!! ($homepage == null) ? "Join us every Sunday as we grow together in faith and community." : html_entity_decode($homepage->description) !!}</p>
+        <p class="hero-subtitle">{!! ($homepage == null) ? "Join us every Sunday as we grow together in faith and community." : strip_tags(html_entity_decode($homepage->description), '<p><br><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><span><div>') !!}</p>
         <div class="hero-cta">
             <a href="{{ url('/prayer-wall') }}" class="btn btn-light"><i class="fas fa-pray mr-1"></i> Prayer Request</a>
             <a href="#" class="btn btn-outline-light" data-toggle="modal" data-target="#donate"><i class="fas fa-heart mr-1"></i> Donate</a>
@@ -35,7 +35,7 @@
                 <span class="pastor-label"><i class="fas fa-cross mr-1"></i> Pastor's Message</span>
                 <h2 class="section-heading">{{ $message == null ? "Pastor's Message" : $message->title }}</h2>
                 <div class="mt-3" style="color: #4a5568; line-height: 1.8;">
-                    {!! $message == null ? "<p>A warm welcome from our senior pastor.</p>" : html_entity_decode($message->description) !!}
+                    {!! $message == null ? "<p>A warm welcome from our senior pastor.</p>" : strip_tags(html_entity_decode($message->description), '<p><br><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><span><div>') !!}
                 </div>
                 <p class="pastor-signature">&mdash; Senior Pastor</p>
             </div>

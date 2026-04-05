@@ -31,7 +31,7 @@
                     <div class="card shadow-none">
                         <div class='card-header'><i class='far fa-clock'></i> Posted <b>{{ Carbon\Carbon::parse($notification->created_at)->diffForHumans() }}</b></div>
                         <div class='card-body'>
-                            {!! $notification->notification !!}
+                            {!! strip_tags($notification->notification, '<p><br><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><blockquote><table><thead><tbody><tr><th><td><div><span><hr>') !!
                         </div>
                     </div>
 

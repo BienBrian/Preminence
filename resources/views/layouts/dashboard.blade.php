@@ -119,6 +119,9 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         <div class="dropdown-divider"></div>
                         <a href="{{ url('dashboard/settings/general') }}" class="dropdown-item {{ Request::is('dashboard/settings/general*') ? 'active' : '' }}"><i class="fas fa-sliders-h mr-2"></i> General Settings</a>
                         <a href="{{ url('dashboard/settings/funds/sources') }}" class="dropdown-item {{ Request::is('dashboard/settings/funds*') ? 'active' : '' }}"><i class="fas fa-coins mr-2"></i> Fund Sources</a>
+                        @can('View Finances')
+                        <a href="{{ url('dashboard/settings/reference-mappings') }}" class="dropdown-item {{ Request::is('dashboard/settings/reference-mappings*') ? 'active' : '' }}"><i class="fas fa-map-signs mr-2"></i> Reference Mappings</a>
+                        @endcan
                         @can('View Payment Settings')
                         <a href="{{ url('dashboard/payments/settings/banks') }}" class="dropdown-item {{ Request::is('dashboard/payments/settings*') ? 'active' : '' }}"><i class="fas fa-credit-card mr-2"></i> Payment Settings</a>
                         @endcan
@@ -288,6 +291,10 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
                         <div class="dropdown-divider"></div>
                         <a href="{{ url('dashboard/profile') }}" class="dropdown-item">
                             <i class="fas fa-user-circle mr-2"></i> My Profile
+                        </a>
+                        <a href="#" class="dropdown-item" data-toggle="modal" data-target="#tenantMarketplaceModal">
+                            <i class="fas fa-store mr-2"></i> Module Marketplace
+                            <span class="badge badge-success float-right" id="marketplace-badge" style="display:none;">New</span>
                         </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="{{ route('logout') }}"
@@ -475,7 +482,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
     <!-- Hidden Module Menus (used by JS to populate secondary sidebar + popovers) -->
     <div id="module-menus" style="display:none">
 
-        @if (auth()->user()->can('View Website Settings'))
+        @if(module('website') && auth()->user()->can('View Website Settings'))
         <div data-module="website" data-title="Website Settings" data-icon="fas fa-globe">
             <ul class="ss-nav">
                 <li><a href="{{ url('dashboard/website/settings') }}" class="{{ Request::is('dashboard/website/settings') ? 'active' : '' }}"><i class="fas fa-cog"></i> <span>General Settings</span></a></li>
@@ -488,13 +495,16 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
         </div>
         @endif
 
+        @if(module('finance'))
         @can('View Finances')
         <div data-module="finances" data-title="Finances" data-icon="fas fa-coins">
             <ul class="ss-nav">
                 <li><a href="{{ url('dashboard/finances/overview') }}" class="{{ Request::is('dashboard/finances/overview') ? 'active' : '' }}"><i class="fas fa-chart-pie"></i> <span>Overview</span></a></li>
                 <li><a href="{{ url('dashboard/finances/funds') }}" class="{{ Request::is('dashboard/finances/funds') ? 'active' : '' }}"><i class="fas fa-hand-holding-usd"></i> <span>Funds/Tithe/Offering</span></a></li>
                 <li><a href="{{ url('dashboard/finances/tithing/individual') }}" class="{{ Request::is('dashboard/finances/tithing*') ? 'active' : '' }}"><i class="fas fa-user-tag"></i> <span>Individual Tithing</span></a></li>
+                @if(module('budgets'))
                 <li><a href="{{ url('dashboard/finances/budgets') }}" class="{{ Request::is('dashboard/finances/budgets*') ? 'active' : '' }}"><i class="fas fa-file-invoice-dollar"></i> <span>Budgets</span></a></li>
+                @endif
                 <li><a href="{{ url('dashboard/finances/donations') }}" class="{{ Request::is('dashboard/finances/donations*') ? 'active' : '' }}"><i class="fas fa-gift"></i> <span>Donations</span></a></li>
                 <li><a href="{{ url('dashboard/finances/assets') }}" class="{{ Request::is('dashboard/finances/assets*') ? 'active' : '' }}"><i class="fas fa-building"></i> <span>Assets</span></a></li>
                 <li><a href="{{ url('dashboard/finances/expenses') }}" class="{{ Request::is('dashboard/finances/expenses*') ? 'active' : '' }}"><i class="fas fa-receipt"></i> <span>Expenses</span></a></li>
@@ -504,8 +514,9 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
             </ul>
         </div>
         @endcan
+        @endif
 
-        @if (auth()->user()->can('View People') || auth()->user()->can('View Users'))
+        @if(module('people') && (auth()->user()->can('View People') || auth()->user()->can('View Users')))
         <div data-module="people" data-title="People" data-icon="fas fa-users">
             <ul class="ss-nav">
                 @can('View Users')
@@ -524,6 +535,7 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
         </div>
         @endif
 
+        @if(module('events'))
         @can('View Events & Notices')
         <div data-module="events" data-title="Events & Notices" data-icon="fas fa-bell">
             <ul class="ss-nav">
@@ -537,18 +549,24 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
             </ul>
         </div>
         @endcan
+        @endif
 
+        @if(module('spiritual'))
         @can('View Spiritual')
         <div data-module="spiritual" data-title="Spiritual" data-icon="fas fa-bible">
             <ul class="ss-nav">
                 <li><a href="{{ url('dashboard/spiritual/sermons') }}" class="{{ Request::is('dashboard/spiritual/sermons*') ? 'active' : '' }}"><i class="fas fa-microphone"></i> <span>Sermons</span></a></li>
+                @if(module('discipleship'))
                 <li><a href="{{ url('dashboard/spiritual/discipleship') }}" class="{{ Request::is('dashboard/spiritual/discipleship*') ? 'active' : '' }}"><i class="fas fa-walking"></i> <span>Discipleship & Mentorship</span></a></li>
+                @endif
                 <li><a href="{{ url('dashboard/prayer-requests') }}" class="{{ Request::is('dashboard/prayer-requests*') ? 'active' : '' }}"><i class="fas fa-pray"></i> <span>Prayer Requests</span></a></li>
                 <li><a href="{{ url('dashboard/spiritual/testimonials') }}" class="{{ Request::is('dashboard/spiritual/testimonials*') ? 'active' : '' }}"><i class="fas fa-comments"></i> <span>Testimonials</span></a></li>
             </ul>
         </div>
         @endcan
+        @endif
 
+        @if(module('email') || module('sms'))
         @can('View Communication')
         <div data-module="communication" data-title="Communication" data-icon="fas fa-envelope">
             <ul class="ss-nav">
@@ -557,15 +575,21 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
             </ul>
         </div>
         @endcan
+        @endif
 
+        @if(module('reports'))
         @can('View Finances')
         <div data-module="reports" data-title="Reports" data-icon="fas fa-chart-line">
             <ul class="ss-nav">
                 <li><a href="{{ url('dashboard/reports') }}" class="{{ Request::is('dashboard/reports') ? 'active' : '' }}"><i class="fas fa-chart-pie"></i> <span>Dashboard</span></a></li>
                 <li><a href="{{ url('dashboard/reports/mpesa-logs') }}" class="{{ Request::is('dashboard/reports/mpesa-logs*') ? 'active' : '' }}"><i class="fas fa-mobile-alt"></i> <span>Mpesa Transaction Logs</span></a></li>
+                @if(module('giving_statements'))
+                <li><a href="{{ url('dashboard/reports/giving-statements') }}" class="{{ Request::is('dashboard/reports/giving-statements*') ? 'active' : '' }}"><i class="fas fa-file-invoice-dollar"></i> <span>Giving Statements</span></a></li>
+                @endif
             </ul>
         </div>
         @endcan
+        @endif
 
         @can('View Prayer Requests')
         <div data-module="prayer-requests" data-title="Prayer Requests" data-icon="fas fa-praying-hands">
@@ -994,6 +1018,731 @@ elseif (Request::is('dashboard/reports*')) $activeModule = 'reports';
             }
 
         });
+    </script>
+
+    <!-- ===== TENANT MODULE MARKETPLACE MODAL ===== -->
+    <div class="modal fade" id="tenantMarketplaceModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-gradient-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-store mr-2"></i> Module Marketplace</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body p-0">
+                    <!-- Loading State -->
+                    <div id="marketplace-loading" class="text-center py-5">
+                        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                        <p class="mt-2 text-muted">Loading available modules...</p>
+                    </div>
+                    
+                    <!-- Content State -->
+                    <div id="marketplace-content" style="display:none;">
+                        <!-- Available Modules Section -->
+                        <div class="p-3 bg-light border-bottom">
+                            <h6 class="mb-0"><i class="fas fa-plus-circle mr-1"></i> Available Modules</h6>
+                            <small class="text-muted">Activate new features for your church</small>
+                        </div>
+                        <div id="available-modules-list" class="p-3">
+                            <!-- Modules will be loaded here -->
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div id="no-modules-message" class="text-center py-4" style="display:none;">
+                            <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
+                            <p class="text-muted">All available modules are already activated!</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Error State -->
+                    <div id="marketplace-error" class="text-center py-4" style="display:none;">
+                        <i class="fas fa-exclamation-circle fa-2x text-danger mb-2"></i>
+                        <p class="text-muted">Failed to load modules. Please try again.</p>
+                        <button class="btn btn-sm btn-primary" onclick="loadMarketplaceModules()">Retry</button>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle mr-1"></i> 
+                        Some modules may require approval or plan upgrade
+                    </small>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Activation/Onboarding Modal -->
+    <div class="modal fade" id="moduleActivationModal" tabindex="-1" role="dialog" data-backdrop="static">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content" id="activation-modal-content">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== Tenant Marketplace Functions =====
+        
+        // Load marketplace modules when modal opens
+        $('#tenantMarketplaceModal').on('show.bs.modal', function() {
+            loadMarketplaceModules();
+        });
+
+        function loadMarketplaceModules() {
+            $('#marketplace-loading').show();
+            $('#marketplace-content').hide();
+            $('#marketplace-error').hide();
+
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/available-modules") }}',
+                method: 'GET',
+                success: function(response) {
+                    $('#marketplace-loading').hide();
+                    $('#marketplace-content').show();
+                    
+                    if (response.modules.length === 0) {
+                        $('#available-modules-list').hide();
+                        $('#no-modules-message').show();
+                    } else {
+                        $('#no-modules-message').hide();
+                        $('#available-modules-list').show();
+                        renderMarketplaceModules(response.modules);
+                    }
+                },
+                error: function() {
+                    $('#marketplace-loading').hide();
+                    $('#marketplace-error').show();
+                }
+            });
+        }
+
+        function renderMarketplaceModules(modules) {
+            var html = '';
+            
+            modules.forEach(function(module) {
+                var priceBadge = module.price_info.is_free 
+                    ? '<span class="badge badge-success">Free</span>'
+                    : '<span class="badge badge-primary">KES ' + module.price_info.monthly + '/mo</span>';
+                
+                var statusBadge = '';
+                if (module.onboarding_status) {
+                    statusBadge = '<span class="badge badge-warning">' + module.onboarding_status + '</span>';
+                } else if (module.activation_blocked) {
+                    statusBadge = '<span class="badge badge-secondary">Upgrade Required</span>';
+                }
+
+                var actionButton = '';
+                if (module.activation_blocked) {
+                    actionButton = '<button class="btn btn-sm btn-outline-secondary" disabled>Upgrade Plan</button>';
+                } else if (module.onboarding_status === 'submitted' || module.onboarding_status === 'under_review') {
+                    actionButton = '<button class="btn btn-sm btn-warning" disabled><i class="fas fa-clock"></i> Pending</button>';
+                } else {
+                    actionButton = '<button class="btn btn-sm btn-primary" onclick="startModuleActivation(\'' + module.key + '\')">Activate</button>';
+                }
+
+                html += `
+                    <div class="card mb-2">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi ${module.icon || 'bi-box'} mr-1"></i>
+                                        ${module.name}
+                                        ${priceBadge}
+                                        ${statusBadge}
+                                    </h6>
+                                    <p class="text-muted small mb-0">${module.short_description}</p>
+                                </div>
+                                ${actionButton}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            $('#available-modules-list').html(html);
+        }
+
+        function startModuleActivation(moduleKey) {
+            $('#tenantMarketplaceModal').modal('hide');
+            
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/modules") }}/' + moduleKey + '/activate',
+                method: 'POST',
+                data: { _token: '{{ csrf_token() }}' },
+                success: function(response) {
+                    if (response.status === 'onboarding_required') {
+                        showOnboardingWizard(response);
+                    } else if (response.status === 'activated') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Module Activated!',
+                            text: response.message,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                        // Reload page to show new navigation items
+                        setTimeout(function() {
+                            location.reload();
+                        }, 2000);
+                    } else if (response.status === 'pending') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Application Submitted',
+                            text: response.message,
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    var error = xhr.responseJSON?.error || 'Failed to activate module';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Activation Failed',
+                        text: error,
+                    });
+                }
+            });
+        }
+
+        function showOnboardingWizard(data) {
+            // Show loading state
+            $('#activation-modal-content').html(`
+                <div class="modal-header">
+                    <h5 class="modal-title">Loading...</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-3 text-muted">Preparing your onboarding experience...</p>
+                </div>
+            `);
+            $('#moduleActivationModal').modal('show');
+            
+            // Load onboarding content from server
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/onboarding") }}/' + data.onboarding_id + '/render',
+                method: 'GET',
+                data: { 
+                    type: data.onboarding_type,
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(response) {
+                    $('#activation-modal-content').html(response.html);
+                    
+                    // Initialize any components
+                    if (data.onboarding_type === 'setup_wizard' && window.initSetupWizard) {
+                        window.initSetupWizard(data.module_key);
+                    }
+                },
+                error: function() {
+                    $('#activation-modal-content').html(`
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">Error</h5>
+                            <button type="button" class="close text-white" data-dismiss="modal">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body text-center py-4">
+                            <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                            <p>Failed to load onboarding. Please try again.</p>
+                            <button class="btn btn-primary" onclick="$('#moduleActivationModal').modal('hide')">
+                                Close
+                            </button>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        // Global variable to store current onboarding data
+        window.currentOnboardingData = null;
+
+        /**
+         * Render KYC Onboarding Form
+         * Supports dynamic form fields from JSON schema
+         */
+        function renderKycOnboarding(data) {
+            window.currentOnboardingData = data;
+            var config = data.config;
+            var formSchema = config.kyc_form_schema || [];
+            var documents = config.documents || {};
+            
+            // Build form fields HTML
+            var formFieldsHtml = '';
+            formSchema.forEach(function(field) {
+                formFieldsHtml += renderFormField(field);
+            });
+            
+            // Build document upload HTML
+            var documentsHtml = '';
+            Object.keys(documents).forEach(function(key) {
+                var doc = documents[key];
+                documentsHtml += renderDocumentUpload(key, doc);
+            });
+            
+            return `
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-file-alt mr-2"></i> Module Activation</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        This module requires verification. Please complete the form and upload required documents.
+                    </div>
+                    
+                    <form id="kycOnboardingForm" enctype="multipart/form-data">
+                        <input type="hidden" name="onboarding_id" value="${data.onboarding_id}">
+                        
+                        <!-- Progress indicator -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Step 1 of 2: Organization Information</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar" style="width: 50%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Form Fields -->
+                        <div class="row">
+                            ${formFieldsHtml}
+                        </div>
+                        
+                        <!-- Document Uploads -->
+                        <div class="mt-4">
+                            <h6 class="border-bottom pb-2">Required Documents</h6>
+                            <div class="row">
+                                ${documentsHtml}
+                            </div>
+                        </div>
+                        
+                        <!-- Network Participation (if enabled) -->
+                        ${config.network_enabled ? `
+                        <div class="mt-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="networkOptIn" name="network_opt_in">
+                                        <label class="custom-control-label" for="networkOptIn">
+                                            <strong>Join Network Participation</strong>
+                                        </label>
+                                    </div>
+                                    <p class="text-muted small mb-0 mt-1">
+                                        Share your content with other churches and receive content from the network.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveKycProgress()">
+                        <i class="fas fa-save mr-1"></i> Save Progress
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="submitKycForm()">
+                        <i class="fas fa-paper-plane mr-1"></i> Submit Application
+                    </button>
+                </div>
+            `;
+        }
+
+        /**
+         * Render individual form field based on type
+         */
+        function renderFormField(field) {
+            var html = '<div class="col-md-6 mb-3">';
+            var required = field.required ? 'required' : '';
+            var label = field.label || field.name;
+            
+            html += `<label class="form-label">${label} ${field.required ? '<span class="text-danger">*</span>' : ''}</label>`;
+            
+            switch(field.type) {
+                case 'text':
+                case 'email':
+                case 'tel':
+                case 'url':
+                    html += `<input type="${field.type}" class="form-control" name="${field.name}" 
+                               placeholder="${field.placeholder || ''}" ${required}>`;
+                    break;
+                    
+                case 'number':
+                    html += `<input type="number" class="form-control" name="${field.name}" 
+                               min="${field.min || ''}" max="${field.max || ''}" 
+                               placeholder="${field.placeholder || ''}" ${required}>`;
+                    break;
+                    
+                case 'textarea':
+                    html += `<textarea class="form-control" name="${field.name}" rows="${field.rows || 3}" 
+                               placeholder="${field.placeholder || ''}" ${required}></textarea>`;
+                    break;
+                    
+                case 'select':
+                    html += `<select class="form-select" name="${field.name}" ${required}>`;
+                    html += `<option value="">-- Select ${label} --</option>`;
+                    if (field.options) {
+                        Object.keys(field.options).forEach(function(key) {
+                            html += `<option value="${key}">${field.options[key]}</option>`;
+                        });
+                    }
+                    html += '</select>';
+                    break;
+                    
+                case 'checkbox':
+                    html += '<div class="form-check">';
+                    html += `<input type="checkbox" class="form-check-input" name="${field.name}" id="${field.name}">`;
+                    html += `<label class="form-check-label" for="${field.name}">${field.placeholder || 'Yes'}</label>`;
+                    html += '</div>';
+                    break;
+                    
+                default:
+                    html += `<input type="text" class="form-control" name="${field.name}" ${required}>`;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        /**
+         * Render document upload field
+         */
+        function renderDocumentUpload(key, doc) {
+            return `
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                ${doc.label}
+                                ${doc.required !== false ? '<span class="text-danger">*</span>' : ''}
+                            </h6>
+                            <p class="text-muted small">${doc.description || ''}</p>
+                            
+                            <div class="document-upload-container" data-document-key="${key}">
+                                <input type="file" class="form-control document-upload-input" 
+                                       accept="${(doc.accepted_types || ['pdf', 'jpg', 'png']).map(t => '.' + t).join(',')}"
+                                       data-document-key="${key}"
+                                       ${doc.required !== false ? 'required' : ''}>
+                                
+                                <div class="upload-progress mt-2" style="display:none;">
+                                    <div class="progress" style="height: 6px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated"></div>
+                                    </div>
+                                    <small class="text-muted">Uploading...</small>
+                                </div>
+                                
+                                <div class="upload-status mt-2" style="display:none;">
+                                    <span class="text-success"><i class="fas fa-check-circle"></i> Uploaded</span>
+                                </div>
+                            </div>
+                            
+                            ${doc.template_url ? `
+                            <a href="${doc.template_url}" target="_blank" class="btn btn-sm btn-outline-info mt-2">
+                                <i class="fas fa-download"></i> Download Template
+                            </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Handle document upload with progress
+         */
+        $(document).on('change', '.document-upload-input', function() {
+            var file = this.files[0];
+            if (!file) return;
+            
+            var key = $(this).data('document-key');
+            var container = $(this).closest('.document-upload-container');
+            var progressBar = container.find('.progress-bar');
+            var progressContainer = container.find('.upload-progress');
+            var statusContainer = container.find('.upload-status');
+            
+            var formData = new FormData();
+            formData.append('document', file);
+            formData.append('document_key', key);
+            formData.append('_token', '{{ csrf_token() }}');
+            
+            progressContainer.show();
+            statusContainer.hide();
+            
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/onboarding") }}/' + window.currentOnboardingData.onboarding_id + '/upload',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                xhr: function() {
+                    var xhr = new window.XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function(e) {
+                        if (e.lengthComputable) {
+                            var percent = Math.round((e.loaded / e.total) * 100);
+                            progressBar.css('width', percent + '%');
+                        }
+                    });
+                    return xhr;
+                },
+                success: function(response) {
+                    progressContainer.hide();
+                    statusContainer.show();
+                    toastr.success('Document uploaded successfully');
+                },
+                error: function() {
+                    progressContainer.hide();
+                    toastr.error('Failed to upload document');
+                }
+            });
+        });
+
+        /**
+         * Save KYC form progress (draft)
+         */
+        function saveKycProgress() {
+            var formData = collectFormData();
+            
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/onboarding") }}/' + window.currentOnboardingData.onboarding_id + '/save',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    form_data: formData,
+                    network_opt_in: $('#networkOptIn').is(':checked')
+                },
+                success: function() {
+                    toastr.success('Progress saved. You can continue later.');
+                },
+                error: function() {
+                    toastr.error('Failed to save progress');
+                }
+            });
+        }
+
+        /**
+         * Submit KYC form for review
+         */
+        function submitKycForm() {
+            // Validate required fields
+            var isValid = true;
+            $('#kycOnboardingForm [required]').each(function() {
+                if (!$(this).val()) {
+                    isValid = false;
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid');
+                }
+            });
+            
+            if (!isValid) {
+                toastr.error('Please fill in all required fields');
+                return;
+            }
+            
+            var formData = collectFormData();
+            
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/onboarding") }}/' + window.currentOnboardingData.onboarding_id + '/submit',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    form_data: formData,
+                    network_opt_in: $('#networkOptIn').is(':checked')
+                },
+                success: function(response) {
+                    $('#moduleActivationModal').modal('hide');
+                    
+                    if (response.status === 'activated') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Module Activated!',
+                            text: response.message,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                        setTimeout(function() { location.reload(); }, 2000);
+                    } else if (response.status === 'pending') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Application Submitted',
+                            text: response.message,
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    var error = xhr.responseJSON?.message || 'Failed to submit application';
+                    toastr.error(error);
+                }
+            });
+        }
+
+        /**
+         * Collect form data into object
+         */
+        function collectFormData() {
+            var data = {};
+            $('#kycOnboardingForm').find('input, select, textarea').each(function() {
+                var name = $(this).attr('name');
+                if (!name || name === 'onboarding_id') return;
+                
+                if ($(this).attr('type') === 'checkbox') {
+                    data[name] = $(this).is(':checked');
+                } else if ($(this).attr('type') === 'file') {
+                    // Files handled separately
+                } else {
+                    data[name] = $(this).val();
+                }
+            });
+            return data;
+        }
+
+        /**
+         * Render Guided Onboarding (Tutorial Steps)
+         */
+        function renderGuidedOnboarding(data) {
+            window.currentOnboardingData = data;
+            var config = data.config;
+            var steps = config.tutorial_steps || [];
+            
+            var stepsHtml = '';
+            steps.forEach(function(step, index) {
+                stepsHtml += `
+                    <div class="tutorial-step ${index === 0 ? '' : 'd-none'}" data-step="${index}">
+                        <div class="text-center mb-4">
+                            <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" 
+                                 style="width: 80px; height: 80px;">
+                                <i class="fas fa-${step.icon || 'star'} fa-2x"></i>
+                            </div>
+                            <h5>${step.title}</h5>
+                        </div>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                ${step.content}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            return `
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-magic mr-2"></i> Setup Wizard</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Progress -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Step <span id="currentStepNum">1</span> of ${steps.length}</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-success" id="guidedProgress" style="width: ${100/steps.length}%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Steps -->
+                    <div id="tutorialSteps">
+                        ${stepsHtml}
+                    </div>
+                    
+                    <!-- Network Participation (if enabled) -->
+                    ${config.network_enabled ? `
+                    <div class="mt-4">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="guidedNetworkOptIn" name="network_opt_in">
+                            <label class="custom-control-label" for="guidedNetworkOptIn">
+                                <strong>Join Network Participation</strong>
+                                <p class="text-muted small mb-0">Share content with and receive content from other churches in the network.</p>
+                            </label>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Skip Setup</button>
+                    <button type="button" class="btn btn-outline-primary d-none" id="prevStepBtn" onclick="prevStep()">
+                        <i class="fas fa-arrow-left mr-1"></i> Back
+                    </button>
+                    <button type="button" class="btn btn-success" id="nextStepBtn" onclick="nextStep()">
+                        Continue <i class="fas fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        var currentStep = 0;
+
+        function nextStep() {
+            var totalSteps = $('.tutorial-step').length;
+            
+            if (currentStep < totalSteps - 1) {
+                $('.tutorial-step').addClass('d-none');
+                currentStep++;
+                $(`.tutorial-step[data-step="${currentStep}"]`).removeClass('d-none');
+                updateStepUI();
+            } else {
+                // Complete onboarding
+                completeGuidedOnboarding();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                $('.tutorial-step').addClass('d-none');
+                currentStep--;
+                $(`.tutorial-step[data-step="${currentStep}"]`).removeClass('d-none');
+                updateStepUI();
+            }
+        }
+
+        function updateStepUI() {
+            var totalSteps = $('.tutorial-step').length;
+            $('#currentStepNum').text(currentStep + 1);
+            $('#guidedProgress').css('width', ((currentStep + 1) / totalSteps * 100) + '%');
+            
+            if (currentStep === 0) {
+                $('#prevStepBtn').addClass('d-none');
+            } else {
+                $('#prevStepBtn').removeClass('d-none');
+            }
+            
+            if (currentStep === totalSteps - 1) {
+                $('#nextStepBtn').html('Complete Setup <i class="fas fa-check ml-1"></i>');
+            } else {
+                $('#nextStepBtn').html('Continue <i class="fas fa-arrow-right ml-1"></i>');
+            }
+        }
+
+        function completeGuidedOnboarding() {
+            $.ajax({
+                url: '{{ url("dashboard/marketplace/onboarding") }}/' + window.currentOnboardingData.onboarding_id + '/submit',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    network_opt_in: $('#guidedNetworkOptIn').is(':checked')
+                },
+                success: function(response) {
+                    $('#moduleActivationModal').modal('hide');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Setup Complete!',
+                        text: response.message || 'Module has been activated.',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                    setTimeout(function() { location.reload(); }, 2000);
+                }
+            });
+        }
     </script>
 </body>
 

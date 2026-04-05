@@ -209,7 +209,7 @@
                     </div>
                 </div>
 
-                @if (auth()->user()->can('View Payment Settings') || auth()->user()->can('View Roles'))
+                @if (auth()->user()->can('View Payment Settings') || auth()->user()->can('View Roles') || auth()->user()->can('View Finances'))
                 <div class="col-sm-6 col-lg-4 mb-3">
                     <div class="card h-100 shadow-sm">
                         <div class="card-body">
@@ -222,6 +222,9 @@
                             <ul class="list-unstyled mb-0">
                                 <li class="mb-1"><a href="{{ url('dashboard/settings/general') }}" class="text-dark"><i class="fas fa-sliders-h text-muted mr-1"></i> General Settings</a></li>
                                 <li class="mb-1"><a href="{{ url('dashboard/settings/funds/sources') }}" class="text-dark"><i class="fas fa-money-check-alt text-muted mr-1"></i> Fund Sources</a></li>
+                                @can('View Finances')
+                                <li class="mb-1"><a href="{{ url('dashboard/settings/reference-mappings') }}" class="text-dark"><i class="fas fa-map-signs text-muted mr-1"></i> Reference Mappings</a></li>
+                                @endcan
                                 @can('View Roles')
                                 <li class="mb-1"><a href="{{ url('dashboard/users/roles') }}" class="text-dark"><i class="fas fa-user-shield text-muted mr-1"></i> Roles</a></li>
                                 @endcan
@@ -236,6 +239,160 @@
             </div>
         </div>
     </section>
+@if(session('show_email_verification_modal'))
+<!-- Email Verification Modal -->
+<div class="modal fade" id="emailVerificationModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-gradient-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-envelope mr-2"></i> Verify Your Email</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;">
+                        <i class="fas fa-envelope-open-text fa-2x"></i>
+                    </div>
+                    <h5>Stay Connected with {{ $site_settings->name ?? 'Your Church' }}</h5>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    <strong>Current email:</strong> {{ auth()->user()->email ?? 'Not set' }}
+                </div>
+
+                <p class="text-muted">Verify your email to receive:</p>
+                <ul class="list-unstyled mb-4">
+                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i> Personalized weekly devotions</li>
+                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i> Church news and updates</li>
+                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i> Event notifications</li>
+                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i> Prayer requests and testimonies</li>
+                </ul>
+
+                <form id="emailVerificationForm" action="{{ url('dashboard/profile/verify-email') }}" method="POST">
+                    @csrf
+                    <div class="form-group">
+                        <label class="font-weight-bold">Email Address</label>
+                        <input type="email" class="form-control" name="email" 
+                            value="{{ auth()->user()->email }}" 
+                            placeholder="your.email@example.com" required>
+                        <small class="form-text text-muted">
+                            You can update your email if needed. A verification code will be sent.
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" onclick="skipEmailVerification()">
+                    Skip for Now
+                </button>
+                <button type="button" class="btn btn-primary" onclick="submitEmailVerification()">
+                    <i class="fas fa-paper-plane mr-1"></i> Send Verification Code
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Show modal after a short delay
+    setTimeout(function() {
+        $('#emailVerificationModal').modal('show');
+    }, 500);
+});
+
+function submitEmailVerification() {
+    var email = $('#emailVerificationForm input[name="email"]').val();
+    if (!email) {
+        alert('Please enter an email address.');
+        return;
+    }
+    
+    $.ajax({
+        url: $('#emailVerificationForm').attr('action'),
+        type: 'POST',
+        data: $('#emailVerificationForm').serialize(),
+        success: function(response) {
+            $('#emailVerificationModal').modal('hide');
+            // Show OTP input modal
+            showEmailOtpModal(email);
+        },
+        error: function(xhr) {
+            var error = xhr.responseJSON?.message || 'Failed to send verification code. Please try again.';
+            alert(error);
+        }
+    });
+}
+
+function showEmailOtpModal(email) {
+    var otpHtml = `
+        <div class="modal fade" id="emailOtpModal" tabindex="-1" data-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-gradient-success text-white">
+                        <h5 class="modal-title"><i class="fas fa-shield-alt mr-2"></i> Enter Verification Code</h5>
+                    </div>
+                    <div class="modal-body text-center">
+                        <p>We've sent a 6-digit code to <strong>${email}</strong></p>
+                        <input type="text" class="form-control otp-input text-center" id="emailOtpInput"
+                            maxlength="6" pattern="[0-9]{6}" placeholder="— — — — — —" 
+                            style="font-size:1.5rem;letter-spacing:8px;">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-dismiss="modal" onclick="$('#emailVerificationModal').modal('show')">Back</button>
+                        <button type="button" class="btn btn-success" onclick="verifyEmailOtp()">Verify</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    $('body').append(otpHtml);
+    $('#emailOtpModal').modal('show');
+}
+
+function verifyEmailOtp() {
+    var otp = $('#emailOtpInput').val();
+    if (otp.length !== 6) {
+        alert('Please enter the 6-digit code.');
+        return;
+    }
+    
+    $.ajax({
+        url: '{{ url("dashboard/profile/confirm-email-otp") }}',
+        type: 'POST',
+        data: {
+            _token: '{{ csrf_token() }}',
+            otp: otp
+        },
+        success: function(response) {
+            $('#emailOtpModal').modal('hide');
+            Swal.fire({
+                icon: 'success',
+                title: 'Email Verified!',
+                text: 'You will now receive personalized devotions and church updates.',
+                timer: 3000,
+                showConfirmButton: false
+            });
+        },
+        error: function(xhr) {
+            var error = xhr.responseJSON?.message || 'Invalid code. Please try again.';
+            alert(error);
+        }
+    });
+}
+
+function skipEmailVerification() {
+    Swal.fire({
+        icon: 'info',
+        title: 'Email Not Verified',
+        text: 'You can verify your email later from your profile settings.',
+        timer: 3000,
+        showConfirmButton: false
+    });
+}
+</script>
+@endif
+
 @endsection
 @push('js')
     <script>

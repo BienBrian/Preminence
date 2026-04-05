@@ -41,14 +41,12 @@ class EventsController extends DashboardController
         if($request->id > 0){
             //update
             $banner = $event->banner;
-            if($request->has('banner')){
+            if($request->hasFile('banner')){
                 if(file_exists(public_path()."/event/".$event->banner)){
                     \File::delete(public_path()."/event/".$event->banner);
                 }
-                $banner = $request->banner->getClientOriginalName();
-                if(\DB::table('events')->where('banner', $banner)->count() > 0){
-                    $banner = time()."_".$request->banner->getClientOriginalName();
-                }
+                $extension = strtolower($request->banner->getClientOriginalExtension());
+                $banner = time() . '_' . \Str::random(8) . '.' . $extension;
                 $request->banner->move(public_path('event'), $banner);
             }
 
@@ -65,11 +63,9 @@ class EventsController extends DashboardController
         }else{
             //insert
             $banner = "";
-            if($request->has('banner')){
-                $banner = $request->banner->getClientOriginalName();
-                if(\DB::table('events')->where('banner', $banner)->count() > 0){
-                    $banner = time()."_".$request->banner->getClientOriginalName();
-                }
+            if($request->hasFile('banner')){
+                $extension = strtolower($request->banner->getClientOriginalExtension());
+                $banner = time() . '_' . \Str::random(8) . '.' . $extension;
                 $request->banner->move(public_path('event'), $banner);
             }
 

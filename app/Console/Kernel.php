@@ -22,9 +22,18 @@ class Kernel extends ConsoleKernel
         // Horizon metrics snapshots (needed for Horizon dashboard charts)
         $schedule->command('horizon:snapshot')->everyFiveMinutes();
 
-        // ─── Pisti SaaS Platform — Added in Phase 7 ───────────────────────────
-        // $schedule->command('saas:check-expiring-trials')->dailyAt('09:00')->withoutOverlapping();
-        // $schedule->command('saas:check-overdue-subscriptions')->dailyAt('09:15')->withoutOverlapping();
+        // ─── Pisti SaaS Platform — Module Billing Schedule ────────────────────
+        // Daily at 8 AM: Generate invoices for due subscriptions
+        $schedule->command('modules:generate-invoices')->dailyAt('08:00')->withoutOverlapping();
+        
+        // Daily at 9 AM: Process expired trials
+        $schedule->command('modules:process-trials')->dailyAt('09:00')->withoutOverlapping();
+        
+        // Daily at 10 AM: Process overdue payments
+        $schedule->command('modules:process-overdue --suspend')->dailyAt('10:00')->withoutOverlapping();
+        
+        // Weekly on Mondays at 6 AM: Generate billing report
+        $schedule->command('modules:billing-report')->weeklyOn(1, '06:00')->withoutOverlapping();
     }
 
     /**

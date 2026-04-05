@@ -1,3 +1,26 @@
 RewriteEngine On
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ /public/$1 [L,QSA]
+
+# Block access to sensitive directories and files
+RedirectMatch 404 /\.git
+RedirectMatch 404 /\.env
+RedirectMatch 404 /\.env\.
+RedirectMatch 404 /composer\.(json|lock)
+RedirectMatch 404 /package\.json
+RedirectMatch 404 /webpack\.mix\.js
+RedirectMatch 404 /vite\.config\.
+RedirectMatch 404 /artisan
+RedirectMatch 404 /storage/logs/
+RedirectMatch 404 /storage/framework/
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Disable server signature
+ServerSignature Off

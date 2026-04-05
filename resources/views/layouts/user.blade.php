@@ -175,10 +175,7 @@
                     </li>-->
                 </ul>
                 <!-- Divider -->
-                <?php
-                    $permissions1 = \DB::table("permissions")->where("user_id", \Auth::user()->id)->first();
-                    $permissions2 = \DB::table("permissions")->where("role", \Auth::user()->role)->first();
-                ?>
+                
                 @if($permissions1 != null || $permissions2 != null)
                     <hr class="my-3">
 

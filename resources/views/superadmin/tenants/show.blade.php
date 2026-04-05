@@ -54,6 +54,14 @@
                         <i class="bi bi-pencil"></i> Edit Tenant
                     </a>
                     
+                    <a href="{{ route('superadmin.tenant-modules.index', $tenant->id) }}" class="btn btn-primary">
+                        <i class="bi bi-box-seam"></i> Manage Modules
+                    </a>
+                    
+                    <a href="{{ route('superadmin.billing.tenant', $tenant->id) }}" class="btn btn-info">
+                        <i class="bi bi-credit-card"></i> View Billing
+                    </a>
+                    
                     @if($tenant->status !== 'suspended')
                         <a href="{{ route('superadmin.tenants.suspend.form', $tenant->id) }}" class="btn btn-danger">
                             <i class="bi bi-pause-circle"></i> Suspend Tenant
@@ -70,7 +78,7 @@
                     
                     <form action="{{ route('superadmin.tenants.impersonate', $tenant->id) }}" method="POST" class="d-inline">
                         @csrf
-                        <button type="submit" class="btn btn-info w-100" {{ $tenant->status !== 'active' && $tenant->status !== 'trial' ? 'disabled' : '' }}>
+                        <button type="submit" class="btn btn-secondary w-100" {{ $tenant->status !== 'active' && $tenant->status !== 'trial' ? 'disabled' : '' }}>
                             <i class="bi bi-person-badge"></i> Login as Admin
                         </button>
                     </form>
@@ -82,7 +90,7 @@
     <div class="col-md-8">
         <!-- Stats Cards -->
         <div class="row">
-            <div class="col-md-6 mb-4">
+            <div class="col-md-4 mb-4">
                 <div class="card stat-card primary shadow h-100 py-2">
                     <div class="card-body">
                         <div class="row no-gutters align-items-center">
@@ -99,14 +107,31 @@
                 </div>
             </div>
             
-            <div class="col-md-6 mb-4">
+            <div class="col-md-4 mb-4">
+                <div class="card stat-card info shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Active Modules</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $moduleSubscriptions->where('status', 'active')->count() }}</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="bi bi-box-seam" style="font-size: 2rem; opacity: 0.5;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-4">
                 <div class="card stat-card success shadow h-100 py-2">
                     <div class="card-body">
                         <div class="row no-gutters align-items-center">
                             <div class="col mr-2">
                                 <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
                                     Total Funds</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">${{ number_format($stats['total_funds'] ?? 0, 2) }}</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">KES {{ number_format($stats['total_funds'] ?? 0, 2) }}</div>
                             </div>
                             <div class="col-auto">
                                 <i class="bi bi-cash-stack" style="font-size: 2rem; opacity: 0.5;"></i>
@@ -181,6 +206,46 @@
         </div>
         @endif
         
+        <!-- Active Modules -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Active Modules ({{ $moduleSubscriptions->count() }})</h6>
+                <a href="{{ route('superadmin.tenant-modules.index', $tenant->id) }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-lg me-1"></i> Manage Modules
+                </a>
+            </div>
+            <div class="card-body">
+                @if($moduleSubscriptions->isEmpty())
+                    <div class="text-center py-3 text-muted">
+                        <i class="bi bi-box-seam fs-2 d-block mb-2"></i>
+                        No modules assigned to this tenant.
+                    </div>
+                @else
+                    <div class="list-group list-group-flush">
+                        @foreach($moduleSubscriptions->take(5) as $subscription)
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi {{ $subscription->module?->icon ?? 'bi-box' }} me-2 text-primary"></i>
+                                    <strong>{{ $subscription->module?->name ?? $subscription->module_key }}</strong>
+                                </div>
+                                <small class="text-muted">{{ $subscription->getBillingPeriodLabel() }}</small>
+                            </div>
+                            <span class="badge bg-{{ $subscription->status === 'active' ? 'success' : ($subscription->status === 'suspended' ? 'warning' : 'secondary') }}">
+                                {{ ucfirst($subscription->status) }}
+                            </span>
+                        </div>
+                        @endforeach
+                        @if($moduleSubscriptions->count() > 5)
+                        <a href="{{ route('superadmin.tenant-modules.index', $tenant->id) }}" class="list-group-item text-center text-primary">
+                            View all {{ $moduleSubscriptions->count() }} modules →
+                        </a>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        </div>
+        
         <!-- Subscription Info -->
         <div class="card shadow mb-4">
             <div class="card-header py-3">
@@ -196,7 +261,7 @@
                         <td><strong>Plan Price:</strong></td>
                         <td>
                             @if($tenant->plan)
-                                ${{ number_format($tenant->plan->price, 2) }} / {{ $tenant->plan->billing_period }}
+                                KES {{ number_format($tenant->plan->price, 2) }} / {{ $tenant->plan->billing_period }}
                             @else
                                 -
                             @endif
@@ -229,20 +294,25 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4 mb-2">
-                        <a href="http://{{ $tenant->slug }}.pisti.co.ke" target="_blank" class="btn btn-outline-primary w-100">
+                    <div class="col-md-3 mb-2">
+                        <a href="http://{{ $tenant->slug }}.{{ pisti_platform_domain() }}" target="_blank" class="btn btn-outline-primary w-100">
                             <i class="bi bi-box-arrow-up-right"></i> Visit Site
                         </a>
                     </div>
-                    <div class="col-md-4 mb-2">
+                    <div class="col-md-3 mb-2">
                         <a href="{{ route('superadmin.tenants.edit', $tenant->id) }}" class="btn btn-outline-warning w-100">
-                            <i class="bi bi-pencil"></i> Edit Tenant
+                            <i class="bi bi-pencil"></i> Edit
                         </a>
                     </div>
-                    <div class="col-md-4 mb-2">
-                        <button type="button" class="btn btn-outline-success w-100" onclick="alert('Feature coming soon!')">
-                            <i class="bi bi-envelope"></i> Contact Admin
-                        </button>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ route('superadmin.billing.tenant', $tenant->id) }}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-credit-card"></i> Billing
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ route('superadmin.tenant-modules.index', $tenant->id) }}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-box-seam"></i> Modules
+                        </a>
                     </div>
                 </div>
             </div>

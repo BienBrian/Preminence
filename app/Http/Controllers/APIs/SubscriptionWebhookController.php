@@ -25,7 +25,10 @@ class SubscriptionWebhookController extends Controller
     {
         $payload = $request->all();
         
-        Log::info('Subscription payment callback received', $payload);
+        Log::info('Subscription payment callback received', [
+            'merchant_request_id' => $payload['Body']['stkCallback']['MerchantRequestID'] ?? null,
+            'result_code' => $payload['Body']['stkCallback']['ResultCode'] ?? null,
+        ]);
 
         // Validate the callback
         if (!isset($payload['Body']['stkCallback'])) {

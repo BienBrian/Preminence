@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Providers\RouteServiceProvider;
 use App\Models\User;
 use App\Rules\Recaptcha;
+use App\Traits\AutoHashesMpesaPhone;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +16,7 @@ use Spatie\Permission\Models\Role;
 
 class RegisterController extends Controller
 {
-    use RegistersUsers;
+    use RegistersUsers, AutoHashesMpesaPhone;
 
     protected $redirectTo = RouteServiceProvider::HOME;
 
@@ -103,6 +104,10 @@ class RegisterController extends Controller
         }
 
         $user->assignRole($role);
+
+        // Ensure the user's phone is hashed in mpesa_phones so MPesa transactions
+        // can be matched even before the first admin interaction with this account.
+        $this->createMpesaHashAndMatch($phone, $user->firstname . ' ' . $user->lastname, $user->id);
 
         return $user;
     }

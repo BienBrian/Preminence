@@ -19,10 +19,7 @@
                         <div class="col">
                             <h3 class="mb-0">Page Settings</h3>
                         </div>
-                        <?php
-                            $permissions1 = \DB::table("permissions")->where("user_id", \Auth::user()->id)->first();
-                            $permissions2 = \DB::table("permissions")->where("role", \Auth::user()->role)->first();
-                        ?>
+                        
                         <div class="col text-right">
                             <button class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#favicon" {{($permissions1->websites > 1 || $permissions2->websites > 1) ? "":"disabled"}}><i class='fas fa-camera-retro'></i> Favicon</button>
                             <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#icon" {{($permissions1->websites > 1 || $permissions2->websites > 1) ? "":"disabled"}}><i class='fas fa-camera'></i> Icon</button>

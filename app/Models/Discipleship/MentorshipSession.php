@@ -12,7 +12,7 @@ class MentorshipSession extends Model
 
     protected $table = 'mentorship_sessions';
     protected $fillable = [
-        'tenant_id', 'mentorship_id', 'session_date', 'notes', 'duration_minutes', 'created_by',
+        'tenant_id', 'mentorship_id', 'session_date', 'notes', 'created_by',
     ];
 
     protected $casts = [

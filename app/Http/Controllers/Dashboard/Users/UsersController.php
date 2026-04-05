@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Mail;
+use App\Models\AlternativePhone;
 use App\Models\MpesaPhone;
 use Spatie\Permission\Models\Role;
 use Yajra\DataTables\DataTables;
@@ -46,7 +47,7 @@ class UsersController extends DashboardController
     }
     public function getUsers(Request $request)
     {
-        $users = User::with('roles');
+        $users = User::with(['roles', 'alternativePhones']);
         if (auth()->user()->roles[0]->name != "Super Admin") {
             $users = $users->whereHas('roles', function ($query) {
                 $query->where('name', '<>', 'Super Admin');
@@ -61,6 +62,27 @@ class UsersController extends DashboardController
                 });
                 if ($request->status == 'archived') {
                     $query->whereNotNull('archived_at');
+                } elseif ($request->status == 'incomplete') {
+                    // Users who haven't completed onboarding (no name or not verified)
+                    $query->whereNull('archived_at')
+                        ->where(function ($q) {
+                            $q->whereNull('firstname')
+                              ->orWhere('firstname', '')
+                              ->orWhereNull('lastname')
+                              ->orWhere('lastname', '')
+                              ->orWhere(function ($qv) {
+                                  $qv->whereNull('email_verified_at')
+                                     ->whereNull('phone_verified_at');
+                              });
+                        });
+                } elseif ($request->status == 'no_phone') {
+                    // Users without phone numbers
+                    $query->whereNull('archived_at')
+                        ->where(function ($q) {
+                            $q->whereNull('phone')
+                              ->orWhere('phone', '');
+                        })
+                        ->whereDoesntHave('alternativePhones');
                 } else {
                     $query->whereNull('archived_at');
                     if ($request->status != "") {
@@ -75,14 +97,44 @@ class UsersController extends DashboardController
             })->addColumn('id', function ($row) {
                 return $row->id;
             })->addColumn('name', function ($row) use ($request) {
-                $initials = strtoupper(substr($row->firstname, 0, 1) . substr($row->lastname, 0, 1));
+                // Check for incomplete profile
+                $isIncomplete = empty($row->firstname) || empty($row->lastname);
+                $name = $isIncomplete ? ($row->email ?? 'Unnamed User') : $row->firstname . ' ' . $row->lastname;
+                $initials = $isIncomplete ? '?' : strtoupper(substr($row->firstname, 0, 1) . substr($row->lastname, 0, 1));
                 $colors = ['#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b','#858796','#5a5c69','#6f42c1','#e83e8c','#fd7e14'];
                 $color = $colors[$row->id % count($colors)];
+                
+                $warningBadge = '';
+                if ($isIncomplete) {
+                    $warningBadge = " <span class='badge badge-warning' title='Incomplete profile'><i class='fas fa-exclamation'></i></span>";
+                }
+                
                 return "<div class='d-flex align-items-center'>
                             <div style='width:35px;height:35px;border-radius:50%;background:{$color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;margin-right:10px;flex-shrink:0;'>{$initials}</div>
-                            <span>".$row->firstname." ".$row->lastname."</span>
+                            <span>".$name."</span>{$warningBadge}
                         </div>";
+            })->addColumn('phone_display', function ($row) {
+                $phone = $row->phone;
+                $altCount = $row->alternativePhones->count();
+                
+                if (empty($phone)) {
+                    if ($altCount > 0) {
+                        $alt = $row->alternativePhones->first();
+                        return "<span class='text-muted' title='Alternative phone'>" . $alt->phone . " <small>(alt)</small></span>";
+                    }
+                    return "<span class='badge badge-danger'><i class='fas fa-exclamation-circle'></i> No Phone</span>";
+                }
+                
+                $altBadge = $altCount > 0 ? " <span class='badge badge-info'>+{$altCount}</span>" : "";
+                return $phone . $altBadge;
             })->addColumn('status', function ($row) {
+                // Check if profile is incomplete
+                $isIncomplete = empty($row->firstname) || empty($row->lastname) || 
+                    (is_null($row->email_verified_at) && is_null($row->phone_verified_at));
+                
+                if ($isIncomplete && $row->status) {
+                    return "<span class='badge bg-warning' title='Account incomplete'>Pending</span>";
+                }
                 return $row->status ? "<span class='badge bg-primary'>Active</span>" : "<span class='badge bg-danger'>In-Active</span>";
             })->addColumn('role', function ($row) {
                 return $row->roles->count() > 0 ? $row->roles[0]->name : "-";
@@ -128,6 +180,9 @@ class UsersController extends DashboardController
                 }
                 $actionBtn .= '</div></div></div>';
                 return $actionBtn;
+            })->addColumn('phone', function ($row) {
+                // Return raw phone for export, phone_display handles the view
+                return $row->phone ?? ($row->alternativePhones->first()->phone ?? 'No Phone');
             })->addIndexColumn()->escapeColumns([])->make();
     }
     public function addUser(Request $request)
@@ -587,30 +642,184 @@ class UsersController extends DashboardController
         } catch (\Exception $e) {
             $userTags = collect();
         }
-        // ── Mpesa contribution analytics ───────────────────────────────────────
-        $mpesaTotal   = DB::table('funds')->where('user_id', $request->id)->where('source', 1)->sum('amount');
-        $mpesaCount   = DB::table('funds')->where('user_id', $request->id)->where('source', 1)->count();
-        $mpesaRecords = DB::table('funds')
+        // ── Contribution analytics ───────────────────────────────────────
+        // Get user's phone numbers (from users, contacts, and alternative_phones tables)
+        $userPhone = $userModel->phone;
+        $contactPhone = DB::table('contacts')->where('user_id', $request->id)->value('phone');
+        $alternativePhones = AlternativePhone::where('user_id', $request->id)->get();
+        
+        // Build array of phone hashes to match against MPESA
+        $phoneHashes = [];
+        $plainPhones = [];
+        
+        // Process primary and contact phones
+        foreach ([$userPhone, $contactPhone] as $phone) {
+            if (empty($phone)) continue;
+            $phone = trim($phone);
+            
+            // Store plain phone for direct match
+            $plainPhones[] = $phone;
+            if (substr($phone, 0, 1) === '0') {
+                $plainPhones[] = '254' . substr($phone, 1);
+            }
+            
+            // Convert to international format and hash
+            if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
+                $phone = '254' . substr($phone, 1);
+            } elseif (strlen($phone) == 9) {
+                $phone = '254' . $phone;
+            } elseif (substr($phone, 0, 1) == '+') {
+                $phone = substr($phone, 1);
+            }
+            
+            if (strlen($phone) == 12) {
+                $phoneHashes[] = hash('sha256', $phone);
+            }
+        }
+        
+        // Process alternative phones
+        foreach ($alternativePhones as $altPhone) {
+            $phone = trim($altPhone->phone);
+            $plainPhones[] = $phone;
+            $phoneHashes[] = $altPhone->phone_hash; // Already stored as hash
+        }
+        
+        // Get MPESA transactions directly matched by phone/hash
+        $directMpesaRecords = collect();
+        if (!empty($phoneHashes) || !empty($plainPhones)) {
+            $directMpesaQuery = DB::table('mpesa_transactions')
+                ->where(function ($q) use ($phoneHashes, $plainPhones) {
+                    if (!empty($phoneHashes)) {
+                        $q->whereIn('MSISDN', $phoneHashes);
+                    }
+                    if (!empty($plainPhones)) {
+                        $q->orWhereIn('MSISDN', $plainPhones);
+                    }
+                })
+                ->select(
+                    'id',
+                    'TransAmount as amount',
+                    'created_at',
+                    'BillRefNumber as description',
+                    'TransID',
+                    'BillRefNumber',
+                    'MSISDN'
+                )
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get();
+            
+            // Mark these as direct MPESA matches
+            $directMpesaRecords = $directMpesaQuery->map(function ($tx) {
+                $tx->source = 'mpesa_direct';
+                $tx->source_label = 'MPESA';
+                return $tx;
+            });
+        }
+        
+        // Get contributions from funds table (includes cash, cards, etc.)
+        $fundsRecords = DB::table('funds')
             ->where('funds.user_id', $request->id)
-            ->where('funds.source', 1)
-            ->leftJoin('mpesa_transactions', function ($join) {
-                $join->on('mpesa_transactions.TransAmount', '=', 'funds.amount')
-                     ->whereRaw('DATE(mpesa_transactions.created_at) = DATE(funds.created_at)');
-            })
-            ->select('funds.id', 'funds.amount', 'funds.created_at', 'funds.description',
-                     'mpesa_transactions.TransID', 'mpesa_transactions.BillRefNumber')
+            ->leftJoin('sources', 'sources.id', '=', 'funds.source')
+            ->leftJoin('modeofpayment', 'modeofpayment.id', '=', 'funds.mode')
+            ->select(
+                'funds.id',
+                'funds.amount',
+                'funds.created_at',
+                'funds.description',
+                DB::raw('NULL as TransID'),
+                DB::raw('NULL as BillRefNumber'),
+                DB::raw('NULL as MSISDN'),
+                'sources.name as source_name',
+                'sources.ftype as source_type',
+                'modeofpayment.name as mode_name'
+            )
             ->orderByDesc('funds.created_at')
-            ->limit(50)
-            ->get();
-        $mpesaLastTx  = $mpesaRecords->first();
+            ->limit(100)
+            ->get()
+            ->map(function ($fund) {
+                $fund->source = 'fund_record';
+                $sourceLabel = $fund->source_name ?? 'Contribution';
+                if ($fund->mode_name) {
+                    $sourceLabel .= ' (' . $fund->mode_name . ')';
+                }
+                $fund->source_label = $sourceLabel;
+                return $fund;
+            });
+        
+        // Combine both sources and remove duplicates (same TransID or amount+date)
+        $allRecords = $directMpesaRecords->merge($fundsRecords);
+        
+        // Remove duplicates - prioritize fund records over direct MPESA
+        $seenTransIds = [];
+        $seenFundIds = [];
+        $uniqueRecords = $allRecords->filter(function ($record) use (&$seenTransIds, &$seenFundIds) {
+            // Skip if we've seen this fund record ID
+            if ($record->source === 'fund_record') {
+                if (in_array($record->id, $seenFundIds)) {
+                    return false;
+                }
+                $seenFundIds[] = $record->id;
+                return true;
+            }
+            
+            // For MPESA records, skip if we've seen this TransID
+            if (!empty($record->TransID)) {
+                if (in_array($record->TransID, $seenTransIds)) {
+                    return false;
+                }
+                $seenTransIds[] = $record->TransID;
+                return true;
+            }
+            
+            return true;
+        })->sortByDesc('created_at')->values();
+        
+        // Calculate totals
+        $mpesaTotal = $uniqueRecords->where('source', 'mpesa_direct')->sum('amount');
+        $mpesaCount = $uniqueRecords->where('source', 'mpesa_direct')->count();
+        $otherTotal = $uniqueRecords->where('source', 'fund_record')->sum('amount');
+        $otherCount = $uniqueRecords->where('source', 'fund_record')->count();
+        
+        $totalContributions = $uniqueRecords->sum('amount');
+        $totalCount = $uniqueRecords->count();
+        
+        $mpesaRecords = $uniqueRecords->take(50);
+        $mpesaLastTx = $mpesaRecords->first();
 
+        // Check if user has phone number issues
+        $phoneMissing = empty($user->phone) && empty($contactPhone) && $alternativePhones->isEmpty();
+        $phoneConflict = null;
+        
+        if (!$phoneMissing && !empty($user->phone)) {
+            // Check if another user has the same phone
+            $conflictUser = DB::table('users')
+                ->where('phone', $user->phone)
+                ->where('id', '!=', $request->id)
+                ->first();
+            if ($conflictUser) {
+                $phoneConflict = [
+                    'id' => $conflictUser->id,
+                    'name' => $conflictUser->firstname . ' ' . $conflictUser->lastname,
+                    'phone' => $user->phone,
+                ];
+            }
+        }
+        
+        // Get alternative phones
+        $alternativePhones = AlternativePhone::where('user_id', $request->id)->get();
+        
         return view("dashboard.users.user")
             ->with("roles", $roles)->with("user", $user)->with("scontact", $scontact)
             ->with("emergency", $emergency)->with("communities", $communities)
             ->with("departments", $departments)->with("userRole", $userRole)
             ->with("userTags", $userTags)
             ->with("mpesaTotal", $mpesaTotal)->with("mpesaCount", $mpesaCount)
-            ->with("mpesaRecords", $mpesaRecords)->with("mpesaLastTx", $mpesaLastTx);
+            ->with("otherTotal", $otherTotal)->with("otherCount", $otherCount)
+            ->with("totalContributions", $totalContributions)->with("totalCount", $totalCount)
+            ->with("mpesaRecords", $mpesaRecords)->with("mpesaLastTx", $mpesaLastTx)
+            ->with("phoneMissing", $phoneMissing)->with("phoneConflict", $phoneConflict)
+            ->with("alternativePhones", $alternativePhones);
     }
 
     /**
@@ -707,6 +916,9 @@ class UsersController extends DashboardController
         ]);
 
         $user = User::findOrFail($request->id);
+        if ($user->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
         $user->firstname = $request->fname;
         $user->surname = $request->surname;
         $user->lastname = $request->lname;
@@ -733,13 +945,19 @@ class UsersController extends DashboardController
             ])->withInput();
         }
 
-        $user->phone = $phone;
+        $phoneChanged = $user->phone !== $phone;
+        $user->phone  = $phone;
         try {
             $user->save();
         } catch (\Illuminate\Database\QueryException $e) {
             return back()->withInput()->withErrors([
                 'error' => 'Unable to save user profile. Please check the data and try again.',
             ]);
+        }
+
+        // Re-hash the new phone number so MPesa can match future transactions
+        if ($phoneChanged && $user->phone) {
+            $this->createMpesaHashAndMatch($user->phone, $user->firstname . ' ' . $user->lastname, $user->id);
         }
 
         $role = Role::find($request->role);
@@ -762,8 +980,11 @@ class UsersController extends DashboardController
 
         // Handle profile image
         if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            ]);
             $image = $request->file('image');
-            $imageName = time() . '.' . $image->getClientOriginalExtension();
+            $imageName = time() . '_' . Str::random(8) . '.' . $image->getClientOriginalExtension();
             $image->move(public_path('profile_images'), $imageName);
             DB::table('profiles')->updateOrInsert(
                 ['user_id' => $request->id],
@@ -779,6 +1000,11 @@ class UsersController extends DashboardController
         $request->validate([
             'id' => 'required|integer|min:1',
         ]);
+
+        $targetUser = User::findOrFail($request->id);
+        if ($targetUser->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
 
         // Secondary contact
         $scontactData = [
@@ -809,6 +1035,11 @@ class UsersController extends DashboardController
             'id' => 'required|integer|min:1',
         ]);
 
+        $targetUser = User::findOrFail($request->id);
+        if ($targetUser->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
+
         DB::table('church')->updateOrInsert(
             ['user_id' => $request->id],
             [
@@ -831,6 +1062,11 @@ class UsersController extends DashboardController
             'id' => 'required|integer|min:1',
         ]);
 
+        $targetUser = User::findOrFail($request->id);
+        if ($targetUser->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
+
         $familyData = [
             'relationship' => $request->relationship,
             'name' => $request->name,
@@ -840,8 +1076,11 @@ class UsersController extends DashboardController
 
         // Handle family photo
         if ($request->hasFile('profile_image')) {
+            $request->validate([
+                'profile_image' => 'image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            ]);
             $image = $request->file('profile_image');
-            $imageName = time() . '.' . $image->getClientOriginalExtension();
+            $imageName = time() . '_' . \Illuminate\Support\Str::random(8) . '.' . $image->getClientOriginalExtension();
             $image->move(public_path('relatives'), $imageName);
             $familyData['image'] = $imageName;
         }
@@ -859,6 +1098,11 @@ class UsersController extends DashboardController
         $request->validate([
             'id' => 'required|integer|min:1',
         ]);
+
+        $targetUser = User::findOrFail($request->id);
+        if ($targetUser->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
 
         DB::table('professions')->updateOrInsert(
             ['user_id' => $request->id],
@@ -879,6 +1123,11 @@ class UsersController extends DashboardController
         $request->validate([
             'id' => 'required|integer|min:1',
         ]);
+
+        $targetUser = User::findOrFail($request->id);
+        if ($targetUser->id !== auth()->user()->id && !auth()->user()->can('Edit Users')) {
+            abort(403, 'Unauthorized');
+        }
 
         DB::table('education')->updateOrInsert(
             ['user_id' => $request->id],
@@ -1631,5 +1880,85 @@ class UsersController extends DashboardController
         }
 
         return response()->json(['error' => 'Invalid invitation method.'], 400);
+    }
+
+    /**
+     * Add an alternative phone number for a user.
+     */
+    public function addAlternativePhone(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'phone' => 'required|string|min:9|max:15',
+            'label' => 'nullable|string|max:50',
+        ]);
+
+        $user = User::findOrFail($request->user_id);
+        
+        // Normalize phone number
+        $phone = preg_replace('/[^0-9]/', '', $request->phone);
+        $phoneCode = optional(DB::table('settings')->first())->phone_code ?? '254';
+        
+        if (strlen($phone) <= 10) {
+            $phone = $phoneCode . ltrim($phone, '0');
+        }
+        
+        // Check if phone already exists for this user
+        if (AlternativePhone::where('user_id', $request->user_id)->where('phone', $phone)->exists()) {
+            return response()->json(['message' => 'This phone number is already added for this user.'], 422);
+        }
+        
+        // Check if phone is the user's primary phone
+        if ($user->phone === $phone) {
+            return response()->json(['message' => 'This phone number is the user\'s primary phone.'], 422);
+        }
+        
+        // Check if phone belongs to another user
+        if (User::where('phone', $phone)->where('id', '!=', $request->user_id)->exists()) {
+            return response()->json(['message' => 'This phone number belongs to another user.'], 422);
+        }
+        
+        // Check if phone is already an alternative for another user
+        if (AlternativePhone::where('phone', $phone)->where('user_id', '!=', $request->user_id)->exists()) {
+            return response()->json(['message' => 'This phone number is already an alternative phone for another user.'], 422);
+        }
+        
+        try {
+            $altPhone = AlternativePhone::create([
+                'tenant_id' => config('app.tenant_id', 1),
+                'user_id' => $request->user_id,
+                'phone' => $phone,
+                'label' => $request->label,
+            ]);
+            
+            // Auto-create hash for MPESA matching
+            $this->createMpesaHashAndMatch($phone, $user->firstname . ' ' . $user->lastname, $user->id);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Alternative phone added successfully.',
+                'data' => $altPhone
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to add alternative phone: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Remove an alternative phone number.
+     */
+    public function removeAlternativePhone($id)
+    {
+        try {
+            $altPhone = AlternativePhone::findOrFail($id);
+            $altPhone->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Alternative phone removed successfully.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to remove alternative phone.'], 500);
+        }
     }
 }

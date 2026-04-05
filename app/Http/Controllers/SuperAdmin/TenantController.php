@@ -70,6 +70,7 @@ class TenantController extends Controller
             'tenant_id' => $tenant->id,
             'firstname' => $validated['admin_name'],
             'surname' => '',
+            'lastname' => $validated['admin_name'], // Use admin_name as lastname too
             'email' => $validated['admin_email'],
             'password' => Hash::make($validated['admin_password']),
             'status' => 1,
@@ -91,8 +92,14 @@ class TenantController extends Controller
             'users' => \App\Models\User::where('tenant_id', $tenant->id)->count(),
             'total_funds' => \App\Models\Funds::where('tenant_id', $tenant->id)->sum('amount'),
         ];
+        
+        // Get tenant's active modules
+        $moduleSubscriptions = $tenant->moduleSubscriptions()
+            ->with('module')
+            ->orderBy('installed_at', 'desc')
+            ->get();
 
-        return view('superadmin.tenants.show', compact('tenant', 'stats'));
+        return view('superadmin.tenants.show', compact('tenant', 'stats', 'moduleSubscriptions'));
     }
 
     /**
@@ -103,7 +110,25 @@ class TenantController extends Controller
         $tenant = Tenant::findOrFail($id);
         $plans = Plan::all();
         
-        return view('superadmin.tenants.edit', compact('tenant', 'plans'));
+        // Get all available modules
+        $modules = \App\Models\Module::active()->orderBy('category')->orderBy('name')->get();
+        
+        // Get tenant's active modules
+        $tenantModules = $tenant->modules()->with('subscription')->get()->keyBy('module');
+        
+        // Get module subscriptions for pricing info
+        $moduleSubscriptions = $tenant->moduleSubscriptions()
+            ->with('module')
+            ->orderBy('installed_at', 'desc')
+            ->get();
+        
+        return view('superadmin.tenants.edit', compact(
+            'tenant', 
+            'plans', 
+            'modules', 
+            'tenantModules',
+            'moduleSubscriptions'
+        ));
     }
 
     /**

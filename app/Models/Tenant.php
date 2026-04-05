@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Tenant extends Model
 {
-    use BelongsToTenant;
     protected $fillable = [
         'name',
         'slug',
@@ -73,6 +71,21 @@ class Tenant extends Model
     public function modules(): HasMany
     {
         return $this->hasMany(TenantModule::class);
+    }
+
+    public function moduleSubscriptions(): HasMany
+    {
+        return $this->hasMany(TenantModuleSubscription::class);
+    }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_user_id');
     }
 
     // ─── Status Helpers ───────────────────────────────────────────────────────
@@ -181,5 +194,90 @@ class Tenant extends Model
             'disabled_at' => now(),
         ]);
         cache()->forget("tenant_{$this->id}_module_{$module}");
+    }
+
+    // ─── Marketplace Helpers ──────────────────────────────────────────────────
+
+    /**
+     * Get active module subscriptions for this tenant.
+     */
+    public function getActiveModuleSubscriptions(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->moduleSubscriptions()
+            ->where('status', 'active')
+            ->get();
+    }
+
+    /**
+     * Get addon modules (not plan-included) for this tenant.
+     */
+    public function getAddonModules(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->moduleSubscriptions()
+            ->whereIn('billing_type', ['addon_monthly', 'addon_yearly', 'one_time'])
+            ->where('status', 'active')
+            ->get();
+    }
+
+    /**
+     * Count active addon modules.
+     */
+    public function addonCount(): int
+    {
+        return $this->moduleSubscriptions()
+            ->whereIn('billing_type', ['addon_monthly', 'addon_yearly', 'one_time'])
+            ->where('status', 'active')
+            ->count();
+    }
+
+    /**
+     * Check if tenant can install a module based on plan limits.
+     */
+    public function canInstallModule(string $moduleKey): bool
+    {
+        $plan = $this->plan;
+
+        if (!$plan) {
+            return false;
+        }
+
+        // Check if already installed
+        if ($this->hasModule($moduleKey)) {
+            return false;
+        }
+
+        // Check plan module configuration
+        $planModule = $plan->getModuleConfig($moduleKey);
+
+        if ($plan->module_mode === 'whitelist') {
+            return $planModule && $planModule->is_included;
+        }
+
+        if ($plan->module_mode === 'blacklist') {
+            return !$planModule || $planModule->is_available !== false;
+        }
+
+        // Marketplace mode
+        if (!$plan->allowsAddons()) {
+            return $planModule && $planModule->is_included;
+        }
+
+        // Check addon limit
+        if (!$plan->canAddAddon($this->addonCount())) {
+            return false;
+        }
+
+        return $planModule && $planModule->is_available;
+    }
+
+    /**
+     * Get total monthly cost of all addons.
+     */
+    public function getAddonMonthlyCost(): float
+    {
+        return $this->moduleSubscriptions()
+            ->whereIn('billing_type', ['addon_monthly', 'addon_yearly'])
+            ->where('status', 'active')
+            ->sum('price');
     }
 }

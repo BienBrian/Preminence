@@ -123,9 +123,9 @@ class SMSController extends DashboardController
         $categoryFilter = ($category !== 'all') ? $category : null;
         $tid = config('app.tenant_id');
 
-        // Use derived table approach with MIN() to handle GROUP BY strict mode
-        $categoryWhere = $categoryFilter ? "AND s.category = '" . addslashes($categoryFilter) . "'" : '';
-        
+        // Use parameterized placeholder to prevent SQL injection
+        $categoryWhere = $categoryFilter ? 'AND s.category = ?' : '';
+
         if ($period == 'weekly') {
             $sql = "
                 SELECT 
@@ -153,7 +153,7 @@ class SMSController extends DashboardController
                 ) AS grouped_data
                 ORDER BY period_start DESC
             ";
-            $bindings = [$tid, $tid];
+            $bindings = $categoryFilter ? [$tid, $tid, $categoryFilter] : [$tid, $tid];
         } elseif ($period == 'monthly') {
             $sql = "
                 SELECT 
@@ -179,7 +179,7 @@ class SMSController extends DashboardController
                 ) AS grouped_data
                 ORDER BY period_key DESC
             ";
-            $bindings = [$tid, $tid];
+            $bindings = $categoryFilter ? [$tid, $tid, $categoryFilter] : [$tid, $tid];
         } else {
             // Daily view - use MIN() to satisfy strict mode
             $sql = "
@@ -206,7 +206,7 @@ class SMSController extends DashboardController
                 ) AS grouped_data
                 ORDER BY period_date DESC
             ";
-            $bindings = [$tid, $tid];
+            $bindings = $categoryFilter ? [$tid, $tid, $categoryFilter] : [$tid, $tid];
         }
 
         $results = collect(\DB::select($sql, $bindings));
@@ -326,6 +326,25 @@ class SMSController extends DashboardController
         return response()->json(["success" => "Mpesa message settings saved"]);
     }
 
+    public function getManualTitheSettings(){
+        $tid = config('app.tenant_id');
+        $settings = \DB::table("manual_tithe_message_settings")->where('tenant_id', $tid)->first();
+        return response()->json($settings);
+    }
+
+    public function saveManualTitheSettings(Request $request){
+        $request->validate(['message' => 'required']);
+        $tid = config('app.tenant_id');
+        $exists = \DB::table("manual_tithe_message_settings")->where('tenant_id', $tid)->first();
+        $data = ['message' => $request->message, 'active' => $request->has('active') ? 1 : 0, 'updated_at' => Carbon::now()];
+        if ($exists) {
+            \DB::table("manual_tithe_message_settings")->where('tenant_id', $tid)->where("id", $exists->id)->update($data);
+        } else {
+            \DB::table("manual_tithe_message_settings")->insert(array_merge($data, ['tenant_id' => $tid, 'created_at' => Carbon::now()]));
+        }
+        return response()->json(["success" => "Manual tithe message settings saved"]);
+    }
+
     public function sendSms( Request $request )
     {
         $request->validate([
@@ -342,14 +361,18 @@ class SMSController extends DashboardController
             $date = \Carbon\Carbon::parse($request->time);
             if ($request->choice == 0) {
                 if (empty($request['contacts'])) return back()->with("error", "No recipients selected!");
+                $scheduleRows = [];
                 foreach ($request['contacts'] as $contact) {
-                    \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => $contact, "group_id" => 0, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
+                    $scheduleRows[] = ["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => intval($contact), "group_id" => 0, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()];
                 }
+                \DB::table('schedules')->insert($scheduleRows);
             } elseif ($request->choice == 1) {
                 if (empty($request['groups'])) return back()->with("error", "No groups selected!");
+                $scheduleRows = [];
                 foreach ($request['groups'] as $contact) {
-                    \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => 0, "group_id" => $contact, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
+                    $scheduleRows[] = ["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => 0, "group_id" => intval($contact), "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()];
                 }
+                \DB::table('schedules')->insert($scheduleRows);
             } else {
                 \DB::table('schedules')->insert(["tenant_id" => $tid, "message" => $message, "type" => 0, "user_id" => 0, "group_id" => 0, "schedule" => $date, "status" => 0, "created_at" => \Carbon\Carbon::now()]);
             }
@@ -358,21 +381,26 @@ class SMSController extends DashboardController
 
         if ($request->choice == 0) {
             if (empty($request['contacts'])) return back()->with("error", "No recipients selected!");
+            // Bulk-fetch all selected users in one query instead of N individual queries
+            $users = \DB::table('users')->where('tenant_id', $tid)->whereIn('id', $request['contacts'])
+                ->where('status', 1)->select('id', 'phone')->get()->keyBy('id');
             $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => 0, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+            $recipientRows = [];
             foreach ($request['contacts'] as $contact) {
-                $user = \DB::table('users')->where('tenant_id', $tid)->select("id", "phone")->where('id', '=', $contact)->where("status", 1)->first();
-                if ($user != null && $user->phone != null) {
+                $user = $users->get($contact);
+                if ($user && $user->phone) {
                     $number = $user->phone;
                     if (substr($number, 0, 1) === '0') $number = "254" . substr($number, 1);
                     if ($this->send($number, $message)) {
                         $sent++;
-                        \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                        $recipientRows[] = ["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()];
                     } else {
                         $failed++;
                         \Log::error("SMS failed to send to {$number} (user: {$user->id})");
                     }
                 }
             }
+            if (!empty($recipientRows)) \DB::table('sms_recipients')->insert($recipientRows);
         } else {
             if ($request->choice == 1) {
                 if (empty($request['groups'])) return back()->with("error", "No groups selected!");
@@ -380,30 +408,34 @@ class SMSController extends DashboardController
                     $members = \DB::table("people_members")->where('people_members.tenant_id', $tid)->select("contacts.phone", "people_members.user_id")->where("people_id", $contact)->where("people_members.status", 1)
                         ->where("users.status", 1)->join("contacts", "contacts.user_id", "=", "people_members.user_id")->join("users", "users.id", "=", "contacts.user_id")->get();
                     $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => $contact, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+                    $recipientRows = [];
                     foreach ($members as $member) {
                         if ($this->send("254" . substr($member->phone, 1), $message)) {
                             $sent++;
-                            \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $member->user_id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                            $recipientRows[] = ["tenant_id" => $tid, "recipients" => $member->user_id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()];
                         } else {
                             $failed++;
                             \Log::error("SMS failed to send to {$member->phone} (user: {$member->user_id})");
                         }
                     }
+                    if (!empty($recipientRows)) \DB::table('sms_recipients')->insert($recipientRows);
                 }
             } else {
                 $users = \DB::table('users')->where('tenant_id', $tid)->select("id", "phone")->where("status", 1)->whereNotNull("phone")->where("phone", "!=", "")->get();
                 $mid = \DB::table('sms')->insertGetId(["tenant_id" => $tid, "people_id" => 0, "message" => $request->message, "sent" => \Carbon\Carbon::now()]);
+                $recipientRows = [];
                 foreach ($users as $user) {
                     $number = $user->phone;
                     if (substr($number, 0, 1) === '0') $number = "254" . substr($number, 1);
                     if ($this->send($number, $message)) {
                         $sent++;
-                        \DB::table('sms_recipients')->insert(["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                        $recipientRows[] = ["tenant_id" => $tid, "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()];
                     } else {
                         $failed++;
                         \Log::error("SMS failed to send to {$number} (user: {$user->id})");
                     }
                 }
+                if (!empty($recipientRows)) \DB::table('sms_recipients')->insert($recipientRows);
             }
         }
         
@@ -463,12 +495,13 @@ class SMSController extends DashboardController
 
     public function removesms(Request $request)
     {
-        $message = \DB::table('sms')->where("id", $request->id)->first();
+        $tid = config('app.tenant_id');
+        $message = \DB::table('sms')->where("tenant_id", $tid)->where("id", $request->id)->first();
         if($message == null){
             return redirect()->back()->with("error", "Invalid Message ID");
         }else{
-            if(\DB::table('sms')->where("id", $request->id)->delete()){
-                \DB::table('sms_recipients')->where("sms_id", $request->id)->delete();
+            if(\DB::table('sms')->where("tenant_id", $tid)->where("id", $request->id)->delete()){
+                \DB::table('sms_recipients')->where("tenant_id", $tid)->where("sms_id", $request->id)->delete();
                 return redirect()->to('dashboard/communication/sms')->with("success", "Message removed successfully");
             }else{
                 return redirect()->to('dashboard/communication/sms')->with("error", "Unable to remove message");
@@ -482,22 +515,23 @@ class SMSController extends DashboardController
     }
 
     public function phoneNumbers(Request $request){
-        $start = $request->limit == null?"0":intval($request->limit);
+        $tid   = config('app.tenant_id');
+        $start = $request->limit == null ? "0" : intval($request->limit);
         if($request->groups == 1){
             if($request->search == null){
-                return json_encode(\DB::table("people")->select("people.id", "people.name", "people.user_group", \DB::Raw("count(people.id) as members"))
+                return json_encode(\DB::table("people")->where("people.tenant_id", $tid)->select("people.id", "people.name", "people.user_group", \DB::Raw("count(people.id) as members"))
                 ->leftJoin("people_members", "people_members.people_id", "=", "people.id")->groupBy('people.id')->groupBy('people.name')->groupBy('people.user_group')->
                 orderBy("people.name", "ASC")->skip($start)->take(10)->get());
             }else{
-                return json_encode(\DB::table("people")->select("people.id", "people.name", "people.user_group", \DB::Raw("count(people.id) as members"))->where("name", "LIKE", "%".$request->search."%")
+                return json_encode(\DB::table("people")->where("people.tenant_id", $tid)->select("people.id", "people.name", "people.user_group", \DB::Raw("count(people.id) as members"))->where("name", "LIKE", "%".$request->search."%")
                 ->leftJoin("people_members", "people_members.people_id", "=", "people.id")->groupBy('people.id')->groupBy('people.name')->groupBy('people.user_group')->
                 orderBy("people.name", "ASC")->skip($start)->take(10)->get());
             }
         }else{
             if($request->search == null){
-                return json_encode(\DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "users.phone")->where("users.phone", "!=", "")->whereNotNull("users.phone")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
+                return json_encode(\DB::table("users")->where("users.tenant_id", $tid)->select("users.id", "users.firstname", "users.lastname", "users.email", "users.phone")->where("users.phone", "!=", "")->whereNotNull("users.phone")->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
             }else{
-                return json_encode(\DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "users.phone")->where("users.phone", "!=", "")->whereNotNull("users.phone")->where(function($query) use ($request){
+                return json_encode(\DB::table("users")->where("users.tenant_id", $tid)->select("users.id", "users.firstname", "users.lastname", "users.email", "users.phone")->where("users.phone", "!=", "")->whereNotNull("users.phone")->where(function($query) use ($request){
                     $query->where("firstname", "LIKE", "%".$request->search."%")->orWhere("lastname", "LIKE", "%".$request->search."%")->orWhere("users.phone", "LIKE", "%".$request->search."%");
                 })->orderBy("users.firstname", "ASC")->skip($start)->take(10)->get());
             }
@@ -505,7 +539,8 @@ class SMSController extends DashboardController
     }
 
     public function readsms(Request $request){
-        $sms = \DB::table("sms")->where("sms.id", "=", $request->id)->select("sms.id", "message", "sent", "name")->leftJoin("people", "people.id", "=", "sms.people_id")->first();
+        $tid = config('app.tenant_id');
+        $sms = \DB::table("sms")->where("sms.tenant_id", $tid)->where("sms.id", "=", $request->id)->select("sms.id", "message", "sent", "name")->leftJoin("people", "people.id", "=", "sms.people_id")->first();
 
         $members = \DB::table("sms_recipients")->where("sms_id", $request->id)->select("users.id", "users.firstname", "users.lastname", "users.phone", "profiles.name as image")->join("users", "users.id", "sms_recipients.recipients")
         ->join("contacts", "contacts.user_id", "sms_recipients.recipients")->leftJoin("profiles", "profiles.user_id", "=", "sms_recipients.recipients")->paginate(15);
@@ -564,26 +599,26 @@ class SMSController extends DashboardController
         $request->validate([
             'amount'=>'required|numeric|min:50',
         ]);
+        $tid  = config('app.tenant_id');
         $send = false;
         if($request->has('notify')){
             $send = true;
         }
         if(!empty($request['contacts'])){
             foreach($request['contacts'] as $id){
-                $user = \DB::table('contacts')->select("users.id", "users.firstname", "users.lastname", "contacts.phone")->where('contacts.id', $id)->join("users", "contacts.user_id", "=", "users.id")->first();
+                $user = \DB::table('contacts')->select("users.id", "users.firstname", "users.lastname", "contacts.phone")->where('contacts.tenant_id', $tid)->where('contacts.id', $id)->join("users", "contacts.user_id", "=", "users.id")->first();
                 if($user != null){
                     $message = "Dear ".strtoupper($user->firstname)." ".strtoupper($user->lastname).",\n".
                         "Thank You for pledging KSH ".number_format($request->amount). " in support of ".$request->activity_name;
 
                     $number = "254".substr($user->phone, 1);
-                    $user->id." ".$user->firstname." ".$user->lastname." ".$user->phone;
-                    if(\DB::table("pledges")->where("user_id", $user->id)->where("activity", $request->activity_id)->count() == 0){
-                        if(\DB::table("pledges")->insert(["activity"=>$request->activity_id, "groups"=>0, "user_id"=>$user->id,
+                    if(\DB::table("pledges")->where("tenant_id", $tid)->where("user_id", $user->id)->where("activity", $request->activity_id)->count() == 0){
+                        if(\DB::table("pledges")->insert(["tenant_id"=>$tid, "activity"=>$request->activity_id, "groups"=>0, "user_id"=>$user->id,
                             "paid"=>0, "amount"=>$request->amount, "status"=>0])){
 
                                 if($send){
-                                    $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
-                                    \DB::table('sms_recipients')->insert(["recipients"=>$user->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                                    $mid = \DB::table('sms')->insertGetId(["tenant_id"=>$tid, "people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
+                                    \DB::table('sms_recipients')->insert(["tenant_id"=>$tid, "recipients"=>$user->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
                                     $this->send($number, $message);
                                 }
                         }
@@ -623,9 +658,10 @@ class SMSController extends DashboardController
 
                             $message = str_replace($remove, "", $message);
 
-                            if($this->send($number, $message)){
-                                $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
-                                \DB::table('sms_recipients')->insert(["recipients"=>$pledge->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                            $tid2 = config('app.tenant_id');
+                        if($this->send($number, $message)){
+                                $mid = \DB::table('sms')->insertGetId(["tenant_id"=>$tid2, "people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
+                                \DB::table('sms_recipients')->insert(["tenant_id"=>$tid2, "recipients"=>$pledge->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
                             }
                         }
                     }
@@ -651,9 +687,10 @@ class SMSController extends DashboardController
             $remove[] = '"';
 
             $message = str_replace($remove, "", $message);
+            $tid = config('app.tenant_id');
             if($this->send($number, $message)){
-                $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
-                \DB::table('sms_recipients')->insert(["recipients"=>$pledge->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                $mid = \DB::table('sms')->insertGetId(["tenant_id"=>$tid, "people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
+                \DB::table('sms_recipients')->insert(["tenant_id"=>$tid, "recipients"=>$pledge->user_id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
                 return back()->with("success", "Reminder has been sent");
             }else{
                 return back()->with("error", "Unable to send reminder");
@@ -674,9 +711,10 @@ class SMSController extends DashboardController
                 $m = str_replace("{{ACTIVITY}}", strtoupper($pledge->name), $m);
                 $m = str_replace("{{BALANCE}}", number_format($balance, 0), $m);
                 $number = "254".substr($pledge->phone,1);
+                $tid = config('app.tenant_id');
                 if($this->send($number, $m)){
-                    $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$m, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
-                    \DB::table('sms_recipients')->insert(["recipients"=>$pledge->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                    $mid = \DB::table('sms')->insertGetId(["tenant_id"=>$tid, "people_id"=>0, "message"=>$m, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
+                    \DB::table('sms_recipients')->insert(["tenant_id"=>$tid, "recipients"=>$pledge->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
                 }
             }
             return back()->with("success", "Message sent successfully");
@@ -700,9 +738,10 @@ class SMSController extends DashboardController
                 $message .= ". Your balance now is KES ".number_format($pledge->amount - $paid).". May GOD bless and increase you resources.";
             }
 
+            $tid = config('app.tenant_id');
             if($this->send($number, $message)){
-                $mid = \DB::table('sms')->insertGetId(["people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
-                \DB::table('sms_recipients')->insert(["recipients"=>$pledge->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
+                $mid = \DB::table('sms')->insertGetId(["tenant_id"=>$tid, "people_id"=>0, "message"=>$message, "category"=>"pledge", "sent"=>\Carbon\Carbon::now()]);
+                \DB::table('sms_recipients')->insert(["tenant_id"=>$tid, "recipients"=>$pledge->id, "sms_id"=>$mid, "sent"=>\Carbon\Carbon::now()]);
             }
             return back()->with("success", "Balance updated!");
         }else{

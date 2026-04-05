@@ -176,7 +176,7 @@ class PeopleController extends DashboardController
         $label = $request->people == 1 ? 'Community' : 'Department';
 
         if(!empty($request->photo)){
-            $imageName = time() . '.' . $request->photo->getClientOriginalExtension();
+            $imageName = time() . '_' . \Illuminate\Support\Str::random(8) . '.' . strtolower($request->photo->getClientOriginalExtension());
             if(request()->photo->move(public_path('peoples'), $imageName)){
                 if($request->id > 0){
                     $photo = \DB::table('people')->where('id', $request->id)->first();

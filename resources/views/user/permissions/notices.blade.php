@@ -9,10 +9,7 @@
     </div>
 </div>
 
-<?php
-    $permissions1 = \DB::table("permissions")->where("user_id", \Auth::user()->id)->first();
-    $permissions2 = \DB::table("permissions")->where("role", \Auth::user()->role)->first();
-?>
+
 <!-- Page content -->
 <div class="container-fluid mt--5">
     <div class="row">

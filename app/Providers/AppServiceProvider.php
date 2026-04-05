@@ -22,8 +22,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrap();
         
-        // Force HTTPS for all URLs
-        // This ensures assets and links use HTTPS on the production server
-        \URL::forceScheme('https');
+        // Force HTTPS if required by environment configuration
+        // Use the pisti config helper to determine if HTTPS should be forced
+        if (should_force_https()) {
+            \URL::forceScheme('https');
+        }
     }
 }

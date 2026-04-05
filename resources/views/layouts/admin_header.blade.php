@@ -157,48 +157,21 @@
 
                 <hr class="my-3">
                 @endif
-                <?php
-                    $permissions1 = \DB::table("permissions")->where("user_id", \Auth::user()->id)->first();
-                    $permissions2 = \DB::table("permissions")->where("role", \Auth::user()->role)->first();
-                ?>
+                
 
                 <!-- Navigation -->
                 <ul class="navbar-nav">
                     <!--Dashboard -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <a class="nav-link" href="{{url('home')}}">
                                 <i class="ni ni-tv-2 text-primary"></i> Dashboard
                             </a>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->dashboard > 0 || $permissions2->dashboard > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('home')}}">
-                                    <i class="ni ni-tv-2 text-primary"></i> Dashboard
-                                </a>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->dashboard > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('home')}}">
-                                    <i class="ni ni-tv-2 text-primary"></i> Dashboard
-                                </a>
-                            </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->dashboard > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('home')}}">
-                                    <i class="ni ni-tv-2 text-primary"></i> Dashboard
-                                </a>
-                            </li>
-                        @endif
                     @endif
 
                     <!--website-->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                     <li class="nav-item">
                         <div class="dropdown" style='width: 100%;'>
                             <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -227,103 +200,70 @@
                             </div>
                         </div>
                     </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->websites > 0 || $permissions2->websites > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-globe text-primary"></i>
-                                    <span style='width: 97%;'>Websites</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('dashboard/settings')}}">
-                                        Settings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('dashboard/homepage')}}">
-                                        Home Page
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/gallery')}}">
-                                        Gallery
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/pastorsmessage')}}">
-                                        Pastors Message
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/orderofservice')}}">
-                                        Order of Service
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/weeklyverse')}}">
-                                        Weekly Verse
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->websites > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-globe text-primary"></i>
-                                    <span style='width: 97%;'>Websites</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('/settings')}}">
-                                        Settings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/homepage')}}">
-                                        Home Page
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/gallery')}}">
-                                        Gallery
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/pastorsmessage')}}">
-                                        Pastors Message
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/orderofservice')}}">
-                                        Order of Service
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/weeklyverse')}}">
-                                        Weekly Verse
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->websites > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-globe text-primary"></i>
-                                    <span style='width: 97%;'>Websites</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('/settings')}}">
-                                        Settings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/homepage')}}">
-                                        Home Page
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/gallery')}}">
-                                        Gallery
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/pastorsmessage')}}">
-                                        Pastors Message
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/orderofservice')}}">
-                                        Order of Service
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/weeklyverse')}}">
-                                        Weekly Verse
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('websites'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-globe text-primary"></i>
+                                    <span style='width: 97%;'>Websites</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('/settings')}}">
+                                        Settings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/homepage')}}">
+                                        Home Page
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/gallery')}}">
+                                        Gallery
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/pastorsmessage')}}">
+                                        Pastors Message
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/orderofservice')}}">
+                                        Order of Service
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/weeklyverse')}}">
+                                        Weekly Verse
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
+                    @if(has_legacy_permission('websites'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-globe text-primary"></i>
+                                    <span style='width: 97%;'>Websites</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('/settings')}}">
+                                        Settings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/homepage')}}">
+                                        Home Page
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/gallery')}}">
+                                        Gallery
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/pastorsmessage')}}">
+                                        Pastors Message
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/orderofservice')}}">
+                                        Order of Service
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/weeklyverse')}}">
+                                        Weekly Verse
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
 
                     <!--Finances -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -364,130 +304,88 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->finances > 0 || $permissions2->finances > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-coins text-primary"></i>
-                                    <span style='width: 97%;'>Finances</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('/funds')}}">
-                                        Funds/Tithes/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/tithing/individual')}}">
-                                        Individual Tithing/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/budget')}}">
-                                        Budgets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/donations')}}">
-                                        Donations
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/myassets')}}">
-                                        Assets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/expenses')}}">
-                                        Expenses
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/activities')}}">
-                                        Activities
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/summaries')}}">
-                                        Summaries
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/fundsource')}}">
-                                        Payments Settings
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->finances > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-coins text-primary"></i>
-                                    <span style='width: 97%;'>Finances</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('/funds')}}">
-                                        Funds/Tithes/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/tithing/individual')}}">
-                                        Individual Tithing/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/budget')}}">
-                                        Budgets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/donations')}}">
-                                        Donations
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/myassets')}}">
-                                        Assets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/expenses')}}">
-                                        Expenses
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/activities')}}">
-                                        Activities
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/summaries')}}">
-                                        Summaries
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/fundsource')}}">
-                                        Payments Settings
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->finances > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-coins text-primary"></i>
-                                    <span style='width: 97%;'>Finances</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('/funds')}}">
-                                        Funds/Tithes/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/tithing/individual')}}">
-                                        Individual Tithing/Offerings
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/budget')}}">
-                                        Budgets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/donations')}}">
-                                        Donations
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/myassets')}}">
-                                        Assets
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/expenses')}}">
-                                        Expenses
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/activities')}}">
-                                        Activities
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/summaries')}}">
-                                        Summaries
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('/fundsource')}}">
-                                        Payments Settings
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('finances'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-coins text-primary"></i>
+                                    <span style='width: 97%;'>Finances</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('/funds')}}">
+                                        Funds/Tithes/Offerings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/tithing/individual')}}">
+                                        Individual Tithing/Offerings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/budget')}}">
+                                        Budgets
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/donations')}}">
+                                        Donations
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/myassets')}}">
+                                        Assets
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/expenses')}}">
+                                        Expenses
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/activities')}}">
+                                        Activities
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/summaries')}}">
+                                        Summaries
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/fundsource')}}">
+                                        Payments Settings
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
+                    @if(has_legacy_permission('finances'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-coins text-primary"></i>
+                                    <span style='width: 97%;'>Finances</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('/funds')}}">
+                                        Funds/Tithes/Offerings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/tithing/individual')}}">
+                                        Individual Tithing/Offerings
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/budget')}}">
+                                        Budgets
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/donations')}}">
+                                        Donations
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/myassets')}}">
+                                        Assets
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/expenses')}}">
+                                        Expenses
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/activities')}}">
+                                        Activities
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/summaries')}}">
+                                        Summaries
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('/fundsource')}}">
+                                        Payments Settings
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
 
                     <!--People -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -513,94 +411,64 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->users > 0 || $permissions2->users > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-users text-primary"></i>
-                                        <span style='width: 97%;'>People</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('people/add')}}">
-                                            Add New
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/users')}}">
-                                            All Users
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/pastors')}}">
-                                            Pastors
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/communities')}}">
-                                            Communities
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/departments')}}">
-                                            Departments
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->users > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-users text-primary"></i>
-                                        <span style='width: 97%;'>People</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('people/add')}}">
-                                            Add New
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/users')}}">
-                                            All Users
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/pastors')}}">
-                                            Pastors
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/communities')}}">
-                                            Communities
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/departments')}}">
-                                            Departments
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->users > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-users text-primary"></i>
-                                        <span style='width: 97%;'>People</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('people/add')}}">
-                                            Add New
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/users')}}">
-                                            All Users
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/pastors')}}">
-                                            Pastors
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/communities')}}">
-                                            Communities
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('people/departments')}}">
-                                            Departments
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('users'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-users text-primary"></i>
+                                        <span style='width: 97%;'>People</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('people/add')}}">
+                                            Add New
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/users')}}">
+                                            All Users
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/pastors')}}">
+                                            Pastors
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('people/communities')}}">
+                                            Communities
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('people/departments')}}">
+                                            Departments
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
+                    @if(has_legacy_permission('users'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-users text-primary"></i>
+                                        <span style='width: 97%;'>People</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('people/add')}}">
+                                            Add New
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/users')}}">
+                                            All Users
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/pastors')}}">
+                                            Pastors
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('people/communities')}}">
+                                            Communities
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('people/departments')}}">
+                                            Departments
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
 
                     <!--Events -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -623,85 +491,58 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->events > 0 || $permissions2->events > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-bell text-primary"></i>
-                                    <span style='width: 97%;'>Events & Notices</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('events')}}">
-                                        Events
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('notices')}}">
-                                        Notices
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('admin/seminars')}}">
-                                        Seminars
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('attendance')}}">
-                                        Attendance
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->events > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-bell text-primary"></i>
-                                    <span style='width: 97%;'>Events & Notices</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('events')}}">
-                                        Events
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('notices')}}">
-                                        Notices
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('admin/seminars')}}">
-                                        Seminars
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('attendance')}}">
-                                        Attendance
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->events > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-bell text-primary"></i>
-                                    <span style='width: 97%;'>Events & Notices</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('events')}}">
-                                        Events
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('notices')}}">
-                                        Notices
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('admin/seminars')}}">
-                                        Seminars
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('attendance')}}">
-                                        Attendance
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('events'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-bell text-primary"></i>
+                                    <span style='width: 97%;'>Events & Notices</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('events')}}">
+                                        Events
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('notices')}}">
+                                        Notices
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('admin/seminars')}}">
+                                        Seminars
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('attendance')}}">
+                                        Attendance
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
+                    @if(has_legacy_permission('events'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-bell text-primary"></i>
+                                    <span style='width: 97%;'>Events & Notices</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('events')}}">
+                                        Events
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('notices')}}">
+                                        Notices
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('admin/seminars')}}">
+                                        Seminars
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('attendance')}}">
+                                        Attendance
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
 
                     <!-- checkin children -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                     <li class="nav-item">
                         <div class="dropdown" style='width: 100%;'>
                             <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -718,67 +559,46 @@
                             </div>
                         </div>
                     </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->checkin > 0 || $permissions2->checkin > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-child text-primary"></i>
-                                        <span style='width: 97%;'>Children Affairs</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('children')}}">
-                                            Children
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('children/attendance')}}">
-                                            Children Checkin
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->checkin > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-child text-primary"></i>
-                                    <span style='width: 97%;'>Children Affairs</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('children')}}">
-                                        Children
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('children/attendance')}}">
-                                        Children Checkin
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->checkin > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-child text-primary"></i>
-                                    <span style='width: 97%;'>Children Affairs</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('children')}}">
-                                        Children
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('children/attendance')}}">
-                                        Children Checkin
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('checkin'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-child text-primary"></i>
+                                    <span style='width: 97%;'>Children Affairs</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('children')}}">
+                                        Children
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('children/attendance')}}">
+                                        Children Checkin
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
+                    @if(has_legacy_permission('checkin'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-child text-primary"></i>
+                                    <span style='width: 97%;'>Children Affairs</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('children')}}">
+                                        Children
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('children/attendance')}}">
+                                        Children Checkin
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
 
                     <!--Spiritual -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -798,76 +618,52 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->spiritual > 0 || $permissions2->spiritual > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-hands text-primary"></i>
-                                        <span style='width: 97%;'>Spiritual</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('sermons')}}">
-                                            Sermons
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('prayers')}}">
-                                            Prayers
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('testimonials')}}">
-                                            Testimonials
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->spiritual > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-hands text-primary"></i>
-                                    <span style='width: 97%;'>Spiritual</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('sermons')}}">
-                                        Sermons
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('prayers')}}">
-                                        Prayers
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('testimonials')}}">
-                                        Testimonials
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->spiritual > 0)
-                        <li class="nav-item">
-                            <div class="dropdown" style='width: 100%;'>
-                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                    <i class="fas fa-hands text-primary"></i>
-                                    <span style='width: 97%;'>Spiritual</span>
-                                </a>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                    <a class="dropdown-item" href="{{url('sermons')}}">
-                                        Sermons
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('prayers')}}">
-                                        Prayers
-                                    </a>
-                                    <a class="dropdown-item" href="{{url('testimonials')}}">
-                                        Testimonials
-                                    </a>
-                                </div>
-                            </div>
-                        </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('spiritual'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-hands text-primary"></i>
+                                    <span style='width: 97%;'>Spiritual</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('sermons')}}">
+                                        Sermons
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('prayers')}}">
+                                        Prayers
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('testimonials')}}">
+                                        Testimonials
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
+                    @if(has_legacy_permission('spiritual'))
+                        <li class="nav-item">
+                            <div class="dropdown" style='width: 100%;'>
+                                <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                    <i class="fas fa-hands text-primary"></i>
+                                    <span style='width: 97%;'>Spiritual</span>
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                    <a class="dropdown-item" href="{{url('sermons')}}">
+                                        Sermons
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('prayers')}}">
+                                        Prayers
+                                    </a>
+                                    <a class="dropdown-item" href="{{url('testimonials')}}">
+                                        Testimonials
+                                    </a>
+                                </div>
+                            </div>
+                        </li>
+                        @endif
 
                     <!--Shop -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -884,67 +680,46 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->shop > 0 || $permissions2->shop > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-shopping-bag text-primary"></i>
-                                        <span style='width: 97%;'>Shop</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/products')}}">
-                                            Products
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/purchases')}}">
-                                            Purchases
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->shop > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-shopping-bag text-primary"></i>
-                                        <span style='width: 97%;'>Shop</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/products')}}">
-                                            Products
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/purchases')}}">
-                                            Purchases
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                            @if($permissions2->shop > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-shopping-bag text-primary"></i>
-                                        <span style='width: 97%;'>Shop</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/products')}}">
-                                            Products
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/purchases')}}">
-                                            Purchases
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('shop'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-shopping-bag text-primary"></i>
+                                        <span style='width: 97%;'>Shop</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('/products')}}">
+                                            Products
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/purchases')}}">
+                                            Purchases
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
+                    @if(has_legacy_permission('shop'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-shopping-bag text-primary"></i>
+                                        <span style='width: 97%;'>Shop</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('/products')}}">
+                                            Products
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/purchases')}}">
+                                            Purchases
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
 
                     <!--Communication -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <div class="dropdown" style='width: 100%;'>
                                 <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
@@ -964,106 +739,72 @@
                                 </div>
                             </div>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->communication > 0 || $permissions2->communication > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-envelope text-primary"></i>
-                                        <span style='width: 97%;'>Communication</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/emails')}}">
-                                            Emails
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/sms')}}">
-                                            SMS
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('schedule/sms')}}">
-                                            Scheduled SMS
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->communication > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-envelope text-primary"></i>
-                                        <span style='width: 97%;'>Communication</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/emails')}}">
-                                            Emails
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/sms')}}">
-                                            SMS
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('schedule/sms')}}">
-                                            Scheduled SMS
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->communication > 0)
-                            <li class="nav-item">
-                                <div class="dropdown" style='width: 100%;'>
-                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
-                                        <i class="fas fa-envelope text-primary"></i>
-                                        <span style='width: 97%;'>Communication</span>
-                                    </a>
-                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
-                                        <a class="dropdown-item" href="{{url('/emails')}}">
-                                            Emails
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('/sms')}}">
-                                            SMS
-                                        </a>
-                                        <a class="dropdown-item" href="{{url('schedule/sms')}}">
-                                            Scheduled SMS
-                                        </a>
-                                    </div>
-                                </div>
-                            </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('communication'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-envelope text-primary"></i>
+                                        <span style='width: 97%;'>Communication</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('/emails')}}">
+                                            Emails
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/sms')}}">
+                                            SMS
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('schedule/sms')}}">
+                                            Scheduled SMS
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
+                    @if(has_legacy_permission('communication'))
+                            <li class="nav-item">
+                                <div class="dropdown" style='width: 100%;'>
+                                    <a class="nav-link dropdown-toggle" style='width: 100%;' id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" href="#">
+                                        <i class="fas fa-envelope text-primary"></i>
+                                        <span style='width: 97%;'>Communication</span>
+                                    </a>
+                                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton" style="width: 100%; border-radius:0;">
+                                        <a class="dropdown-item" href="{{url('/emails')}}">
+                                            Emails
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('/sms')}}">
+                                            SMS
+                                        </a>
+                                        <a class="dropdown-item" href="{{url('schedule/sms')}}">
+                                            Scheduled SMS
+                                        </a>
+                                    </div>
+                                </div>
+                            </li>
+                        @endif
 
                     <!--Articles -->
-                    @if(\Auth::user()->role == 1)
+                    @if(\Auth::user()->role == 1 || has_legacy_permission('dashboard'))
                         <li class="nav-item">
                             <a class="nav-link" href="{{url('articles')}}">
                                 <i class="fas fa-comments text-primary"></i> Articles
                             </a>
                         </li>
-                    @elseif($permissions1 != null && $permissions2 != null)
-                        @if($permissions1->articles > 0 || $permissions2->articles > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('articles')}}">
-                                    <i class="fas fa-comments text-primary"></i> Articles
-                                </a>
-                            </li>
-                        @endif
-                    @elseif($permissions1 != null)
-                        @if($permissions1->articles > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('articles')}}">
-                                    <i class="fas fa-comments text-primary"></i> Articles
-                                </a>
-                            </li>
-                        @endif
-                    @elseif($permissions2 != null)
-                        @if($permissions2->articles > 0)
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{url('articles')}}">
-                                    <i class="fas fa-comments text-primary"></i> Articles
-                                </a>
-                            </li>
-                        @endif
                     @endif
+                    @if(has_legacy_permission('articles'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{url('articles')}}">
+                                    <i class="fas fa-comments text-primary"></i> Articles
+                                </a>
+                            </li>
+                        @endif
+                    @if(has_legacy_permission('articles'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{url('articles')}}">
+                                    <i class="fas fa-comments text-primary"></i> Articles
+                                </a>
+                            </li>
+                        @endif
                 </ul>
             </div>
         </div>

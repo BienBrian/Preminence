@@ -31,11 +31,17 @@ class ProfileAPIController extends Controller
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->messages()], 400);
         }
-        $gender = Gender::where('name', $request->gender)->first();
+
         $user = User::find($request->id);
         if ($user == null) {
             return response()->json(['error' => 'Invalid profile id provided!'], 401);
         }
+
+        if ($user->id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $gender = Gender::where('name', $request->gender)->first();
         $user->firstname = $request->firstname;
         $user->lastname = $request->lastname;
         if ($gender != null) {

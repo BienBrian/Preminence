@@ -62,16 +62,14 @@ class SermonController extends DashboardController
 
             $minutes = intval($request->minutes) + (intval($request->hours) * 60);
 
-            if ($request->has('banner')) {
+            if ($request->hasFile('banner')) {
                 if (file_exists(public_path() . "/sermon/" . $sermon->banner)) {
                     \File::delete(public_path() . "/sermon/" . $sermon->banner);
                 }
-                $banner = $request->banner->getClientOriginalName();
-                if (\DB::table('sermons')->where('banner', $banner)->count() > 0) {
-                    $banner = time() . "_" . $request->banner->getClientOriginalName();
-                }
+                $extension = strtolower($request->banner->getClientOriginalExtension());
+                $banner = time() . '_' . \Illuminate\Support\Str::random(8) . '.' . $extension;
                 $request->banner->move(public_path('sermon'), $banner);
-                Sermon::where('id', '=', $request->id)->update(array('banner' => $request->banner->getClientOriginalName()));
+                Sermon::where('id', '=', $request->id)->update(array('banner' => $banner));
             }
             /*
             if($request->has('video')){
@@ -176,11 +174,9 @@ class SermonController extends DashboardController
         $audio = "";
 
 
-        if ($request->has('banner')) {
-            $banner = $request->banner->getClientOriginalName();
-            if (\DB::table('sermons')->where('banner', $banner)->count() > 0) {
-                $banner = time() . "_" . $request->banner->getClientOriginalName();
-            }
+        if ($request->hasFile('banner')) {
+            $extension = strtolower($request->banner->getClientOriginalExtension());
+            $banner = time() . '_' . \Illuminate\Support\Str::random(8) . '.' . $extension;
             $request->banner->move(public_path('sermon'), $banner);
         }
 

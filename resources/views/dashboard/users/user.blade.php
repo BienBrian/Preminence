@@ -326,6 +326,57 @@
                                 </div>
                             </div>
 
+                            <!-- Alternative Phones Card -->
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="fas fa-phone-square-alt mr-1"></i> Alternative Phone Numbers</h6>
+                                    <button type="button" class="btn btn-sm btn-primary" id="btn-add-alt-phone">
+                                        <i class="fas fa-plus"></i> Add
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="alt-phones-container">
+                                        @if(isset($alternativePhones) && $alternativePhones->count() > 0)
+                                            @foreach($alternativePhones as $altPhone)
+                                            <div class="row g-3 alt-phone-row mb-2" data-id="{{ $altPhone->id }}">
+                                                <div class="col-md-4">
+                                                    <div class="input-group">
+                                                        <div class="input-group-prepend">
+                                                            <span class="input-group-text">+{{ $site_settings->phone_code ?? '254' }}</span>
+                                                        </div>
+                                                        <input type="text" class="form-control alt-phone-input" value="{{ substr($altPhone->phone, strlen($site_settings->phone_code ?? '254')) }}" placeholder="Phone number">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <input type="text" class="form-control alt-phone-label" value="{{ $altPhone->label }}" placeholder="Label (e.g., Work)">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    @if($altPhone->is_verified)
+                                                        <span class="badge badge-success"><i class="fas fa-check"></i> Verified</span>
+                                                    @else
+                                                        <span class="badge badge-warning">Unverified</span>
+                                                    @endif
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button type="button" class="btn btn-sm btn-danger btn-remove-alt-phone">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            @endforeach
+                                        @else
+                                            <div class="text-muted text-center py-3" id="no-alt-phones">
+                                                <i class="fas fa-info-circle"></i> No alternative phone numbers added.<br>
+                                                <small>Add alternative phones to track MPESA contributions from other numbers.</small>
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> Alternative phones are hashed for MPESA matching. Contributions from these numbers will appear in the user's profile.
+                                    </small>
+                                </div>
+                            </div>
+
                             <!-- Emergency Contact Card -->
                             <div class="card mb-3">
                                 <div class="card-header"><h6 class="mb-0"><i class="fas fa-ambulance mr-1"></i> Emergency Contact</h6></div>
@@ -619,25 +670,54 @@
                     {{-- ========== CONTRIBUTIONS TAB ========== --}}
                     <div class="tab-pane fade p-3" id="contributions" role="tabpanel">
 
+                        {{-- Phone Missing Alert --}}
+                        @if(isset($phoneMissing) && $phoneMissing)
+                        <div class="alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            <strong>No Phone Number:</strong> This user has no phone number on record. 
+                            MPESA contributions cannot be matched automatically. 
+                            <a href="#personal-tab" data-toggle="tab" class="alert-link">Add phone number</a>
+                        </div>
+                        @endif
+
+                        @if(isset($phoneConflict) && $phoneConflict)
+                        <div class="alert alert-danger mb-3">
+                            <i class="fas fa-phone-slash mr-2"></i>
+                            <strong>Phone Conflict:</strong> The phone number <strong>{{ $phoneConflict['phone'] }}</strong> 
+                            is also assigned to <a href="{{ url('dashboard/users/view/' . $phoneConflict['id']) }}" class="alert-link">{{ $phoneConflict['name'] }}</a>.
+                            This may cause contribution matching issues.
+                        </div>
+                        @endif
+
                         {{-- Summary Cards --}}
                         <div class="row mb-3">
-                            <div class="col-sm-4">
+                            <div class="col-sm-3">
                                 <div class="card border-left-success shadow-sm">
                                     <div class="card-body py-2">
-                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Contributed (Mpesa)</div>
-                                        <div class="h5 mb-0 font-weight-bold">KES {{ number_format($mpesaTotal ?? 0, 2) }}</div>
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Contributed</div>
+                                        <div class="h5 mb-0 font-weight-bold">KES {{ number_format($totalContributions ?? 0, 2) }}</div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-sm-4">
+                            <div class="col-sm-3">
+                                <div class="card border-left-primary shadow-sm">
+                                    <div class="card-body py-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">MPESA Contributions</div>
+                                        <div class="h6 mb-0 font-weight-bold">KES {{ number_format($mpesaTotal ?? 0, 2) }}</div>
+                                        <small class="text-muted">{{ $mpesaCount ?? 0 }} transactions</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
                                 <div class="card border-left-info shadow-sm">
                                     <div class="card-body py-2">
-                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">No. of Transactions</div>
-                                        <div class="h5 mb-0 font-weight-bold">{{ $mpesaCount ?? 0 }}</div>
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Other Contributions</div>
+                                        <div class="h6 mb-0 font-weight-bold">KES {{ number_format($otherTotal ?? 0, 2) }}</div>
+                                        <small class="text-muted">{{ $otherCount ?? 0 }} transactions</small>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-sm-4">
+                            <div class="col-sm-3">
                                 <div class="card border-left-warning shadow-sm">
                                     <div class="card-body py-2">
                                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Last Transaction</div>
@@ -655,8 +735,9 @@
 
                         @if(isset($mpesaRecords) && $mpesaRecords->count() > 0)
                         <div class="card shadow-sm">
-                            <div class="card-header py-2">
+                            <div class="card-header py-2 d-flex justify-content-between align-items-center">
                                 <h6 class="mb-0"><i class="fas fa-list mr-1"></i> Transaction History</h6>
+                                <span class="badge badge-secondary">{{ $totalCount ?? $mpesaRecords->count() }} total</span>
                             </div>
                             <div class="card-body p-0">
                                 <div class="table-responsive">
@@ -665,8 +746,9 @@
                                             <tr>
                                                 <th>Date</th>
                                                 <th>Amount (KES)</th>
-                                                <th>Mpesa Ref</th>
-                                                <th>Account</th>
+                                                <th>Source</th>
+                                                <th>Reference</th>
+                                                <th>Account/Description</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -675,13 +757,20 @@
                                                 <td>{{ \Carbon\Carbon::parse($tx->created_at)->format('d M Y, H:i') }}</td>
                                                 <td class="font-weight-bold text-success">{{ number_format($tx->amount, 2) }}</td>
                                                 <td>
+                                                    @if($tx->source === 'mpesa_direct')
+                                                        <span class="badge badge-primary">MPESA</span>
+                                                    @else
+                                                        <span class="badge badge-secondary">{{ $tx->source_label ?? 'Other' }}</span>
+                                                    @endif
+                                                </td>
+                                                <td>
                                                     @if($tx->TransID)
                                                         <code class="small">{{ $tx->TransID }}</code>
                                                     @else
                                                         <span class="text-muted small">—</span>
                                                     @endif
                                                 </td>
-                                                <td>{{ $tx->BillRefNumber ?? '—' }}</td>
+                                                <td>{{ $tx->BillRefNumber ?? $tx->description ?? '—' }}</td>
                                             </tr>
                                             @endforeach
                                         </tbody>
@@ -692,8 +781,12 @@
                         @else
                         <div class="alert alert-light text-center py-4">
                             <i class="fas fa-hand-holding-usd fa-2x text-muted mb-2 d-block"></i>
-                            <span class="text-muted">No Mpesa contributions have been matched to this user yet.</span><br>
-                            <small class="text-muted">Contributions are matched automatically when Mpesa MSISDN hashes align with this user's phone.</small>
+                            <span class="text-muted">No contributions have been matched to this user yet.</span><br>
+                            @if(isset($phoneMissing) && $phoneMissing)
+                                <small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Add a phone number to enable automatic MPESA matching.</small>
+                            @else
+                                <small class="text-muted">Contributions are matched automatically when payment details align with this user's phone.</small>
+                            @endif
                         </div>
                         @endif
                     </div>
@@ -849,6 +942,103 @@
                         });
                     }).fail(function (xhr) {
                         Swal.fire('Error', xhr.responseJSON ? xhr.responseJSON.error : 'Merge failed', 'error');
+                    });
+                }
+            });
+        });
+
+        // Alternative Phones Management
+        var phoneCode = '{{ $site_settings->phone_code ?? "254" }}';
+        
+        $('#btn-add-alt-phone').click(function() {
+            var html = '<div class="row g-3 alt-phone-row mb-2" data-id="0">' +
+                '<div class="col-md-4">' +
+                    '<div class="input-group">' +
+                        '<div class="input-group-prepend"><span class="input-group-text">+' + phoneCode + '</span></div>' +
+                        '<input type="text" class="form-control alt-phone-input" placeholder="Phone number">' +
+                    '</div>' +
+                '</div>' +
+                '<div class="col-md-3">' +
+                    '<input type="text" class="form-control alt-phone-label" placeholder="Label (e.g., Work)">' +
+                '</div>' +
+                '<div class="col-md-3">' +
+                    '<span class="badge badge-secondary">New</span>' +
+                '</div>' +
+                '<div class="col-md-2">' +
+                    '<button type="button" class="btn btn-sm btn-success btn-save-alt-phone mr-1"><i class="fas fa-check"></i></button>' +
+                    '<button type="button" class="btn btn-sm btn-danger btn-remove-alt-phone"><i class="fas fa-trash"></i></button>' +
+                '</div>' +
+            '</div>';
+            
+            $('#no-alt-phones').hide();
+            $('#alt-phones-container').append(html);
+        });
+        
+        $(document).on('click', '.btn-save-alt-phone', function() {
+            var row = $(this).closest('.alt-phone-row');
+            var phone = row.find('.alt-phone-input').val();
+            var label = row.find('.alt-phone-label').val();
+            
+            if (!phone) {
+                toastr.error('Please enter a phone number');
+                return;
+            }
+            
+            $.ajax({
+                url: '{{ url("dashboard/users/alternative-phones") }}',
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    user_id: {{ $user ? $user->id : 0 }},
+                    phone: phone,
+                    label: label
+                }
+            }).done(function(res) {
+                toastr.success(res.message);
+                row.attr('data-id', res.data.id);
+                row.find('.col-md-3 .badge').removeClass('badge-secondary').addClass('badge-warning').text('Unverified');
+                row.find('.btn-save-alt-phone').remove();
+                location.reload();
+            }).fail(function(xhr) {
+                toastr.error(xhr.responseJSON ? xhr.responseJSON.message : 'Failed to save');
+            });
+        });
+        
+        $(document).on('click', '.btn-remove-alt-phone', function() {
+            var row = $(this).closest('.alt-phone-row');
+            var id = row.attr('data-id');
+            
+            if (id == 0) {
+                row.remove();
+                if ($('.alt-phone-row').length === 0) {
+                    $('#no-alt-phones').show();
+                }
+                return;
+            }
+            
+            Swal.fire({
+                title: 'Remove Phone?',
+                text: 'This alternative phone will be removed.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, remove it'
+            }).then(function(result) {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '{{ url("dashboard/users/alternative-phones") }}/' + id,
+                        type: 'DELETE',
+                        data: { _token: '{{ csrf_token() }}' }
+                    }).done(function(res) {
+                        toastr.success(res.message);
+                        row.fadeOut(200, function() { 
+                            $(this).remove(); 
+                            if ($('.alt-phone-row').length === 0) {
+                                $('#no-alt-phones').show();
+                            }
+                        });
+                    }).fail(function(xhr) {
+                        toastr.error(xhr.responseJSON ? xhr.responseJSON.message : 'Failed to remove');
                     });
                 }
             });

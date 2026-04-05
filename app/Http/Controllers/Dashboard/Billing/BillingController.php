@@ -70,8 +70,9 @@ class BillingController extends Controller
     {
         $module = $request->get('module', 'unknown');
         $label = $this->getModuleLabel($module);
+        $site_settings = \DB::table('settings')->first();
         
-        return view('dashboard.billing.module_locked', compact('module', 'label'));
+        return view('dashboard.billing.module_locked', compact('module', 'label', 'site_settings'));
     }
 
     /**

@@ -85,5 +85,7 @@ class Kernel extends HttpKernel
         'superadmin'     => \App\Http\Middleware\SuperAdminMiddleware::class,
         // Custom superadmin guest middleware
         'superadmin.guest' => \App\Http\Middleware\RedirectSuperAdminIfAuthenticated::class,
+        // Validates M-Pesa callback requests come from Safaricom's published IPs
+        'mpesa.callback'   => \App\Http\Middleware\ValidateSafaricomRequest::class,
     ];
 }

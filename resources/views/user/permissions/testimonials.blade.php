@@ -53,10 +53,7 @@
                                     <tr><td colspan='4' class='text-center'> <i class='fas fa-ban'></i> No testimonial yet</td></tr>
                                 @endif
 
-                                <?php
-                                    $permissions1 = \DB::table("permissions")->where("user_id", \Auth::user()->id)->first();
-                                    $permissions2 = \DB::table("permissions")->where("role", \Auth::user()->role)->first();
-                                ?>
+                                
                                 <?php $count = 1; ?>
                                 @foreach($testimonials as $testimonial)
                                 <tr>

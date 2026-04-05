@@ -47,4 +47,90 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Tag::class);
     }
+
+    /**
+     * Get the tenant this user belongs to.
+     */
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+
+    /**
+     * Scope: Active users only.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope: Inactive users.
+     */
+    public function scopeInactive($query)
+    {
+        return $query->where('status', '!=', 'active');
+    }
+
+    /**
+     * Get the alternative phones for this user.
+     */
+    public function alternativePhones()
+    {
+        return $this->hasMany(AlternativePhone::class);
+    }
+
+    /**
+     * Get all phone hashes (primary + alternatives) for MPESA matching.
+     */
+    public function getAllPhoneHashes(): array
+    {
+        $hashes = [];
+        
+        // Primary phone hash
+        if ($this->phone) {
+            $hashes[] = AlternativePhone::generateHash($this->phone);
+        }
+        
+        // Alternative phone hashes
+        foreach ($this->alternativePhones as $altPhone) {
+            $hashes[] = $altPhone->phone_hash;
+        }
+        
+        return array_unique($hashes);
+    }
+
+    /**
+     * Check if user has a phone number (primary or alternative).
+     */
+    public function hasPhone(): bool
+    {
+        return !empty($this->phone) || $this->alternativePhones()->exists();
+    }
+
+    /**
+     * Get all phone numbers (primary + alternatives) as array.
+     */
+    public function getAllPhones(): array
+    {
+        $phones = [];
+        
+        if ($this->phone) {
+            $phones[] = [
+                'phone' => $this->phone,
+                'type' => 'primary',
+                'verified' => !is_null($this->phone_verified_at),
+            ];
+        }
+        
+        foreach ($this->alternativePhones as $alt) {
+            $phones[] = [
+                'phone' => $alt->phone,
+                'type' => $alt->label ?? 'alternative',
+                'verified' => $alt->is_verified,
+            ];
+        }
+        
+        return $phones;
+    }
 }

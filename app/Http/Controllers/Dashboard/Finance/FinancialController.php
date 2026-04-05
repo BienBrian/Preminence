@@ -349,11 +349,19 @@ class FinancialController extends DashboardController
             "note" => "required",
             "source" => "required",
         ]);
-        $user = \DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->leftJoin("contacts", "contacts.user_id", "=", "users.id")->where("users.id", "=", $request->id)->first();
+        
+        $tid = config('app.tenant_id');
+        
+        $user = \DB::table("users")
+            ->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")
+            ->leftJoin("contacts", "contacts.user_id", "=", "users.id")
+            ->where("users.id", "=", $request->id)
+            ->first();
 
         if ($user != null) {
-            //insert
+            // Insert funds record with tenant_id
             $funds = new Funds();
+            $funds->tenant_id = $tid;
             $funds->amount = $request->amount;
             $funds->description = $request->note;
             $funds->source = $request->source;
@@ -361,37 +369,60 @@ class FinancialController extends DashboardController
             $funds->mode = $request->mode;
 
             if ($funds->save()) {
-                //send mail
-                /*$data = array('name'=>$user->firstname." ".$user->lastname, 'mes'=>$request->note);
-                Mail::send('admin.mail', $data, function($message) use ($user, $request){
-                    $message->to($user->email, $user->firstname." ".$user->lastname)->subject
-                        ("TITHE RECIEVED (KSH ".number_format($request->amount,2).")");
-                    $message->from('jaygithiora@gmail.com','Church App');
-                });
-                \DB::table("emails")->insert(['user_id'=>$user->id, "subject"=>"TITHE RECIEVED (KSH ".number_format($request->amount,2).")", "message"=>$request->note,
-                "sent"=>\Carbon\Carbon::now()]);*/
-
-                //send message
-
-                if ($user->phone != "") {
-
-                    $site_settings = $this->site_settings;
-                    $appname = $site_settings != null ? "" . $site_settings->name : "CHURCH APP";
+                // Send SMS notification if user has a phone
+                if (!empty($user->phone)) {
                     $number = $user->phone;
-                    if(strlen($number) < 12){
+                    if (strlen($number) < 12) {
                         $number = "254" . substr($user->phone, 1);
                     }
-                    //$message =  "TITHE RECIEVED (KSH ".number_format($request->amount,2).")\n".$request->input( 'note' )." ".$appname;
-                    $message = $appname . "\n\nYour tithe of KSH " . number_format($request->amount, 2) . " has been RECIEVED.\n" . $request->input('note') . " \n May God bless You abudantly.";
 
-                    $mpesaApiController = new MpesaAPIController;
-                    $mpesaApiController->send($number, $message);
+                    // Resolve the source/account name (e.g. "Tithe", "Offering") for the message
+                    $accountName = \DB::table('sources')->where('id', $request->source)->value('name') ?? 'Tithe';
 
-                    if ($user != null) {
-                        $mid = \DB::table("sms")->insertGetId(["tenant_id" => config('app.tenant_id'), "people_id" => 0, "message" => $message, "category" => "mpesa", "sent" => \Carbon\Carbon::now()]);
-                        \DB::table('sms_recipients')->insert(["tenant_id" => config('app.tenant_id'), "recipients" => $user->id, "sms_id" => $mid, "sent" => \Carbon\Carbon::now()]);
+                    // Build message from manual tithe settings or fallback to default
+                    $manualTitheSettings = \DB::table('manual_tithe_message_settings')->where('tenant_id', $tid)->first();
+                    if ($manualTitheSettings && $manualTitheSettings->active && $manualTitheSettings->message) {
+                        // Template supports {{NAME}}, {{AMOUNT}}, {{ACCOUNT}} placeholders
+                        $message = str_replace(
+                            ['{{NAME}}', '{{AMOUNT}}', '{{ACCOUNT}}'],
+                            [$user->firstname, number_format(doubleval($request->amount), 2), strtoupper($accountName)],
+                            $manualTitheSettings->message
+                        );
+                    } else {
+                        // Fallback message — explicitly names the account (Tithe, Offering, etc.)
+                        $message = "Dear " . $user->firstname . ", Thank you for honouring the Lord with your Ksh. " . number_format(doubleval($request->amount), 2) . " " . strtoupper($accountName) . " (Proverbs 3:9). Your faithfulness will support the ministry in great ways. Be blessed.\r\nGod loves a cheerful giver II Cor 9:7.";
+                    }
+
+                    // Send SMS using IntegrationService
+                    $smsResponse = app(\App\Services\IntegrationService::class)->sendSms($number, $message);
+                    $smsSentOk = false;
+
+                    if (is_array($smsResponse)) {
+                        $responseCode = $smsResponse['response-code'] ?? $smsResponse['response_code'] ?? $smsResponse['code'] ?? null;
+                        $smsSentOk = ($responseCode === null || (int)$responseCode === 200 || (int)$responseCode === 0);
+                    } elseif ($smsResponse !== null && $smsResponse !== false) {
+                        $smsSentOk = true;
+                    }
+
+                    if ($smsSentOk) {
+                        $mid = \DB::table('sms')->insertGetId([
+                            'tenant_id' => $tid,
+                            'people_id' => 0,
+                            'message'   => $message,
+                            'category'  => 'tithe',
+                            'sent'      => \Carbon\Carbon::now(),
+                        ]);
+                        \DB::table('sms_recipients')->insert([
+                            'tenant_id'  => $tid,
+                            'recipients' => $user->id,
+                            'sms_id'     => $mid,
+                            'sent'       => \Carbon\Carbon::now(),
+                        ]);
+                    } else {
+                        \Log::warning("Manual tithe SMS failed for {$number}, user_id: {$user->id}. Response: " . json_encode($smsResponse));
                     }
                 }
+                
                 return redirect()->back()->with('success', "Tithe added successfully!");
             } else {
                 return redirect()->back()->with('error', 'Unable to save tithe. Try again');

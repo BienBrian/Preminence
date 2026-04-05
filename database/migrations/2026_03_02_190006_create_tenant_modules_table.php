@@ -22,12 +22,15 @@ return new class extends Migration
             $table->boolean('override_by_admin')->default(false);
             $table->unsignedBigInteger('overridden_by')->nullable(); // super_admin_id
 
+            $table->foreignId('subscription_id')->nullable()->constrained('tenant_module_subscriptions')->nullOnDelete();
+            
             $table->timestamp('enabled_at')->nullable();
             $table->timestamp('disabled_at')->nullable();
             $table->timestamps();
 
             $table->unique(['tenant_id', 'module'], 'unique_tenant_module');
             $table->index('tenant_id', 'idx_tenant_modules');
+            $table->index('subscription_id', 'idx_tenant_modules_subscription');
         });
     }
 

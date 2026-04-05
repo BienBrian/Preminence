@@ -60,6 +60,8 @@
                                         <option value='1'>Active</option>
                                         <option value='0'>In-Active</option>
                                         <option value='archived'>Archived</option>
+                                        <option value='incomplete'>Incomplete Profile</option>
+                                        <option value='no_phone'>No Phone Number</option>
                                     </select>
                                 </div>
                             </form>
@@ -575,7 +577,7 @@ $(document).ready(function () {
         columns: [
             { data: 'name', name: 'name', orderable: false, searchable: false },
             { data: 'email', name: 'email', orderable: false, searchable: false },
-            { data: 'phone', name: 'phone', orderable: false, searchable: false },
+            { data: 'phone_display', name: 'phone_display', orderable: false, searchable: false },
             { data: 'role', name: 'role', orderable: false, searchable: false },
             { data: 'status', name: 'status', orderable: false, searchable: false },
             { data: 'action', name: 'action', orderable: false, searchable: false },

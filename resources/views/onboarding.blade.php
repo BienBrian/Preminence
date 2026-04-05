@@ -92,15 +92,33 @@
                 @endif
 
                 @if($step == 1)
-                {{-- ═══════════════ STEP 1: Phone, Email, Password ═══════════════ --}}
+                {{-- ═══════════════ STEP 1: Name, Phone, Email, Password ═══════════════ --}}
                 <div class="step-card">
                     <div class="step-header">
                         <h6><i class="fas fa-user-plus mr-1"></i> Step 1 of 3 — Create Your Account</h6>
-                        <p>Enter your phone, email, and choose a password.</p>
+                        <p>Enter your name, phone, email, and choose a password.</p>
                     </div>
                     <div class="step-body">
                         <form method="POST" action="{{ route('onboarding.step1', $token) }}">
                             @csrf
+                            {{-- Name Fields --}}
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="font-weight-bold">First Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="firstname" 
+                                        value="{{ old('firstname') }}" placeholder="e.g. John" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="font-weight-bold">Surname <small class="text-muted">(Middle)</small></label>
+                                    <input type="text" class="form-control" name="surname" 
+                                        value="{{ old('surname') }}" placeholder="e.g. Mwangi">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="font-weight-bold">Last Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="lastname" 
+                                        value="{{ old('lastname') }}" placeholder="e.g. Doe" required>
+                                </div>
+                            </div>
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold">Phone Number <span class="text-danger">*</span></label>
                                 <div class="input-group">
@@ -139,11 +157,11 @@
                 </div>
 
                 @elseif($step == 2)
-                {{-- ═══════════════ STEP 2: OTP Verification ═══════════════ --}}
+                {{-- ═══════════════ STEP 2: Phone OTP Verification ═══════════════ --}}
                 <div class="step-card">
                     <div class="step-header">
-                        <h6><i class="fas fa-shield-alt mr-1"></i> Step 2 of 3 — Verify Your Phone & Email</h6>
-                        <p>We sent 6-digit codes to your phone{{ isset($user) && $user && $user->email ? ' and email' : '' }}.</p>
+                        <h6><i class="fas fa-shield-alt mr-1"></i> Step 2 of 3 — Verify Your Phone</h6>
+                        <p>We sent a 6-digit code to your phone.</p>
                     </div>
                     <div class="step-body">
                         <form method="POST" action="{{ route('onboarding.step2', $token) }}" id="otpForm">
@@ -171,29 +189,14 @@
                                 </div>
                             </div>
 
-                            @if(isset($user) && $user && $user->email)
-                            <div class="form-group mb-4">
-                                <label class="font-weight-bold">
-                                    <i class="fas fa-envelope text-success mr-1"></i>
-                                    Email Code
-                                    <small class="text-muted font-weight-normal">(sent to {{ $user->email }})</small>
-                                </label>
-                                <input type="text" class="form-control otp-input" name="email_otp"
-                                    maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
-                                    placeholder="— — — — — —" required>
-                                <div class="edit-contact">
-                                    Wrong email? <button type="button" class="btn-link-edit" onclick="toggleEdit('email-edit')">Edit email address</button>
-                                </div>
-                                <div class="edit-form" id="email-edit">
-                                    <label class="small font-weight-bold mb-1">Correct Email Address</label>
-                                    <input type="email" class="form-control form-control-sm" name="new_email" placeholder="correct@email.com">
-                                </div>
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                <strong>Email verification:</strong> You'll be able to verify your email later from your dashboard to receive personalized devotions and church updates.
                             </div>
-                            @endif
 
                             <div class="d-flex justify-content-between align-items-center mt-4">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-resend-otp">
-                                    <i class="fas fa-redo mr-1"></i> Resend Codes
+                                    <i class="fas fa-redo mr-1"></i> Resend Code
                                 </button>
                                 <button type="submit" class="btn btn-primary btn-lg px-5">
                                     Verify <i class="fas fa-check ml-1"></i>

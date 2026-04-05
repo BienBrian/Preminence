@@ -289,15 +289,16 @@ class MpesaAPIController extends Controller
                     'category'  => 'mpesa',
                     'sent'      => Carbon::now(),
                 ]);
-                // Link to user if we found one
-                if ($user && $user->user_id > 0) {
-                    \DB::table('sms_recipients')->insert([
-                        'tenant_id'  => $tid,
-                        'recipients' => $user->user_id,
-                        'sms_id'     => $mid,
-                        'sent'       => Carbon::now(),
-                    ]);
-                }
+                // Always insert a recipients row so the SMS log never shows "0 recipients".
+                // When the contributor is identified link their user_id; otherwise store
+                // the phone so the admin can still see who the message was sent to.
+                \DB::table('sms_recipients')->insert([
+                    'tenant_id'  => $tid,
+                    'recipients' => ($user && $user->user_id > 0) ? $user->user_id : 0,
+                    'phone'      => ($user && $user->user_id > 0) ? null : $smsPhone,
+                    'sms_id'     => $mid,
+                    'sent'       => Carbon::now(),
+                ]);
             } else {
                 // SMS API failed (e.g. out of credits) — queue for retry
                 Log::warning("MPESA SMS failed for {$smsPhone}, queueing for retry. Response: " . json_encode($smsResponse));

@@ -275,7 +275,7 @@ class IndexController extends Controller
             "country"=>"required",
             "city"=>"required",
             "gender"=>"required",
-            'file.*' => 'file|mimes:png,jpeg,jpg,pdf,doc,docx,zip|max:2048',
+            'report' => 'nullable|file|mimes:png,jpeg,jpg,pdf,doc,docx,zip|max:2048',
             'g-recaptcha-response' => 'required|captcha',
         ]);
 
@@ -297,12 +297,11 @@ class IndexController extends Controller
         if($user->save()){
             $user = User::where("email", $request->email)->first();
             $report = "";
-            if($request->report != null){
-                $report = $request->report->getClientOriginalName();
-                if(\DB::table("registration")->where('report', $report)->count() > 0){
-                    $report = time().".".$request->report->getClientOriginalExtension();
-                }
-                request()->report->move(public_path('reports'), $report);
+            if($request->hasFile('report')){
+                $file = $request->file('report');
+                $extension = strtolower($file->getClientOriginalExtension());
+                $report = time() . '_' . \Str::random(8) . '.' . $extension;
+                $file->move(public_path('reports'), $report);
             }
 
             if(\DB::table("registration")->insert(["user_id"=>$user->id, "event_id"=>$event_id, "event_type"=>
