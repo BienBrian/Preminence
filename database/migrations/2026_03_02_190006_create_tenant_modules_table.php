@@ -22,7 +22,8 @@ return new class extends Migration
             $table->boolean('override_by_admin')->default(false);
             $table->unsignedBigInteger('overridden_by')->nullable(); // super_admin_id
 
-            $table->foreignId('subscription_id')->nullable()->constrained('tenant_module_subscriptions')->nullOnDelete();
+            // No FK — tenant_module_subscriptions is created in a later migration (2026_03_28)
+            $table->unsignedBigInteger('subscription_id')->nullable();
             
             $table->timestamp('enabled_at')->nullable();
             $table->timestamp('disabled_at')->nullable();

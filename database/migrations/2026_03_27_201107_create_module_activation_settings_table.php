@@ -26,10 +26,7 @@ return new class extends Migration
             $table->json('activation_messages')->nullable(); // Custom messages per status
             $table->timestamps();
             
-            $table->foreign('module_key')
-                ->references('key')
-                ->on('modules')
-                ->onDelete('cascade');
+            // No FK on module_key — modules table is created in a later migration (2026_03_28)
         });
     }
 

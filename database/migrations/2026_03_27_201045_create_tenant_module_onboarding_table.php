@@ -34,16 +34,9 @@ return new class extends Migration
                 ->references('id')
                 ->on('tenants')
                 ->onDelete('cascade');
-                
-            $table->foreign('module_key')
-                ->references('key')
-                ->on('modules')
-                ->onDelete('cascade');
-                
-            $table->foreign('reviewed_by')
-                ->references('id')
-                ->on('super_admins')
-                ->onDelete('set null');
+
+            // No FK on module_key — modules table is created in a later migration (2026_03_28)
+            // No FK on reviewed_by — super_admins.id relationship enforced at app level
             
             $table->index(['tenant_id', 'module_key']);
             $table->index(['status', 'submitted_at']);
