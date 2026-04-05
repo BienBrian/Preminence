@@ -134,11 +134,11 @@ class GivingStatementController extends DashboardController
 
         $query = DB::table('funds')
             ->where('funds.tenant_id', $tenant->id)
-            ->whereBetween('funds.created_at', [$request->date_from, $request->date_to])
+            ->whereBetween('funds.created_at', [$request->date_from . ' 00:00:00', $request->date_to . ' 23:59:59'])
             ->where('sources.ftype', 0)
             ->join('sources', 'sources.id', '=', 'funds.source')
             ->join('users', 'users.id', '=', 'funds.user_id')
-            ->select('users.id', 'users.firstname', 'users.lastname', 'users.email', 'users.phone', 'users.status')
+            ->select('users.id', 'users.firstname', 'users.lastname', 'users.email', 'users.phone', 'users.status', 'users.email_verified_at')
             ->distinct();
 
         if (!empty($request->categories)) {

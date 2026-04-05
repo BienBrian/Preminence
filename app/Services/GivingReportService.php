@@ -41,7 +41,7 @@ class GivingReportService
         $query = DB::table('funds')
             ->where('funds.tenant_id', $tenantId)
             ->where('funds.user_id', $userId)
-            ->whereBetween('funds.created_at', [$dateFrom, $dateTo])
+            ->whereBetween('funds.created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
             ->where('sources.ftype', 0) // Only collections
             ->join('sources', 'sources.id', '=', 'funds.source');
 
@@ -113,6 +113,7 @@ class GivingReportService
             'config' => $config,
             'report_data' => $reportData,
             'password' => $password,
+            'password_hint' => $this->getPasswordHint($passwordType),
         ]);
 
         // Create log entry
@@ -185,7 +186,7 @@ class GivingReportService
         
         // Send email
         $config = GivingStatementConfig::forTenant($tenant->id);
-        $this->emailService->send([
+        $emailResult = $this->emailService->send([
             'tenant' => $tenant,
             'user' => $user,
             'config' => $config,
@@ -205,6 +206,8 @@ class GivingReportService
 
         return [
             'log_id' => $log->id,
+            'email_sent' => $emailResult['email_sent'] ?? true,
+            'sms_sent' => $emailResult['sms_sent'] ?? false,
         ];
     }
 

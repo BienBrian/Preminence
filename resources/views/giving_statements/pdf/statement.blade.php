@@ -315,7 +315,7 @@
     <!-- Password Notice -->
     @if($password_hint)
     <div class="password-notice">
-        <strong><i class="fas fa-lock"></i> Document Protection:</strong> 
+        <strong>&#128274; Document Protection:</strong>
         This PDF is password protected. {{ $password_hint }}
     </div>
     @endif

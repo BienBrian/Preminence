@@ -54,7 +54,7 @@
                                 <!-- Categories -->
                                 <div class="form-group">
                                     <label><i class="bi bi-tags"></i> Categories</label>
-                                    <select name="categories[]" id="categories" class="form-control select2" multiple>
+                                    <select name="categories[]" id="categories" class="form-control" multiple>
                                         @foreach($categories as $category)
                                             <option value="{{ $category->id }}">{{ $category->name }}</option>
                                         @endforeach
@@ -76,20 +76,19 @@
                                 <!-- Member Selection -->
                                 <div class="form-group">
                                     <label for="user_ids"><i class="bi bi-people"></i> Select Members <span class="text-danger">*</span></label>
-                                    <select name="user_ids[]" id="user_ids" class="form-control select2" multiple required>
+                                    <select name="user_ids[]" id="user_ids" class="form-control" multiple>
                                         @foreach($members as $member)
-                                            <option value="{{ $member->id }}" 
-                                                    data-phone="{{ $member->phone }}" 
+                                            <option value="{{ $member->id }}"
+                                                    data-phone="{{ $member->phone }}"
                                                     data-email="{{ $member->email }}"
                                                     data-status="{{ $member->status }}"
                                                     data-verified="{{ $member->email_verified_at ? '1' : '0' }}">
-                                                {{ $member->firstname }} {{ $member->lastname }} 
-                                                @if($member->status !== 'active') [{{ ucfirst($member->status) }}] @endif
+                                                {{ $member->firstname }} {{ $member->lastname }}@if($member->status !== 'active') [{{ ucfirst($member->status) }}]@endif
                                             </option>
                                         @endforeach
                                     </select>
                                     <small class="text-muted">
-                                        Select one or more members. 
+                                        Type to search. Select one or more members.
                                         <span class="text-success"><i class="bi bi-check-circle"></i> = Email verified</span>
                                         <span class="text-warning ml-2"><i class="bi bi-x-circle"></i> = Not verified</span>
                                     </small>
@@ -168,11 +167,13 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-envelope"></i> Email Giving Statements</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> 
+                        <i class="bi bi-info-circle"></i>
                         This will send statements to <strong id="email-recipient-count">0</strong> members with verified email addresses.
                     </div>
                     <div class="form-group">
@@ -181,7 +182,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                     <button type="button" id="btn-send-email" class="btn btn-primary">
                         <i class="bi bi-send"></i> Send Emails
                     </button>
@@ -196,23 +197,23 @@
             <div class="modal-content">
                 <div class="modal-header bg-warning">
                     <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Email Not Verified</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div id="unverified-email-message" class="mb-3"></div>
                     <div id="sms-invite-section" class="d-none">
                         <hr>
                         <p class="text-muted">Send an SMS invitation to verify their email:</p>
-                        <div class="d-grid">
-                            <button type="button" id="btn-send-sms-verification" class="btn btn-success">
-                                <i class="bi bi-sms"></i> Send Verification SMS
-                            </button>
-                        </div>
+                        <button type="button" id="btn-send-sms-verification" class="btn btn-success btn-block">
+                            <i class="bi bi-sms"></i> Send Verification SMS
+                        </button>
                         <div id="sms-send-status" class="mt-2"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Close</button>
                     <button type="button" id="btn-download-instead" class="btn btn-primary">
                         <i class="bi bi-download"></i> Download Instead
                     </button>
@@ -222,13 +223,20 @@
     </div>
 @endsection
 
-@push('scripts')
+@push('js')
 <script>
     $(document).ready(function() {
         // Initialize Select2
-        $('.select2').select2({
-            theme: 'bootstrap4',
-            width: '100%'
+        $('#categories').select2({
+            width: '100%',
+            placeholder: 'All categories',
+            allowClear: true
+        });
+
+        $('#user_ids').select2({
+            width: '100%',
+            placeholder: 'Search and select members...',
+            allowClear: true
         });
 
         // Date preset handler
@@ -310,28 +318,53 @@
             });
         }
 
-        // Update member select options
-        function updateMemberSelect(members) {
-            let html = '';
-            members.forEach(member => {
-                const statusBadge = member.status !== 'active' ? `[${member.status.charAt(0).toUpperCase() + member.status.slice(1)}] ` : '';
-                html += `<option value="${member.id}" data-phone="${member.phone || ''}" data-email="${member.email || ''}" data-status="${member.status}">${member.firstname} ${member.lastname} ${statusBadge}</option>`;
+        // All members data (for resetting the select)
+        const allMembersData = {!! json_encode($members->map(function($m) {
+            return [
+                'id' => $m->id,
+                'firstname' => $m->firstname,
+                'lastname' => $m->lastname,
+                'phone' => $m->phone ?? '',
+                'email' => $m->email ?? '',
+                'status' => $m->status,
+                'email_verified_at' => $m->email_verified_at ? '1' : '0',
+            ];
+        })->values()) !!};
+
+        // Build <option> elements and refresh Select2
+        function buildMemberOptions(members) {
+            const $select = $('#user_ids');
+            // Destroy Select2 before manipulating options
+            if ($select.hasClass('select2-hidden-accessible')) {
+                $select.select2('destroy');
+            }
+            $select.empty();
+            members.forEach(function(m) {
+                const label = m.firstname + ' ' + m.lastname + (m.status !== 'active' ? ' [' + m.status.charAt(0).toUpperCase() + m.status.slice(1) + ']' : '');
+                const $opt = new Option(label, m.id, false, false);
+                $($opt).attr('data-phone', m.phone)
+                       .attr('data-email', m.email)
+                       .attr('data-status', m.status)
+                       .attr('data-verified', m.email_verified_at);
+                $select.append($opt);
             });
-            $('#user_ids').html(html).trigger('change');
+            // Reinitialize Select2
+            $select.select2({ width: '100%', placeholder: 'Search and select members...', allowClear: true });
+            $select.trigger('change');
         }
 
         // Reset member select to all members
         function resetMemberSelect() {
-            @php
-            $allMembersHtml = '';
-            foreach($members as $member) {
-                $statusBadge = $member->status !== 'active' ? '[' . ucfirst($member->status) . '] ' : '';
-                $allMembersHtml .= "<option value='{$member->id}' data-phone='{$member->phone}' data-email='{$member->email}' data-status='{$member->status}' data-verified='" . ($member->email_verified_at ? '1' : '0') . "'>{$member->firstname} {$member->lastname} {$statusBadge}</option>";
-            }
-            echo "const allMembersHtml = `" . $allMembersHtml . "`;";
-            @endphp
-            
-            $('#user_ids').html(allMembersHtml).trigger('change');
+            buildMemberOptions(allMembersData);
+        }
+
+        // Update member select options (used after contributor filter AJAX)
+        function updateMemberSelect(members) {
+            // Normalize email_verified_at from AJAX response (it's a datetime string or null)
+            const normalized = members.map(function(m) {
+                return Object.assign({}, m, { email_verified_at: m.email_verified_at ? '1' : '0' });
+            });
+            buildMemberOptions(normalized);
         }
 
         // Update summary when members are selected
@@ -400,6 +433,21 @@
         // Render preview function
         function renderPreview(data) {
             const groupedData = data.data.grouped_data;
+
+            // Empty state — member has no contributions in period
+            if (!data.data.transaction_count || data.data.transaction_count === 0) {
+                $('#preview-content').html(`
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                        <h5 class="mt-3 text-muted">No Contributions Found</h5>
+                        <p class="text-muted">${data.member.name} has no giving records for the selected period.</p>
+                        <small class="text-muted">Try adjusting the date range or category filters.</small>
+                    </div>
+                `);
+                $('#preview-actions').addClass('d-none');
+                return;
+            }
+
             let html = `
                 <div class="preview-document">
                     <div class="text-center mb-4 border-bottom pb-3">
@@ -516,15 +564,26 @@
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = '{{ url("dashboard/reports/giving-statements/download") }}';
-            form.innerHTML = `
-                @csrf
-                <input type="hidden" name="user_id" value="${userId}">
-                <input type="hidden" name="date_from" value="${$('#date_from').val()}">
-                <input type="hidden" name="date_to" value="${$('#date_to').val()}">
-                ${($('#categories').val() || []).map(cat => `<input type="hidden" name="categories[]" value="${cat}">`).join('')}
-                <input type="hidden" name="password_type" value="${$('#password_type').val()}">
-                <input type="hidden" name="password_value" value="${$('#password_value').val()}">
-            `;
+
+            function addHidden(name, value) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            addHidden('_token', '{{ csrf_token() }}');
+            addHidden('user_id', userId);
+            addHidden('date_from', $('#date_from').val());
+            addHidden('date_to', $('#date_to').val());
+            addHidden('password_type', $('#password_type').val());
+            addHidden('password_value', $('#password_value').val());
+
+            ($('#categories').val() || []).forEach(function(cat) {
+                addHidden('categories[]', cat);
+            });
+
             document.body.appendChild(form);
             form.submit();
             document.body.removeChild(form);
@@ -653,3 +712,4 @@
     });
 </script>
 @endpush
+
