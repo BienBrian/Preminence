@@ -71,9 +71,10 @@ return new class extends Migration
         // Pivot table for tenant-specific permission grants
         Schema::create('tenant_module_permission_grants', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('tenant_module_subscription_id')
-                  ->constrained('tenant_module_subscriptions')
-                  ->cascadeOnDelete();
+            // Explicit FK names — auto-generated names exceed MySQL's 64-char identifier limit
+            $table->unsignedBigInteger('tenant_module_subscription_id');
+            $table->foreign('tenant_module_subscription_id', 'fk_perm_grant_subscription')
+                  ->references('id')->on('tenant_module_subscriptions')->cascadeOnDelete();
             $table->foreignId('module_permission_id')
                   ->constrained('module_permissions')
                   ->cascadeOnDelete();

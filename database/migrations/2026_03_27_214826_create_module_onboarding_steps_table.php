@@ -86,10 +86,10 @@ return new class extends Migration
             
             $table->timestamps();
             
-            // Indexes
-            $table->unique(['module_onboarding_config_id', 'step_key']);
-            $table->index(['module_onboarding_config_id', 'step_number']);
-            $table->index('content_type');
+            // Indexes — explicit names to stay under MySQL's 64-char identifier limit
+            $table->unique(['module_onboarding_config_id', 'step_key'], 'uq_onboarding_steps_config_key');
+            $table->index(['module_onboarding_config_id', 'step_number'], 'idx_onboarding_steps_config_num');
+            $table->index('content_type', 'idx_onboarding_steps_content_type');
         });
     }
 
