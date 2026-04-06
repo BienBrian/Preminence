@@ -338,11 +338,16 @@ if (!function_exists('superadmin_subdomain')) {
     /**
      * Get the superadmin subdomain.
      *
+     * Laravel's route group 'domain' key requires the full hostname, not just
+     * the subdomain prefix. Returns e.g. "superadmin.happychurchruiru.org".
+     *
      * @return string
      */
     function superadmin_subdomain(): string
     {
-        return config('pisti.superadmin.subdomain', 'superadmin');
+        $prefix = config('pisti.superadmin.subdomain', 'superadmin');
+        $platformDomain = pisti_platform_domain();
+        return $prefix . '.' . $platformDomain;
     }
 }
 
