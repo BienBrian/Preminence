@@ -46,17 +46,47 @@ class ValidateSafaricomRequest
             return $next($request);
         }
 
-        $clientIp = $request->ip();
-
-        if (!in_array($clientIp, $this->safaricomIps, true)) {
-            Log::warning('M-Pesa callback rejected: unauthorized IP', [
-                'ip'   => $clientIp,
-                'path' => $request->path(),
-            ]);
-
-            return response()->json(['error' => 'Unauthorized'], 403);
+        // Primary: token-based validation.
+        // The hosting proxy rewrites the real Safaricom IP to an internal 10.x address,
+        // making IP whitelisting impossible. We therefore embed a secret token in the
+        // registered callback URL (e.g. ?_t=TOKEN). Safaricom calls exactly the URL
+        // that was registered, so only Safaricom (and whoever controls the Safaricom
+        // portal) can invoke this endpoint.
+        $configuredToken = env('MPESA_CALLBACK_TOKEN');
+        if (!empty($configuredToken) && hash_equals($configuredToken, (string) $request->query('_t', ''))) {
+            return $next($request);
         }
 
-        return $next($request);
+        // Fallback: IP whitelist (works when the hosting proxy forwards real IPs).
+        // Build candidate IP list from all forwarding headers.
+        $candidates = array_filter(array_unique([
+            $request->ip(),
+            $request->header('X-Real-IP'),
+            ...$this->parseForwardedFor($request->header('X-Forwarded-For', '')),
+        ]));
+
+        foreach ($candidates as $ip) {
+            if (in_array($ip, $this->safaricomIps, true)) {
+                return $next($request);
+            }
+        }
+
+        Log::warning('M-Pesa callback rejected: token mismatch and no Safaricom IP found', [
+            'resolved_ip'     => $request->ip(),
+            'x_forwarded_for' => $request->header('X-Forwarded-For'),
+            'x_real_ip'       => $request->header('X-Real-IP'),
+            'has_token'       => $request->has('_t'),
+            'path'            => $request->path(),
+        ]);
+
+        return response()->json(['error' => 'Unauthorized'], 403);
+    }
+
+    private function parseForwardedFor(string $header): array
+    {
+        if (empty($header)) {
+            return [];
+        }
+        return array_map('trim', explode(',', $header));
     }
 }

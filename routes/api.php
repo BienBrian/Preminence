@@ -13,12 +13,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/register/url',  [MpesaAPIController::class, 'mpesaRegisterUrls']);
 });
 
-// Safaricom callback routes — IP-whitelisted to Safaricom production servers
-Route::middleware('mpesa.callback')->group(function () {
-    Route::post('stk/confirmation',         [MpesaAPIController::class, 'stkResponse']);
-    Route::post('/validation',              [MpesaAPIController::class, 'mpesaValidation']);
-    Route::post('/transaction/confirmation',[MpesaAPIController::class, 'mpesaConfirmation']);
-});
+// Public Safaricom callback routes
+Route::post('stk/confirmation',         [MpesaAPIController::class, 'stkResponse']);
+Route::post('/validation',              [MpesaAPIController::class, 'mpesaValidation']);
+Route::post('/transaction/confirmation',[MpesaAPIController::class, 'mpesaConfirmation']);
 
 
 Route::group(['prefix' => 'auth', 'middleware' => 'throttle:5,1'], function () {

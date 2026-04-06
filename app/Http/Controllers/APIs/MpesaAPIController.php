@@ -361,7 +361,7 @@ class MpesaAPIController extends Controller
             'ShortCode'       => $mpesaConfig['shortcode'],
             'ResponseType'    => 'Completed',
             'ConfirmationURL' => $baseUrl."/api/transaction/confirmation",
-            'ValidationURL'   => $baseUrl."/api/validation"
+            'ValidationURL'   => $baseUrl."/api/validation",
         )));
         $curl_response = curl_exec($curl);
         return response()->json(json_decode($curl_response, true) ?? ['error' => 'Invalid response']);
