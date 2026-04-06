@@ -198,8 +198,8 @@ class ReportsController extends DashboardController
             ->get();
         foreach ($allMappings as $mapping) {
             if ($mapping->summaryCategory) {
-                $categoryMappings[strtolower($mapping->original_ref)] = $mapping->summaryCategory->name;
-                $categoryColors[strtolower($mapping->original_ref)] = $mapping->summaryCategory->color;
+                $categoryMappings[strtolower(trim($mapping->original_ref))] = $mapping->summaryCategory->name;
+                $categoryColors[strtolower(trim($mapping->original_ref))] = $mapping->summaryCategory->color;
             }
         }
 
@@ -211,7 +211,7 @@ class ReportsController extends DashboardController
         if ($request->boolean('group_by_category')) {
             // Group by category
             foreach ($allRecords as $record) {
-                $originalRef = strtolower($record->BillRefNumber ?? '');
+                $originalRef = strtolower(trim($record->BillRefNumber ?? ''));
                 $categoryName = $categoryMappings[$originalRef] ?? 'Uncategorized';
                 
                 if (!isset($groupedData[$categoryName])) {
@@ -222,7 +222,7 @@ class ReportsController extends DashboardController
             }
         } elseif ($request->boolean('group_references') && !empty($mappings)) {
             foreach ($allRecords as $record) {
-                $originalRef = strtolower($record->BillRefNumber ?? '');
+                $originalRef = strtolower(trim($record->BillRefNumber ?? ''));
                 $mappedRef = $mappings[$originalRef] ?? $record->BillRefNumber ?? 'Unknown';
                 
                 if (!isset($groupedData[$mappedRef])) {
@@ -301,11 +301,11 @@ class ReportsController extends DashboardController
                 if (empty($mappings)) {
                     return null;
                 }
-                $originalRef = strtolower($row->BillRefNumber ?? '');
+                $originalRef = strtolower(trim($row->BillRefNumber ?? ''));
                 return $mappings[$originalRef] ?? null;
             })
             ->addColumn('category_name', function ($row) use ($categoryMappings, $categoryColors) {
-                $originalRef = strtolower($row->BillRefNumber ?? '');
+                $originalRef = strtolower(trim($row->BillRefNumber ?? ''));
                 $categoryName = $categoryMappings[$originalRef] ?? 'Uncategorized';
                 $categoryColor = $categoryColors[$originalRef] ?? '#ffc107';
                 
@@ -326,7 +326,7 @@ class ReportsController extends DashboardController
                 }
             })
             ->addColumn('category_color', function ($row) use ($categoryColors) {
-                $originalRef = strtolower($row->BillRefNumber ?? '');
+                $originalRef = strtolower(trim($row->BillRefNumber ?? ''));
                 return $categoryColors[$originalRef] ?? '#6c757d';
             })
             ->addColumn('date_fmt', function ($row) {

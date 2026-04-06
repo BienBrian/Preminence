@@ -180,7 +180,7 @@ class ReferenceTypeAutoDiscoveryService
     public function categorizeReference(string $originalRef, int $categoryId, ?string $mappedRef = null): bool
     {
         try {
-            $mapping = ReferenceTypeMapping::where('original_ref', strtolower($originalRef))
+            $mapping = ReferenceTypeMapping::where('original_ref', strtolower(trim($originalRef)))
                 ->first();
 
             if ($mapping) {
@@ -193,8 +193,8 @@ class ReferenceTypeAutoDiscoveryService
             } else {
                 ReferenceTypeMapping::create([
                     'tenant_id' => config('app.tenant_id', 1),
-                    'original_ref' => strtolower($originalRef),
-                    'mapped_ref' => $mappedRef ?: strtolower($originalRef),
+                    'original_ref' => strtolower(trim($originalRef)),
+                    'mapped_ref' => $mappedRef ?: strtolower(trim($originalRef)),
                     'summary_category_id' => $categoryId,
                     'is_active' => true,
                     'auto_discovered' => false,

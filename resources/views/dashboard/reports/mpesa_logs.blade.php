@@ -1113,8 +1113,8 @@ $(document).ready(function() {
             if (data.success) {
                 toastr.success(data.message);
                 $('#inlineMappingModal').modal('hide');
-                // Refresh table to show updated category
-                table.draw(false);
+                // Reload from server so the new mapping is reflected in the category column
+                table.ajax.reload(null, false);
                 // Refresh unmapped count
                 checkUnmappedReferences();
             } else {
