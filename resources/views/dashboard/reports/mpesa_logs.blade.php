@@ -235,6 +235,7 @@
                         </div>
                     </div>
 
+                    <div class="table-responsive">
                     <table class="table table-striped table-bordered" id="mpesa-table" style="width:100%">
                         <thead>
                             <tr>
@@ -250,6 +251,7 @@
                             </tr>
                         </thead>
                     </table>
+                    </div>{{-- /table-responsive --}}
                 </div>
             </div>
         </div>
@@ -585,6 +587,7 @@
 @endsection
 
 @push('css')
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap5.min.css">
 <style>
     .small-box {
         border-radius: 0.5rem;
@@ -647,6 +650,8 @@
 @endpush
 
 @push('js')
+<script src="https://cdn.datatables.net/responsive/2.4.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.4.0/js/responsive.bootstrap5.min.js"></script>
 <script>
 $(document).ready(function() {
     // Initialize Select2
@@ -679,18 +684,19 @@ $(document).ready(function() {
                 d.group_references = $('#group_references').is(':checked') ? 1 : 0;
             }
         },
+        responsive: true,
         columns: [
-            { data: 'TransID', name: 'TransID' },
-            { data: 'name', name: 'name', orderable: false },
-            { data: 'TransAmount', name: 'TransAmount' },
-            { data: 'BillRefNumber', name: 'BillRefNumber' },
-            { data: 'category_name', name: 'category_name', orderable: false },
-            { data: 'msisdn_display', name: 'MSISDN', orderable: false },
-            { data: 'match_status', name: 'match_status', orderable: false },
-            { data: 'date_fmt', name: 'created_at' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
+            { data: 'TransID', name: 'TransID', responsivePriority: 5 },
+            { data: 'name', name: 'name', orderable: false, responsivePriority: 2 },
+            { data: 'TransAmount', name: 'TransAmount', responsivePriority: 1 },
+            { data: 'BillRefNumber', name: 'BillRefNumber', responsivePriority: 4 },
+            { data: 'category_name', name: 'category_name', orderable: false, responsivePriority: 3 },
+            { data: 'msisdn_display', name: 'MSISDN', orderable: false, responsivePriority: 6 },
+            { data: 'match_status', name: 'match_status', orderable: false, responsivePriority: 2 },
+            { data: 'date_fmt', name: 'created_at', responsivePriority: 1 },
+            { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1 }
         ],
-        order: [[8, 'desc']],
+        order: [[7, 'desc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]]
     });
