@@ -87,7 +87,7 @@
                         </div>
                         <div class='card-body'>
                             <div class="table-responsive">
-                                <table class='table w-100'>
+                                <table id="members-table" class='table w-100'>
                                     <thead>
                                         <tr>
                                             <th style="width:36px"><input type="checkbox" id="select-all-members" title="Select all on this page"></th>
@@ -702,7 +702,7 @@ $(document).ready(function () {
     flatpickr(".modal-datepicker", { dateFormat: "Y-m-d" });
 
     // ===== Members DataTable =====
-    var table = $('.table').DataTable({
+    var table = $('#members-table').DataTable({
         scrollX: true,
         fixedColumns: { right: 1 },
         processing: true,
@@ -739,7 +739,7 @@ $(document).ready(function () {
     });
 
     // Make rows clickable to view user (ignore clicks on action buttons/dropdowns)
-    $('.table tbody').on('click', 'tr', function (e) {
+    $('#members-table tbody').on('click', 'tr', function (e) {
         if ($(e.target).closest('.dropdown, button, a, .btn').length) return;
         var userId = $(this).data('user-id');
         if (userId) {
@@ -987,7 +987,7 @@ $(document).ready(function () {
     });
 
     // ===== Edit User from Table Row =====
-    $(document).on('click', '.table .btn-edit', function () {
+    $(document).on('click', '#members-table .btn-edit', function () {
         resetUserForm();
         $('#userModal .modal-title span').text("Edit User");
         $('#userModal input[name=email]').attr('readonly', 'readonly');
@@ -1004,7 +1004,7 @@ $(document).ready(function () {
     });
 
     // ===== Archive User =====
-    $(document).on('click', '.table .btn-archive', function () {
+    $(document).on('click', '#members-table .btn-archive', function () {
         var row = $(this).closest('tr');
         var id = row.find('.id').text();
         var name = row.find('.firstname').text() + ' ' + row.find('.lastname').text();
@@ -1032,7 +1032,7 @@ $(document).ready(function () {
     });
 
     // ===== Unarchive User =====
-    $(document).on('click', '.table .btn-unarchive', function () {
+    $(document).on('click', '#members-table .btn-unarchive', function () {
         var row = $(this).closest('tr');
         var id = row.find('.id').text();
         $.ajax({
@@ -1048,7 +1048,7 @@ $(document).ready(function () {
     });
 
     // ===== Delete User Permanently =====
-    $(document).on('click', '.table .btn-delete-permanent', function () {
+    $(document).on('click', '#members-table .btn-delete-permanent', function () {
         var row = $(this).closest('tr');
         var id = row.find('.id').text();
         var name = row.find('.firstname').text() + ' ' + row.find('.lastname').text();
@@ -1112,7 +1112,7 @@ $(document).ready(function () {
     // ───── Selection helpers ─────────────────────────────────────────────────
 
     function updateMembersBulkBar() {
-        var count = $('.table .dt-select-row:checked').length;
+        var count = $('#members-table .dt-select-row:checked').length;
         $('#members-selected-count').text(count);
         if (count > 0) {
             $('#members-bulk-bar').removeClass('d-none');
@@ -1135,13 +1135,13 @@ $(document).ready(function () {
 
     // Select-all — members
     $(document).on('change', '#select-all-members', function () {
-        $('.table .dt-select-row').prop('checked', this.checked);
+        $('#members-table .dt-select-row').prop('checked', this.checked);
         updateMembersBulkBar();
     });
-    $(document).on('change', '.table .dt-select-row', function () {
+    $(document).on('change', '#members-table .dt-select-row', function () {
         updateMembersBulkBar();
-        var all  = $('.table .dt-select-row').length;
-        var chk  = $('.table .dt-select-row:checked').length;
+        var all  = $('#members-table .dt-select-row').length;
+        var chk  = $('#members-table .dt-select-row:checked').length;
         $('#select-all-members').prop('indeterminate', chk > 0 && chk < all)
                                 .prop('checked', chk === all && all > 0);
     });
@@ -1161,7 +1161,7 @@ $(document).ready(function () {
 
     // Clear selections
     $('#btn-members-clear-selection').click(function () {
-        $('.table .dt-select-row, #select-all-members').prop('checked', false);
+        $('#members-table .dt-select-row, #select-all-members').prop('checked', false);
         updateMembersBulkBar();
     });
     $('#btn-nm-clear-selection').click(function () {
@@ -1186,7 +1186,7 @@ $(document).ready(function () {
     // Members → bulk SMS
     $('#btn-members-bulk-sms').click(function () {
         var names = [];
-        $('.table .dt-select-row:checked').each(function () {
+        $('#members-table .dt-select-row:checked').each(function () {
             names.push($(this).data('name'));
         });
         if (!names.length) return;
@@ -1219,7 +1219,7 @@ $(document).ready(function () {
         if (mode === 'members') {
             url = '{{ url("dashboard/users/bulk-sms") }}';
             payload.user_ids = [];
-            $('.table .dt-select-row:checked').each(function () {
+            $('#members-table .dt-select-row:checked').each(function () {
                 payload.user_ids.push($(this).data('id'));
             });
             payload['user_ids[]'] = payload.user_ids;
@@ -1244,7 +1244,7 @@ $(document).ready(function () {
             setTimeout(function () {
                 $('#bulkSmsModal').modal('hide');
                 if (mode === 'members') {
-                    $('.table .dt-select-row, #select-all-members').prop('checked', false);
+                    $('#members-table .dt-select-row, #select-all-members').prop('checked', false);
                     updateMembersBulkBar();
                 } else {
                     $('#nm-table .dt-nm-select-row, #select-all-nm').prop('checked', false);
@@ -1262,7 +1262,7 @@ $(document).ready(function () {
     $('#btn-members-bulk-archive').click(function () {
         var ids = [];
         var names = [];
-        $('.table .dt-select-row:checked').each(function () {
+        $('#members-table .dt-select-row:checked').each(function () {
             ids.push($(this).data('id'));
             names.push($(this).data('name'));
         });
@@ -1287,7 +1287,7 @@ $(document).ready(function () {
                     if (done === ids.length) {
                         Swal.fire('Archived!', ids.length + ' member(s) archived.', 'success');
                         table.draw();
-                        $('.table .dt-select-row, #select-all-members').prop('checked', false);
+                        $('#members-table .dt-select-row, #select-all-members').prop('checked', false);
                         updateMembersBulkBar();
                     }
                 });
@@ -1396,7 +1396,7 @@ $(document).ready(function () {
     $('#nm-sms-message').on('input', function () { $('#nm-sms-char-count').text($(this).val().length); });
 
     // ===== SMS Modal =====
-    $(document).on('click', '.table .btn-sms', function () {
+    $(document).on('click', '#members-table .btn-sms', function () {
         var row = $(this).closest('tr');
         $('#sms-user-id').val(row.find('.id').text());
         $('#sms-recipient').val(row.find('.firstname').text() + ' ' + row.find('.lastname').text() + ' (' + row.find('.phone').text() + ')');
