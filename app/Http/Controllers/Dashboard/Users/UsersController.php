@@ -1197,6 +1197,142 @@ class UsersController extends DashboardController
         ]);
     }
 
+    /**
+     * DataTable of M-Pesa donors who have no registered user account.
+     */
+    public function nonMembersDataTable(Request $request)
+    {
+        $tid = config('app.tenant_id');
+        $search = trim($request->input('search', ''));
+
+        // Base: mpesa_phones for this tenant where the phone is not matched to any user
+        $query = DB::table('mpesa_phones')
+            ->where('mpesa_phones.tenant_id', $tid)
+            // No matching user by 254-format phone
+            ->whereNotExists(function ($q) {
+                $q->from('users')
+                  ->where(function ($u) {
+                      $u->whereColumn('users.phone', 'mpesa_phones.phone')
+                        ->orWhereColumn('users.phone', DB::raw("CONCAT('0', SUBSTRING(mpesa_phones.phone, 4))"));
+                  })
+                  ->whereNull('users.archived_at');
+            })
+            // No matching contact by local-format phone
+            ->whereNotExists(function ($q) {
+                $q->from('contacts')
+                  ->whereColumn('contacts.phone', DB::raw("CONCAT('0', SUBSTRING(mpesa_phones.phone, 4))"));
+            })
+            // Left-join transactions to get stats
+            ->leftJoin('mpesa_transactions', 'mpesa_transactions.MSISDN', '=', 'mpesa_phones.phone_hash')
+            ->select(
+                'mpesa_phones.id',
+                'mpesa_phones.name',
+                'mpesa_phones.phone',
+                DB::raw('COUNT(mpesa_transactions.id) as tx_count'),
+                DB::raw('COALESCE(SUM(mpesa_transactions.TransAmount), 0) as tx_total'),
+                DB::raw('MAX(mpesa_transactions.created_at) as last_seen')
+            )
+            ->groupBy('mpesa_phones.id', 'mpesa_phones.name', 'mpesa_phones.phone');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('mpesa_phones.name', 'LIKE', "%{$search}%")
+                  ->orWhere('mpesa_phones.phone', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $records = $query->orderByDesc('last_seen')->get();
+
+        return DataTables::of($records)
+            ->addColumn('name_fmt', function ($row) {
+                return '<span class="font-weight-bold">' . e(ucwords(strtolower($row->name))) . '</span>';
+            })
+            ->addColumn('phone_fmt', function ($row) {
+                return '<code>' . e($row->phone) . '</code>';
+            })
+            ->addColumn('last_seen_fmt', function ($row) {
+                return $row->last_seen
+                    ? \Carbon\Carbon::parse($row->last_seen)->format('d M Y')
+                    : '<span class="text-muted">-</span>';
+            })
+            ->addColumn('tx_count_fmt', function ($row) {
+                return $row->tx_count ?: '<span class="text-muted">0</span>';
+            })
+            ->addColumn('tx_total_fmt', function ($row) {
+                return $row->tx_total > 0
+                    ? 'Ksh ' . number_format($row->tx_total, 2)
+                    : '<span class="text-muted">-</span>';
+            })
+            ->addColumn('action', function ($row) {
+                $phone = e($row->phone);
+                $name  = e(ucwords(strtolower($row->name)));
+                return '
+                    <button class="btn btn-xs btn-outline-primary btn-nm-sms mr-1"
+                        data-phone="' . $phone . '" data-name="' . $name . '"
+                        title="Send SMS">
+                        <i class="fas fa-sms"></i> SMS
+                    </button>
+                    <button class="btn btn-xs btn-outline-success btn-nm-invite"
+                        data-phone="' . $phone . '" data-name="' . $name . '"
+                        title="Send Registration Invite">
+                        <i class="fas fa-paper-plane"></i> Invite
+                    </button>';
+            })
+            ->rawColumns(['name_fmt', 'phone_fmt', 'last_seen_fmt', 'tx_count_fmt', 'tx_total_fmt', 'action'])
+            ->make(true);
+    }
+
+    /**
+     * Send a one-off SMS to an unregistered M-Pesa donor (no user account).
+     */
+    public function sendNonMemberSms(Request $request)
+    {
+        $request->validate([
+            'phone'   => 'required|string',
+            'message' => 'required|string|max:1600',
+        ]);
+
+        $phone = trim($request->phone);
+        // Normalise to 254...
+        if (strlen($phone) === 10 && $phone[0] === '0') {
+            $phone = '254' . substr($phone, 1);
+        }
+
+        $integrationService = app(\App\Services\IntegrationService::class);
+        $sendResult = $integrationService->sendSms($phone, $request->message);
+
+        $tid = config('app.tenant_id');
+        $mid = DB::table('sms')->insertGetId([
+            'tenant_id' => $tid,
+            'people_id' => 0,
+            'message'   => $request->message,
+            'category'  => 'non_member_outreach',
+            'sent'      => Carbon::now(),
+        ]);
+        // Log with recipients = 0 (non-member, no user_id)
+        DB::table('sms_recipients')->insert([
+            'tenant_id'  => $tid,
+            'recipients' => 0,
+            'sms_id'     => $mid,
+            'sent'       => Carbon::now(),
+        ]);
+
+        $creditsResponse = $integrationService->checkSmsCredits();
+        $smsCredits = null;
+        if (is_array($creditsResponse)) {
+            $smsCredits = $creditsResponse['balance']
+                ?? $creditsResponse['credit']
+                ?? $creditsResponse['credits']
+                ?? $creditsResponse['credits_remaining']
+                ?? null;
+        }
+
+        return response()->json([
+            'success' => 'SMS sent to ' . $phone,
+            'credits' => $smsCredits,
+        ]);
+    }
+
     public function toggleVerification(Request $request)
     {
         $request->validate([

@@ -85,8 +85,81 @@
                     </div>
                 </div>
             </div>
+
+            {{-- ===== NON-MEMBERS CARD ===== --}}
+            <div class="row mt-2">
+                <div class="col-md-12 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-user-clock text-warning"></i>
+                                        Unregistered M-Pesa Donors
+                                        <span class="badge badge-warning ml-1" id="nm-count-badge">…</span>
+                                    </h6>
+                                    <small class="text-muted">People who have given via M-Pesa but haven't registered as members.</small>
+                                </div>
+                                <div class="col-sm-4">
+                                    <input type="text" id="nm-search" class="form-control form-control-sm"
+                                        placeholder="Search name or phone…">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table id="nm-table" class="table table-sm w-100 mb-0">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Last Seen</th>
+                                            <th>Transactions</th>
+                                            <th>Total Given</th>
+                                            <th class="text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
+
+    <!-- ===== NON-MEMBER SMS MODAL ===== -->
+    <div class="modal fade" id="nonMemberSmsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sms"></i> Send SMS</h5>
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="nm-sms-phone">
+                    <div class="form-group">
+                        <label>To</label>
+                        <input type="text" class="form-control" id="nm-sms-recipient" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea class="form-control" id="nm-sms-message" rows="5"></textarea>
+                        <small class="text-muted"><span id="nm-sms-char-count">0</span> characters</small>
+                    </div>
+                    <div class="alert nm-sms-feedback border d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm" id="btnSendNonMemberSms">
+                        <i class="fas fa-paper-plane"></i> Send SMS
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ===== ADD/EDIT USER MODAL ===== -->
     <div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
@@ -924,6 +997,99 @@ $(document).ready(function () {
             }
         });
     });
+
+    // ===== Non-Members DataTable =====
+    var nmSearchTimer = null;
+    var nmTable = $('#nm-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: "{{ url('dashboard/users/non-members/datatable') }}",
+            data: function (d) {
+                d.search = $('#nm-search').val();
+            }
+        },
+        dom: 'ltrip',
+        language: { emptyTable: "<i class='fas fa-check-circle text-success'></i> All M-Pesa donors are registered members" },
+        columns: [
+            { data: 'name_fmt',     orderable: false, searchable: false },
+            { data: 'phone_fmt',    orderable: false, searchable: false },
+            { data: 'last_seen_fmt',orderable: false, searchable: false },
+            { data: 'tx_count_fmt', orderable: false, searchable: false },
+            { data: 'tx_total_fmt', orderable: false, searchable: false },
+            { data: 'action',       orderable: false, searchable: false, className: 'text-right' },
+        ],
+        drawCallback: function (settings) {
+            var total = settings.fnRecordsTotal();
+            $('#nm-count-badge').text(total);
+        }
+    });
+
+    $('#nm-search').on('keyup', function () {
+        clearTimeout(nmSearchTimer);
+        nmSearchTimer = setTimeout(function () { nmTable.draw(); }, 600);
+    });
+
+    // SMS CTA
+    $(document).on('click', '#nm-table .btn-nm-sms', function () {
+        var phone = $(this).data('phone');
+        var name  = $(this).data('name');
+        var localPhone = phone.length === 12 ? '0' + phone.substring(3) : phone;
+        $('#nm-sms-phone').val(phone);
+        $('#nm-sms-recipient').val(name + ' (' + localPhone + ')');
+        var defaultMsg = 'Dear ' + name + ', we warmly invite you to join our church family as a registered member. '
+            + 'Registering gives you access to your giving history and church updates. '
+            + 'Please contact us or visit our offices to complete your registration. God bless you!';
+        $('#nm-sms-message').val(defaultMsg);
+        $('#nm-sms-char-count').text(defaultMsg.length);
+        $('#nonMemberSmsModal .nm-sms-feedback').addClass('d-none').removeClass('alert-danger alert-success');
+        $('#nonMemberSmsModal').modal('show');
+    });
+
+    // Invite CTA — pre-fill the existing invite modal
+    $(document).on('click', '#nm-table .btn-nm-invite', function () {
+        var phone = $(this).data('phone');
+        // Strip country code to local format for invite modal input (expects 9-digit without leading 254)
+        var local = phone.length === 12 ? phone.substring(3) : phone;
+        $('#invite-form')[0].reset();
+        $('#invite-method').val('sms').trigger('change');
+        $('#invite-phone-input').val(local).trigger('blur');
+        $('#inviteModal .invite-feedback').addClass('d-none').removeClass('alert-danger alert-success');
+        $('#inviteModal').modal('show');
+    });
+
+    // Send non-member SMS
+    $('#btnSendNonMemberSms').click(function () {
+        var btn = $(this);
+        var message = $.trim($('#nm-sms-message').val());
+        if (!message) {
+            $('#nonMemberSmsModal .nm-sms-feedback').removeClass('d-none').addClass('alert-danger')
+                .html("<i class='fas fa-exclamation-circle'></i> Please enter a message.");
+            return;
+        }
+        btn.attr('disabled', true);
+        $('#nonMemberSmsModal .nm-sms-feedback').removeClass('d-none alert-danger alert-success')
+            .html("<i class='fas fa-spinner fa-pulse'></i> Sending…");
+        $.ajax({
+            url: '{{ url("dashboard/users/non-members/sms") }}',
+            type: 'POST',
+            data: { _token: '{{ csrf_token() }}', phone: $('#nm-sms-phone').val(), message: message }
+        }).done(function (data) {
+            $('#nonMemberSmsModal .nm-sms-feedback').addClass('alert-success')
+                .html("<i class='fas fa-check-circle'></i> " + data.success);
+            setTimeout(function () {
+                $('#nonMemberSmsModal .nm-sms-feedback').addClass('d-none');
+                $('#nonMemberSmsModal').modal('hide');
+            }, 2500);
+            if (typeof refreshCreditsBalance === 'function') refreshCreditsBalance();
+        }).fail(function (r) {
+            var msg = r.responseJSON && r.responseJSON.error ? r.responseJSON.error : 'Something went wrong.';
+            $('#nonMemberSmsModal .nm-sms-feedback').addClass('alert-danger')
+                .html("<i class='fas fa-exclamation-circle'></i> " + msg);
+        }).always(function () { btn.removeAttr('disabled'); });
+    });
+
+    $('#nm-sms-message').on('input', function () { $('#nm-sms-char-count').text($(this).val().length); });
 
     // ===== SMS Modal =====
     $(document).on('click', '.table .btn-sms', function () {

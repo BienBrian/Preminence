@@ -744,6 +744,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'tenant.active',
     Route::post('users/update/profession', [UsersController::class, 'updateProfession']);
     Route::post('users/update/education', [UsersController::class, 'updateEducation']);
     Route::post('users/sendsms', [UsersController::class, 'sendUserSms'])->middleware('throttle:10,1');
+    Route::get('users/non-members/datatable', [UsersController::class, 'nonMembersDataTable']);
+    Route::post('users/non-members/sms', [UsersController::class, 'sendNonMemberSms'])->middleware('throttle:10,1');
     Route::post('users/invite', [UsersController::class, 'inviteUser'])->middleware('throttle:10,1');
     Route::post('users/check-invite-phone', [UsersController::class, 'checkInvitePhone']);
     Route::get('users/invitations', [UsersController::class, 'invitations']);
