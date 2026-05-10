@@ -179,12 +179,34 @@ class ReportsController extends DashboardController
         $allMpesaPhones = MpesaPhone::all()->keyBy('phone_hash');
         // Pre-load missing_mpesa_phones hashes
         $missingHashes = DB::table('missing_mpesa_phones')->pluck('phone', 'phone_hash');
-        // Pre-load contacts keyed by local phone
+        // Pre-load contacts keyed by local phone (0XXXXXXXXX format)
         $allContacts = DB::table('contacts')
             ->join('users', 'users.id', '=', 'contacts.user_id')
             ->select('contacts.phone', 'contacts.user_id', 'users.firstname', 'users.lastname')
             ->get()
             ->keyBy('phone');
+
+        // Pre-load users keyed by phone in 254 international format as fallback for
+        // users who have no contacts row (phone lives only in users.phone).
+        $allUsers = DB::table('users')
+            ->select('id', 'firstname', 'lastname', 'phone')
+            ->whereNotNull('phone')
+            ->where('phone', '<>', '')
+            ->get()
+            ->keyBy(function ($u) {
+                $phone = trim($u->phone);
+                // Normalise to 254XXXXXXXXX so hash-branch lookups ($mp->phone) align
+                if (strlen($phone) === 10 && $phone[0] === '0') {
+                    return '254' . substr($phone, 1);
+                }
+                if (strlen($phone) === 9) {
+                    return '254' . $phone;
+                }
+                if ($phone[0] === '+') {
+                    return substr($phone, 1);
+                }
+                return $phone;
+            });
 
         // Load reference mappings for grouping
         $mappings = $request->boolean('group_references') ? ReferenceTypeMapping::getAllMappings() : [];
@@ -243,15 +265,18 @@ class ReportsController extends DashboardController
         }
 
         return DataTables::of($query->orderBy('created_at', 'DESC'))
-            ->addColumn('name', function ($row) use ($allMpesaPhones, $allContacts) {
+            ->addColumn('name', function ($row) use ($allMpesaPhones, $allContacts, $allUsers) {
                 $msisdn = $row->MSISDN;
                 $name = null;
 
-                // Check if MSISDN is a plain numeric phone
+                // Check if MSISDN is a plain numeric phone (e.g. 254712345678)
                 if (strlen($msisdn) <= 15 && is_numeric($msisdn)) {
                     $localPhone = '0' . substr($msisdn, 3);
                     if (isset($allContacts[$localPhone])) {
                         $name = $allContacts[$localPhone]->firstname . ' ' . $allContacts[$localPhone]->lastname;
+                    } elseif (isset($allUsers[$msisdn])) {
+                        // Phone is stored in users.phone (no contacts row)
+                        $name = $allUsers[$msisdn]->firstname . ' ' . $allUsers[$msisdn]->lastname;
                     }
                 }
 
@@ -261,18 +286,21 @@ class ReportsController extends DashboardController
                     $localPhone = '0' . substr($mp->phone, 3);
                     if (isset($allContacts[$localPhone])) {
                         $name = $allContacts[$localPhone]->firstname . ' ' . $allContacts[$localPhone]->lastname;
+                    } elseif (isset($allUsers[$mp->phone])) {
+                        // User found via users.phone (no contacts row)
+                        $name = $allUsers[$mp->phone]->firstname . ' ' . $allUsers[$mp->phone]->lastname;
                     }
                 }
 
                 return $name ?: '<span class="text-muted">-</span>';
             })
-            ->addColumn('match_status', function ($row) use ($allMpesaPhones, $allContacts, $missingHashes) {
+            ->addColumn('match_status', function ($row) use ($allMpesaPhones, $allContacts, $allUsers, $missingHashes) {
                 $msisdn = $row->MSISDN;
 
                 // Check if MSISDN is a plain numeric phone (e.g. 254712345678)
                 if (strlen($msisdn) <= 15 && is_numeric($msisdn)) {
                     $localPhone = '0' . substr($msisdn, 3);
-                    if (isset($allContacts[$localPhone])) {
+                    if (isset($allContacts[$localPhone]) || isset($allUsers[$msisdn])) {
                         return '<span class="badge bg-success">Matched</span>';
                     }
                 }
@@ -281,7 +309,7 @@ class ReportsController extends DashboardController
                 if (isset($allMpesaPhones[$msisdn])) {
                     $mp = $allMpesaPhones[$msisdn];
                     $localPhone = '0' . substr($mp->phone, 3);
-                    if (isset($allContacts[$localPhone])) {
+                    if (isset($allContacts[$localPhone]) || isset($allUsers[$mp->phone])) {
                         return '<span class="badge bg-info">Hash Matched</span>';
                     }
                     return '<span class="badge bg-warning">Hash Found (No Contact)</span>';

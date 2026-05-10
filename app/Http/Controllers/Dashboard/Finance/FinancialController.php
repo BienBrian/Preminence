@@ -432,10 +432,22 @@ class FinancialController extends DashboardController
         }
     }
 
-    public function search(Request $request)
+    public function search(Request $request, $search = null)
     {
-        $users = \DB::table("users")->select("users.id", "users.firstname", "users.lastname", "users.email", "contacts.phone")->where("users.firstname", "LIKE", "%" . $request->search . "%")
-            ->orWhere("users.lastname", "LIKE", "%" . $request->search . "%")->orWhere("users.email", "LIKE", "%" . $request->search . "%")->orWhere("contacts.phone", "LIKE", "%" . $request->search . "%")->leftJoin("contacts", "contacts.user_id", "=", "users.id")->limit(15)->get();
+        $term = $search ?? $request->search ?? '';
+        $tid = config('app.tenant_id');
+        $users = \DB::table("users")
+            ->select("users.id", "users.firstname", "users.lastname", "users.email", \DB::raw("COALESCE(contacts.phone, users.phone) as phone"))
+            ->leftJoin("contacts", "contacts.user_id", "=", "users.id")
+            ->where("users.tenant_id", $tid)
+            ->where(function ($q) use ($term) {
+                $q->where("users.firstname", "LIKE", "%" . $term . "%")
+                  ->orWhere("users.lastname", "LIKE", "%" . $term . "%")
+                  ->orWhere("users.email", "LIKE", "%" . $term . "%")
+                  ->orWhere("users.phone", "LIKE", "%" . $term . "%")
+                  ->orWhere("contacts.phone", "LIKE", "%" . $term . "%");
+            })
+            ->limit(15)->get();
         return json_encode($users);
     }
 
@@ -1275,6 +1287,22 @@ class FinancialController extends DashboardController
 
     public function populateMpesaHashes(Request $request)
     {
+        $added = 0;
+
+        // Helper closure to normalise a phone to 254XXXXXXXXX and hash it
+        $normalisePhone = function (string $raw): ?string {
+            $phone = trim($raw);
+            if (strlen($phone) === 10 && $phone[0] === '0') {
+                $phone = '254' . substr($phone, 1);
+            } elseif (strlen($phone) === 9) {
+                $phone = '254' . $phone;
+            } elseif ($phone[0] === '+') {
+                $phone = substr($phone, 1);
+            }
+            return strlen($phone) === 12 ? $phone : null;
+        };
+
+        // 1. Process phones from contacts table
         $contacts = \DB::table('contacts')
             ->join('users', 'users.id', '=', 'contacts.user_id')
             ->whereNotNull('contacts.phone')
@@ -1282,32 +1310,45 @@ class FinancialController extends DashboardController
             ->select('contacts.phone', 'contacts.user_id', 'users.firstname', 'users.lastname')
             ->get();
 
-        $added = 0;
         foreach ($contacts as $contact) {
-            $phone = trim($contact->phone);
-            // Convert to international format 254...
-            if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
-                $phone = '254' . substr($phone, 1);
-            } elseif (strlen($phone) == 9) {
-                $phone = '254' . $phone;
-            } elseif (substr($phone, 0, 1) == '+') {
-                $phone = substr($phone, 1);
-            }
-
-            if (strlen($phone) != 12) {
+            $phone = $normalisePhone($contact->phone);
+            if (!$phone) {
                 continue;
             }
-
             $hash = hash('sha256', $phone);
-
-            // Skip if hash already exists
             if (MpesaPhone::where('phone_hash', $hash)->exists()) {
                 continue;
             }
-
             MpesaPhone::create([
-                'name' => $contact->firstname . ' ' . $contact->lastname,
-                'phone' => $phone,
+                'name'       => $contact->firstname . ' ' . $contact->lastname,
+                'phone'      => $phone,
+                'phone_hash' => $hash,
+            ]);
+            $added++;
+        }
+
+        // 2. Also process users who have a phone in users.phone but NO contacts row.
+        //    These users are missed by the contacts-only pass above.
+        $usersOnly = \DB::table('users')
+            ->leftJoin('contacts', 'contacts.user_id', '=', 'users.id')
+            ->whereNull('contacts.user_id')          // no contacts row
+            ->whereNotNull('users.phone')
+            ->where('users.phone', '<>', '')
+            ->select('users.id', 'users.firstname', 'users.lastname', 'users.phone')
+            ->get();
+
+        foreach ($usersOnly as $user) {
+            $phone = $normalisePhone($user->phone);
+            if (!$phone) {
+                continue;
+            }
+            $hash = hash('sha256', $phone);
+            if (MpesaPhone::where('phone_hash', $hash)->exists()) {
+                continue;
+            }
+            MpesaPhone::create([
+                'name'       => trim($user->firstname . ' ' . $user->lastname),
+                'phone'      => $phone,
                 'phone_hash' => $hash,
             ]);
             $added++;
@@ -1337,7 +1378,7 @@ class FinancialController extends DashboardController
 
             $msisdn = $transaction->MSISDN;
 
-            // Try direct match (unhashed phone)
+            // Try direct match (unhashed phone) — check contacts first, then users.phone
             if (strlen($msisdn) <= 12) {
                 $contact = \DB::table('contacts')->where('phone', $msisdn)
                     ->orWhere('phone', '0' . substr($msisdn, 3))
@@ -1347,17 +1388,35 @@ class FinancialController extends DashboardController
                     $matched++;
                     continue;
                 }
+                // Fallback: check users.phone directly (users with no contacts row)
+                $user = \DB::table('users')->where('phone', $msisdn)
+                    ->orWhere('phone', '0' . substr($msisdn, 3))
+                    ->first();
+                if ($user) {
+                    \DB::table('funds')->where('id', $fund->id)->update(['user_id' => $user->id]);
+                    $matched++;
+                    continue;
+                }
             }
 
             // Try hash match
             $mpesaPhone = MpesaPhone::where('phone_hash', $msisdn)->first();
             if ($mpesaPhone) {
-                // Find user by phone
+                // Check contacts first
                 $contact = \DB::table('contacts')->where('phone', $mpesaPhone->phone)
                     ->orWhere('phone', '0' . substr($mpesaPhone->phone, 3))
                     ->first();
                 if ($contact) {
                     \DB::table('funds')->where('id', $fund->id)->update(['user_id' => $contact->user_id]);
+                    $matched++;
+                    continue;
+                }
+                // Fallback: check users.phone (users with no contacts row)
+                $user = \DB::table('users')->where('phone', $mpesaPhone->phone)
+                    ->orWhere('phone', '0' . substr($mpesaPhone->phone, 3))
+                    ->first();
+                if ($user) {
+                    \DB::table('funds')->where('id', $fund->id)->update(['user_id' => $user->id]);
                     $matched++;
                 }
             }
