@@ -66,11 +66,31 @@
                                 </div>
                             </form>
                         </div>
+                        {{-- Bulk actions bar — members --}}
+                        <div id="members-bulk-bar" class="card-header py-2 d-none border-top-0 bg-light">
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <span class="font-weight-bold mr-3">
+                                    <span id="members-selected-count">0</span> selected
+                                </span>
+                                <button class="btn btn-sm btn-success mr-1" id="btn-members-bulk-sms">
+                                    <i class="fas fa-sms"></i> Send SMS
+                                </button>
+                                @can('Add Users')
+                                <button class="btn btn-sm btn-warning mr-1" id="btn-members-bulk-archive">
+                                    <i class="fas fa-archive"></i> Archive
+                                </button>
+                                @endcan
+                                <button class="btn btn-sm btn-light border ml-auto" id="btn-members-clear-selection">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                            </div>
+                        </div>
                         <div class='card-body'>
                             <div class="table-responsive">
                                 <table class='table w-100'>
                                     <thead>
                                         <tr>
+                                            <th style="width:36px"><input type="checkbox" id="select-all-members" title="Select all on this page"></th>
                                             <th>Name</th>
                                             <th>Email</th>
                                             <th>Phone</th>
@@ -106,15 +126,33 @@
                                 </div>
                             </div>
                         </div>
+                        {{-- Bulk actions bar — non-members --}}
+                        <div id="nm-bulk-bar" class="px-3 py-2 d-none border-top bg-light">
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <span class="font-weight-bold mr-3">
+                                    <span id="nm-selected-count">0</span> selected
+                                </span>
+                                <button class="btn btn-sm btn-success mr-1" id="btn-nm-bulk-sms">
+                                    <i class="fas fa-sms"></i> Send SMS
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary mr-1" id="btn-nm-bulk-invite">
+                                    <i class="fas fa-paper-plane"></i> Send Invite
+                                </button>
+                                <button class="btn btn-sm btn-light border ml-auto" id="btn-nm-clear-selection">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                            </div>
+                        </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table id="nm-table" class="table table-sm w-100 mb-0">
                                     <thead class="thead-light">
                                         <tr>
+                                            <th style="width:36px"><input type="checkbox" id="select-all-nm" title="Select all on this page"></th>
                                             <th>Name</th>
                                             <th>Phone</th>
-                                            <th>Last Seen</th>
-                                            <th>Transactions</th>
+                                            <th>Last Gave</th>
+                                            <th>Times Given</th>
                                             <th>Total Given</th>
                                             <th class="text-right">Actions</th>
                                         </tr>
@@ -127,6 +165,39 @@
             </div>
         </div>
     </section>
+
+    <!-- ===== BULK SMS MODAL (shared) ===== -->
+    <div class="modal fade" id="bulkSmsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sms"></i> Bulk SMS</h5>
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="bulk-sms-mode"> {{-- 'members' or 'non-members' --}}
+                    <p class="text-muted mb-2">
+                        Sending to <strong><span id="bulk-sms-count">0</span> recipient(s)</strong>:
+                        <span id="bulk-sms-preview" class="small text-muted"></span>
+                    </p>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea class="form-control" id="bulk-sms-message" rows="5" placeholder="Type your message…"></textarea>
+                        <small class="text-muted"><span id="bulk-sms-char-count">0</span> characters</small>
+                    </div>
+                    <div class="alert bulk-sms-feedback border d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm" id="btnSendBulkSms">
+                        <i class="fas fa-paper-plane"></i> Send to All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ===== NON-MEMBER SMS MODAL ===== -->
     <div class="modal fade" id="nonMemberSmsModal" tabindex="-1" aria-hidden="true">
@@ -630,7 +701,7 @@ $(document).ready(function () {
 
     flatpickr(".modal-datepicker", { dateFormat: "Y-m-d" });
 
-    // ===== DataTable =====
+    // ===== Members DataTable =====
     var table = $('.table').DataTable({
         scrollX: true,
         fixedColumns: { right: 1 },
@@ -648,16 +719,22 @@ $(document).ready(function () {
         dom: 'lBtrip',
         language: { emptyTable: "<i class='fas fa-ban'></i> No Users available" },
         columns: [
-            { data: 'name', name: 'name', orderable: false, searchable: false },
-            { data: 'email', name: 'email', orderable: false, searchable: false },
-            { data: 'phone_display', name: 'phone_display', orderable: false, searchable: false },
-            { data: 'role', name: 'role', orderable: false, searchable: false },
-            { data: 'status', name: 'status', orderable: false, searchable: false },
-            { data: 'action', name: 'action', orderable: false, searchable: false },
+            { data: 'checkbox',      orderable: false, searchable: false, className: 'text-center', width: '36px' },
+            { data: 'name',          name: 'name',         orderable: false, searchable: false },
+            { data: 'email',         name: 'email',        orderable: false, searchable: false },
+            { data: 'phone_display', name: 'phone_display',orderable: false, searchable: false },
+            { data: 'role',          name: 'role',         orderable: false, searchable: false },
+            { data: 'status',        name: 'status',       orderable: false, searchable: false },
+            { data: 'action',        name: 'action',       orderable: false, searchable: false },
         ],
         createdRow: function (row, data) {
             $(row).css('cursor', 'pointer');
             $(row).attr('data-user-id', data.id);
+        },
+        drawCallback: function () {
+            // Re-sync select-all state after each draw
+            $('#select-all-members').prop('checked', false);
+            updateMembersBulkBar();
         }
     });
 
@@ -1012,16 +1089,18 @@ $(document).ready(function () {
         dom: 'ltrip',
         language: { emptyTable: "<i class='fas fa-check-circle text-success'></i> All M-Pesa donors are registered members" },
         columns: [
-            { data: 'name_fmt',     orderable: false, searchable: false },
-            { data: 'phone_fmt',    orderable: false, searchable: false },
-            { data: 'last_seen_fmt',orderable: false, searchable: false },
-            { data: 'tx_count_fmt', orderable: false, searchable: false },
-            { data: 'tx_total_fmt', orderable: false, searchable: false },
-            { data: 'action',       orderable: false, searchable: false, className: 'text-right' },
+            { data: 'checkbox',      orderable: false, searchable: false, className: 'text-center', width: '36px' },
+            { data: 'name_fmt',      orderable: false, searchable: false },
+            { data: 'phone_fmt',     orderable: false, searchable: false },
+            { data: 'last_seen_fmt', orderable: false, searchable: false },
+            { data: 'tx_count_fmt',  orderable: false, searchable: false },
+            { data: 'tx_total_fmt',  orderable: false, searchable: false },
+            { data: 'action',        orderable: false, searchable: false, className: 'text-right' },
         ],
         drawCallback: function (settings) {
-            var total = settings.fnRecordsTotal();
-            $('#nm-count-badge').text(total);
+            $('#nm-count-badge').text(settings.fnRecordsTotal());
+            $('#select-all-nm').prop('checked', false);
+            updateNmBulkBar();
         }
     });
 
@@ -1030,7 +1109,233 @@ $(document).ready(function () {
         nmSearchTimer = setTimeout(function () { nmTable.draw(); }, 600);
     });
 
-    // SMS CTA
+    // ───── Selection helpers ─────────────────────────────────────────────────
+
+    function updateMembersBulkBar() {
+        var count = $('.table .dt-select-row:checked').length;
+        $('#members-selected-count').text(count);
+        if (count > 0) {
+            $('#members-bulk-bar').removeClass('d-none');
+        } else {
+            $('#members-bulk-bar').addClass('d-none');
+            $('#select-all-members').prop('checked', false);
+        }
+    }
+
+    function updateNmBulkBar() {
+        var count = $('#nm-table .dt-nm-select-row:checked').length;
+        $('#nm-selected-count').text(count);
+        if (count > 0) {
+            $('#nm-bulk-bar').removeClass('d-none');
+        } else {
+            $('#nm-bulk-bar').addClass('d-none');
+            $('#select-all-nm').prop('checked', false);
+        }
+    }
+
+    // Select-all — members
+    $(document).on('change', '#select-all-members', function () {
+        $('.table .dt-select-row').prop('checked', this.checked);
+        updateMembersBulkBar();
+    });
+    $(document).on('change', '.table .dt-select-row', function () {
+        updateMembersBulkBar();
+        var all  = $('.table .dt-select-row').length;
+        var chk  = $('.table .dt-select-row:checked').length;
+        $('#select-all-members').prop('indeterminate', chk > 0 && chk < all)
+                                .prop('checked', chk === all && all > 0);
+    });
+
+    // Select-all — non-members
+    $(document).on('change', '#select-all-nm', function () {
+        $('#nm-table .dt-nm-select-row').prop('checked', this.checked);
+        updateNmBulkBar();
+    });
+    $(document).on('change', '#nm-table .dt-nm-select-row', function () {
+        updateNmBulkBar();
+        var all = $('#nm-table .dt-nm-select-row').length;
+        var chk = $('#nm-table .dt-nm-select-row:checked').length;
+        $('#select-all-nm').prop('indeterminate', chk > 0 && chk < all)
+                           .prop('checked', chk === all && all > 0);
+    });
+
+    // Clear selections
+    $('#btn-members-clear-selection').click(function () {
+        $('.table .dt-select-row, #select-all-members').prop('checked', false);
+        updateMembersBulkBar();
+    });
+    $('#btn-nm-clear-selection').click(function () {
+        $('#nm-table .dt-nm-select-row, #select-all-nm').prop('checked', false);
+        updateNmBulkBar();
+    });
+
+    // ───── Bulk SMS modal ────────────────────────────────────────────────────
+
+    function openBulkSmsModal(mode, names) {
+        $('#bulk-sms-mode').val(mode);
+        $('#bulk-sms-count').text(names.length);
+        var preview = names.slice(0, 5).join(', ');
+        if (names.length > 5) preview += '… +' + (names.length - 5) + ' more';
+        $('#bulk-sms-preview').text(preview);
+        $('#bulk-sms-message').val('');
+        $('#bulk-sms-char-count').text('0');
+        $('#bulkSmsModal .bulk-sms-feedback').addClass('d-none').removeClass('alert-danger alert-success');
+        $('#bulkSmsModal').modal('show');
+    }
+
+    // Members → bulk SMS
+    $('#btn-members-bulk-sms').click(function () {
+        var names = [];
+        $('.table .dt-select-row:checked').each(function () {
+            names.push($(this).data('name'));
+        });
+        if (!names.length) return;
+        openBulkSmsModal('members', names);
+    });
+
+    // Non-members → bulk SMS
+    $('#btn-nm-bulk-sms').click(function () {
+        var names = [];
+        $('#nm-table .dt-nm-select-row:checked').each(function () {
+            names.push($(this).data('name'));
+        });
+        if (!names.length) return;
+        openBulkSmsModal('non-members', names);
+    });
+
+    $('#bulk-sms-message').on('input', function () { $('#bulk-sms-char-count').text($(this).val().length); });
+
+    $('#btnSendBulkSms').click(function () {
+        var btn     = $(this);
+        var message = $.trim($('#bulk-sms-message').val());
+        var mode    = $('#bulk-sms-mode').val();
+        if (!message) {
+            $('#bulkSmsModal .bulk-sms-feedback').removeClass('d-none').addClass('alert-danger')
+                .html("<i class='fas fa-exclamation-circle'></i> Please enter a message.");
+            return;
+        }
+        var payload = { _token: '{{ csrf_token() }}', message: message };
+        var url;
+        if (mode === 'members') {
+            url = '{{ url("dashboard/users/bulk-sms") }}';
+            payload.user_ids = [];
+            $('.table .dt-select-row:checked').each(function () {
+                payload.user_ids.push($(this).data('id'));
+            });
+            payload['user_ids[]'] = payload.user_ids;
+            delete payload.user_ids;
+        } else {
+            url = '{{ url("dashboard/users/non-members/bulk-sms") }}';
+            payload.phones = [];
+            $('#nm-table .dt-nm-select-row:checked').each(function () {
+                payload.phones.push($(this).data('phone'));
+            });
+            payload['phones[]'] = payload.phones;
+            delete payload.phones;
+        }
+        btn.attr('disabled', true);
+        $('#bulkSmsModal .bulk-sms-feedback').removeClass('d-none alert-danger alert-success')
+            .html("<i class='fas fa-spinner fa-pulse'></i> Sending…");
+        $.ajax({ url: url, type: 'POST', data: payload })
+        .done(function (data) {
+            $('#bulkSmsModal .bulk-sms-feedback').addClass('alert-success')
+                .html("<i class='fas fa-check-circle'></i> " + data.success);
+            if (typeof refreshCreditsBalance === 'function') refreshCreditsBalance();
+            setTimeout(function () {
+                $('#bulkSmsModal').modal('hide');
+                if (mode === 'members') {
+                    $('.table .dt-select-row, #select-all-members').prop('checked', false);
+                    updateMembersBulkBar();
+                } else {
+                    $('#nm-table .dt-nm-select-row, #select-all-nm').prop('checked', false);
+                    updateNmBulkBar();
+                }
+            }, 2000);
+        }).fail(function (r) {
+            var msg = r.responseJSON && r.responseJSON.error ? r.responseJSON.error : 'Something went wrong.';
+            $('#bulkSmsModal .bulk-sms-feedback').addClass('alert-danger')
+                .html("<i class='fas fa-exclamation-circle'></i> " + msg);
+        }).always(function () { btn.removeAttr('disabled'); });
+    });
+
+    // ───── Members — bulk archive ────────────────────────────────────────────
+    $('#btn-members-bulk-archive').click(function () {
+        var ids = [];
+        var names = [];
+        $('.table .dt-select-row:checked').each(function () {
+            ids.push($(this).data('id'));
+            names.push($(this).data('name'));
+        });
+        if (!ids.length) return;
+        Swal.fire({
+            title: 'Archive ' + ids.length + ' member(s)?',
+            text: names.slice(0, 3).join(', ') + (names.length > 3 ? '…' : '') + ' will be archived.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f0ad4e',
+            confirmButtonText: 'Yes, archive'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            var done = 0;
+            ids.forEach(function (id) {
+                $.ajax({
+                    url: '{{ url("dashboard/users/archive") }}',
+                    type: 'POST',
+                    data: { _token: '{{ csrf_token() }}', id: id }
+                }).always(function () {
+                    done++;
+                    if (done === ids.length) {
+                        Swal.fire('Archived!', ids.length + ' member(s) archived.', 'success');
+                        table.draw();
+                        $('.table .dt-select-row, #select-all-members').prop('checked', false);
+                        updateMembersBulkBar();
+                    }
+                });
+            });
+        });
+    });
+
+    // ───── Non-members — bulk invite ─────────────────────────────────────────
+    $('#btn-nm-bulk-invite').click(function () {
+        var phones = [];
+        $('#nm-table .dt-nm-select-row:checked').each(function () {
+            phones.push($(this).data('phone'));
+        });
+        if (!phones.length) return;
+        Swal.fire({
+            title: 'Send ' + phones.length + ' invite(s)?',
+            text: 'A registration invitation will be sent to each selected donor via SMS.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, send invites'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            var done = 0;
+            var failed = 0;
+            phones.forEach(function (phone) {
+                var local = phone.length === 12 ? phone.substring(3) : phone;
+                $.ajax({
+                    url: '{{ url("dashboard/users/invite") }}',
+                    type: 'POST',
+                    data: { _token: '{{ csrf_token() }}', method: 'sms', phone: local }
+                }).fail(function () { failed++; })
+                  .always(function () {
+                    done++;
+                    if (done === phones.length) {
+                        var msg = (phones.length - failed) + ' invite(s) sent.';
+                        if (failed) msg += ' ' + failed + ' failed.';
+                        Swal.fire('Done', msg, failed ? 'warning' : 'success');
+                        $('#nm-table .dt-nm-select-row, #select-all-nm').prop('checked', false);
+                        updateNmBulkBar();
+                    }
+                });
+            });
+        });
+    });
+
+    // ───── Per-row SMS CTAs ───────────────────────────────────────────────────
+
+    // Non-member single SMS
     $(document).on('click', '#nm-table .btn-nm-sms', function () {
         var phone = $(this).data('phone');
         var name  = $(this).data('name');
@@ -1046,10 +1351,9 @@ $(document).ready(function () {
         $('#nonMemberSmsModal').modal('show');
     });
 
-    // Invite CTA — pre-fill the existing invite modal
+    // Non-member single invite
     $(document).on('click', '#nm-table .btn-nm-invite', function () {
         var phone = $(this).data('phone');
-        // Strip country code to local format for invite modal input (expects 9-digit without leading 254)
         var local = phone.length === 12 ? phone.substring(3) : phone;
         $('#invite-form')[0].reset();
         $('#invite-method').val('sms').trigger('change');
@@ -1058,7 +1362,7 @@ $(document).ready(function () {
         $('#inviteModal').modal('show');
     });
 
-    // Send non-member SMS
+    // Send non-member single SMS
     $('#btnSendNonMemberSms').click(function () {
         var btn = $(this);
         var message = $.trim($('#nm-sms-message').val());

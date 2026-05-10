@@ -94,6 +94,11 @@ class UsersController extends DashboardController
                         $q->where('id', $request->role);
                     });
                 }
+            })->addColumn('checkbox', function ($row) {
+                return '<input type="checkbox" class="dt-select-row" '
+                    . 'data-id="' . $row->id . '" '
+                    . 'data-phone="' . e($row->phone ?? '') . '" '
+                    . 'data-name="' . e(trim($row->firstname . ' ' . $row->lastname)) . '">';
             })->addColumn('id', function ($row) {
                 return $row->id;
             })->addColumn('name', function ($row) use ($request) {
@@ -183,7 +188,7 @@ class UsersController extends DashboardController
             })->addColumn('phone', function ($row) {
                 // Return raw phone for export, phone_display handles the view
                 return $row->phone ?? ($row->alternativePhones->first()->phone ?? 'No Phone');
-            })->addIndexColumn()->escapeColumns([])->make();
+            })->addIndexColumn()->escapeColumns([])->rawColumns(['checkbox','name','phone_display','status','role','action','phone'])->make();
     }
     public function addUser(Request $request)
     {
@@ -1198,6 +1203,117 @@ class UsersController extends DashboardController
     }
 
     /**
+     * Bulk SMS to multiple registered users by user_ids.
+     */
+    public function bulkSms(Request $request)
+    {
+        $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'integer|min:1',
+            'message'  => 'required|string|max:1600',
+        ]);
+
+        $integrationService = app(\App\Services\IntegrationService::class);
+        $tid  = config('app.tenant_id');
+        $sent = 0;
+        $noPhone = 0;
+
+        foreach ($request->user_ids as $userId) {
+            $user = User::find($userId);
+            if (!$user) continue;
+
+            $phone = $user->phone;
+            if (empty($phone)) {
+                // Try first alternative phone
+                $alt = $user->alternativePhones->first();
+                if ($alt) $phone = $alt->phone;
+            }
+            if (empty($phone)) { $noPhone++; continue; }
+
+            if (substr($phone, 0, 1) === '0') {
+                $phone = '254' . substr($phone, 1);
+            }
+
+            $integrationService->sendSms($phone, $request->message);
+
+            $mid = DB::table('sms')->insertGetId([
+                'tenant_id' => $tid,
+                'people_id' => 0,
+                'message'   => $request->message,
+                'category'  => 'bulk_outreach',
+                'sent'      => Carbon::now(),
+            ]);
+            DB::table('sms_recipients')->insert([
+                'tenant_id'  => $tid,
+                'recipients' => $user->id,
+                'sms_id'     => $mid,
+                'sent'       => Carbon::now(),
+            ]);
+            $sent++;
+        }
+
+        $creditsResponse = $integrationService->checkSmsCredits();
+        $credits = null;
+        if (is_array($creditsResponse)) {
+            $credits = $creditsResponse['balance'] ?? $creditsResponse['credit']
+                ?? $creditsResponse['credits'] ?? $creditsResponse['credits_remaining'] ?? null;
+        }
+
+        $msg = "SMS sent to {$sent} member(s).";
+        if ($noPhone) $msg .= " {$noPhone} skipped (no phone).";
+        return response()->json(['success' => $msg, 'credits' => $credits]);
+    }
+
+    /**
+     * Bulk SMS to multiple unregistered M-Pesa donors by phone numbers.
+     */
+    public function bulkNonMemberSms(Request $request)
+    {
+        $request->validate([
+            'phones'  => 'required|array|min:1',
+            'message' => 'required|string|max:1600',
+        ]);
+
+        $integrationService = app(\App\Services\IntegrationService::class);
+        $tid  = config('app.tenant_id');
+        $sent = 0;
+
+        foreach ($request->phones as $rawPhone) {
+            $phone = trim($rawPhone);
+            if (strlen($phone) === 10 && $phone[0] === '0') {
+                $phone = '254' . substr($phone, 1);
+            }
+            if (empty($phone)) continue;
+
+            $integrationService->sendSms($phone, $request->message);
+
+            $mid = DB::table('sms')->insertGetId([
+                'tenant_id' => $tid,
+                'people_id' => 0,
+                'message'   => $request->message,
+                'category'  => 'non_member_outreach',
+                'sent'      => Carbon::now(),
+            ]);
+            DB::table('sms_recipients')->insert([
+                'tenant_id'  => $tid,
+                'recipients' => 0,
+                'sms_id'     => $mid,
+                'sent'       => Carbon::now(),
+            ]);
+            $sent++;
+        }
+
+        $creditsResponse = $integrationService->checkSmsCredits();
+        $credits = null;
+        if (is_array($creditsResponse)) {
+            $credits = $creditsResponse['balance'] ?? $creditsResponse['credit']
+                ?? $creditsResponse['credits'] ?? $creditsResponse['credits_remaining'] ?? null;
+        }
+
+        return response()->json(['success' => "SMS sent to {$sent} donor(s).", 'credits' => $credits]);
+    }
+
+    /**
      * DataTable of M-Pesa donors who have no registered user account.
      */
     public function nonMembersDataTable(Request $request)
@@ -1244,6 +1360,11 @@ class UsersController extends DashboardController
         $records = $query->orderByDesc('last_seen')->get();
 
         return DataTables::of($records)
+            ->addColumn('checkbox', function ($row) {
+                return '<input type="checkbox" class="dt-nm-select-row" '
+                    . 'data-phone="' . e($row->phone) . '" '
+                    . 'data-name="' . e(ucwords(strtolower($row->name))) . '">';
+            })
             ->addColumn('name_fmt', function ($row) {
                 return '<span class="font-weight-bold">' . e(ucwords(strtolower($row->name))) . '</span>';
             })
@@ -1278,7 +1399,7 @@ class UsersController extends DashboardController
                         <i class="fas fa-paper-plane"></i> Invite
                     </button>';
             })
-            ->rawColumns(['name_fmt', 'phone_fmt', 'last_seen_fmt', 'tx_count_fmt', 'tx_total_fmt', 'action'])
+            ->rawColumns(['checkbox', 'name_fmt', 'phone_fmt', 'last_seen_fmt', 'tx_count_fmt', 'tx_total_fmt', 'action'])
             ->make(true);
     }
 
