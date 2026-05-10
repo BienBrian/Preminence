@@ -271,11 +271,11 @@ class MpesaAPIController extends Controller
             $smsResponse = $this->send($smsPhone, $message);
             $smsSentOk = false;
 
-            // Check if SMS API returned success
-            if (is_array($smsResponse)) {
-                $responseCode = $smsResponse['response-code'] ?? $smsResponse['response_code'] ?? $smsResponse['code'] ?? null;
-                $smsSentOk = ($responseCode === null || (int)$responseCode === 200 || (int)$responseCode === 0);
-            } elseif ($smsResponse !== null && $smsResponse !== false) {
+            // Check if SMS API returned success.
+            // Tenasms/AdvantaSMS wraps the status inside responses[0]; sendSms() already
+            // returns false on API-level rejections, so reaching here with a non-false
+            // value means the gateway accepted the message.
+            if ($smsResponse !== null && $smsResponse !== false) {
                 $smsSentOk = true;
             }
 

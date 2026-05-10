@@ -158,17 +158,29 @@ class IntegrationService
             return false;
         }
 
-        // Check for API-level errors (specific to Tenasms/AdvantaSMS format)
+        // Check for API-level errors
         if (is_array($decoded)) {
-            // Check for common error indicators
+            // Flat error key (generic providers)
             if (isset($decoded['error']) || isset($decoded['Error'])) {
-                Log::error('IntegrationService::sendSms — API error', [
-                    'response' => $decoded,
-                ]);
+                Log::error('IntegrationService::sendSms — API error', ['response' => $decoded]);
                 return false;
             }
-            
-            // Check for credit-related responses
+
+            // Tenasms/AdvantaSMS wraps status inside responses[0]
+            // e.g. {"responses":[{"response-code":200,"response-description":"Success",...}]}
+            if (isset($decoded['responses'][0])) {
+                $inner = $decoded['responses'][0];
+                $innerCode = (int)($inner['response-code'] ?? 200);
+                if ($innerCode !== 200 && $innerCode !== 0) {
+                    Log::error('IntegrationService::sendSms — API rejection', [
+                        'response-code' => $innerCode,
+                        'description'   => $inner['response-description'] ?? '',
+                        'phone'         => $phone,
+                    ]);
+                    return false;
+                }
+            }
+
             if (isset($decoded['credits_remaining'])) {
                 Log::info('IntegrationService::sendSms — Credits remaining', [
                     'credits' => $decoded['credits_remaining'],
