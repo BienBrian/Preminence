@@ -289,6 +289,10 @@ class ReportsController extends DashboardController
                     } elseif (isset($allUsers[$mp->phone])) {
                         // User found via users.phone (no contacts row)
                         $name = $allUsers[$mp->phone]->firstname . ' ' . $allUsers[$mp->phone]->lastname;
+                    } elseif (!empty($mp->name)) {
+                        // No registered account found — use the M-Pesa display name stored
+                        // in mpesa_phones (the FirstName sent by Safaricom on the callback).
+                        $name = '<span class="text-warning" title="M-Pesa name only — not a registered member">' . e($mp->name) . ' <i class="fas fa-exclamation-circle fa-xs"></i></span>';
                     }
                 }
 
